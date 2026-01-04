@@ -21,7 +21,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY src/ ./src/
 
 # Install package with all extras (non-editable for production)
