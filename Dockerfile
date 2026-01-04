@@ -7,7 +7,7 @@
 # =============================================================================
 # Stage 1: Builder
 # =============================================================================
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -24,14 +24,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY pyproject.toml ./
 COPY src/ ./src/
 
-# Install package with all extras
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e ".[full]"
+# Install package with all extras (non-editable for production)
+RUN pip install --no-cache-dir --upgrade pip hatchling && \
+    pip install --no-cache-dir ".[full]"
 
 # =============================================================================
 # Stage 2: Runtime
 # =============================================================================
-FROM python:3.11-slim as runtime
+FROM python:3.11-slim AS runtime
 
 LABEL maintainer="AETHER Team"
 LABEL version="0.1.0"
