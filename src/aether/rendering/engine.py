@@ -13,11 +13,12 @@ and actual audio files by:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import numpy as np
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from aether.providers import (
@@ -241,28 +242,51 @@ class RenderingEngine:
         self,
         midi_file: MIDIFile,
     ) -> Dict[str, AudioBuffer]:
-        """Render MIDI tracks to audio stems."""
+        """
+        Render MIDI tracks to audio stems.
+
+        Uses parallel rendering for improved performance - all stems are
+        rendered concurrently using asyncio.gather().
+        """
         if not self.audio_provider:
             raise RuntimeError("Audio provider not available")
 
-        stems = {}
-
-        # Render full MIDI
-        full_render = await self.audio_provider.render_midi(midi_file)
-
-        # Create stems from tracks
-        # For now, render each track separately
-        for track in midi_file.tracks:
+        # Prepare render tasks for parallel execution
+        async def render_track(track, name: str) -> Tuple[str, AudioBuffer]:
+            """Render a single track and return (name, audio) tuple."""
             track_midi = MIDIFile(
                 tracks=[track],
                 tempo_bpm=midi_file.tempo_bpm,
                 time_signature=midi_file.time_signature,
             )
-            track_audio = await self.audio_provider.render_midi(track_midi)
-            stems[track.name] = track_audio
+            audio = await self.audio_provider.render_midi(track_midi)
+            return (name, audio)
 
-        # Also store full render
-        stems["full"] = full_render
+        # Create parallel render tasks for each track
+        track_tasks: List[Coroutine[Any, Any, Tuple[str, AudioBuffer]]] = [
+            render_track(track, track.name)
+            for track in midi_file.tracks
+        ]
+
+        # Also render full MIDI in parallel
+        async def render_full() -> Tuple[str, AudioBuffer]:
+            audio = await self.audio_provider.render_midi(midi_file)
+            return ("full", audio)
+
+        track_tasks.append(render_full())
+
+        # Execute all renders in parallel
+        logger.info(f"Rendering {len(track_tasks)} stems in parallel...")
+        results = await asyncio.gather(*track_tasks, return_exceptions=True)
+
+        # Collect results
+        stems = {}
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Stem render failed: {result}")
+                continue
+            name, audio = result
+            stems[name] = audio
 
         return stems
 

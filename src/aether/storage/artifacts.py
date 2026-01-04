@@ -3,24 +3,68 @@ AETHER Artifact Store
 
 Production-grade artifact storage for tracking all pipeline outputs.
 Supports versioning, checksums, metadata, and efficient retrieval.
+
+Features:
+- Async-safe SQLite operations via thread pool
+- Content-addressable blob storage
+- Artifact versioning and lineage tracking
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import shutil
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Callable, Dict, Generator, List, Optional, TypeVar, Union
 from uuid import uuid4
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Type variable for async wrapper
+T = TypeVar('T')
+
+# Thread pool for async SQLite operations (SQLite is not async-safe)
+# Using max_workers=4 to allow concurrent reads while writes are serialized by SQLite
+_DB_EXECUTOR: Optional[ThreadPoolExecutor] = None
+_DB_EXECUTOR_MAX_WORKERS = 4
+
+
+def _get_db_executor() -> ThreadPoolExecutor:
+    """Get or create the database thread pool executor."""
+    global _DB_EXECUTOR
+    if _DB_EXECUTOR is None:
+        _DB_EXECUTOR = ThreadPoolExecutor(
+            max_workers=_DB_EXECUTOR_MAX_WORKERS,
+            thread_name_prefix='aether_db_'
+        )
+    return _DB_EXECUTOR
+
+
+def shutdown_db_executor() -> None:
+    """Shutdown the database thread pool (call on application exit)."""
+    global _DB_EXECUTOR
+    if _DB_EXECUTOR is not None:
+        _DB_EXECUTOR.shutdown(wait=True)
+        _DB_EXECUTOR = None
+
+
+async def _run_in_executor(func: Callable[..., T], *args, **kwargs) -> T:
+    """Run a blocking function in the thread pool executor."""
+    loop = asyncio.get_event_loop()
+    executor = _get_db_executor()
+    if kwargs:
+        func = partial(func, **kwargs)
+    return await loop.run_in_executor(executor, func, *args)
 
 
 class ArtifactType(str, Enum):
@@ -501,6 +545,80 @@ class ArtifactStore:
             "db_path": str(self.db_path),
             "blobs_path": str(self.blobs_path),
         }
+
+    # =========================================================================
+    # Async-safe methods (run blocking SQLite in thread pool)
+    # =========================================================================
+
+    async def store_async(
+        self,
+        data: Union[bytes, str, Dict[str, Any]],
+        artifact_type: ArtifactType,
+        name: str,
+        song_id: Optional[str] = None,
+        created_by: str = "aether",
+        tags: Optional[Dict[str, str]] = None,
+        parent_ids: Optional[List[str]] = None,
+        mime_type: Optional[str] = None,
+    ) -> ArtifactMetadata:
+        """
+        Async-safe version of store().
+
+        Runs the blocking SQLite operation in a thread pool to avoid
+        blocking the event loop.
+        """
+        return await _run_in_executor(
+            self.store,
+            data,
+            artifact_type,
+            name,
+            song_id,
+            created_by,
+            tags,
+            parent_ids,
+            mime_type,
+        )
+
+    async def get_async(self, artifact_id: str) -> Optional[bytes]:
+        """Async-safe version of get()."""
+        return await _run_in_executor(self.get, artifact_id)
+
+    async def get_json_async(self, artifact_id: str) -> Optional[Dict[str, Any]]:
+        """Async-safe version of get_json()."""
+        return await _run_in_executor(self.get_json, artifact_id)
+
+    async def get_metadata_async(self, artifact_id: str) -> Optional[ArtifactMetadata]:
+        """Async-safe version of get_metadata()."""
+        return await _run_in_executor(self.get_metadata, artifact_id)
+
+    async def list_by_song_async(
+        self,
+        song_id: str,
+        artifact_type: Optional[ArtifactType] = None,
+    ) -> List[ArtifactMetadata]:
+        """Async-safe version of list_by_song()."""
+        return await _run_in_executor(self.list_by_song, song_id, artifact_type)
+
+    async def get_latest_async(
+        self,
+        song_id: str,
+        artifact_type: ArtifactType,
+        name: str,
+    ) -> Optional[ArtifactMetadata]:
+        """Async-safe version of get_latest()."""
+        return await _run_in_executor(self.get_latest, song_id, artifact_type, name)
+
+    async def verify_integrity_async(self, artifact_id: str) -> bool:
+        """Async-safe version of verify_integrity()."""
+        return await _run_in_executor(self.verify_integrity, artifact_id)
+
+    async def delete_async(self, artifact_id: str, soft: bool = True) -> bool:
+        """Async-safe version of delete()."""
+        return await _run_in_executor(self.delete, artifact_id, soft)
+
+    async def get_stats_async(self) -> Dict[str, Any]:
+        """Async-safe version of get_stats()."""
+        return await _run_in_executor(self.get_stats)
 
 
 def create_artifact_store(base_path: Optional[Path] = None) -> ArtifactStore:

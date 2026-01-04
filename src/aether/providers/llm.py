@@ -46,8 +46,59 @@ from aether.providers.base import (
     ProviderStatus,
 )
 from aether.core.exceptions import MissingConfigError, ProviderInitializationError
+from aether.core.resilience import RetryPolicy, BackoffStrategy
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Centralized Retry Helper (uses core resilience patterns)
+# ============================================================================
+
+async def _execute_with_retry(
+    operation: Callable[[], Any],
+    policy: RetryPolicy,
+    operation_name: str = "operation",
+) -> Any:
+    """
+    Execute an async operation with retry logic using centralized policy.
+
+    Uses the RetryPolicy from core.resilience for consistent backoff
+    calculation across all providers.
+
+    Args:
+        operation: Async callable to execute
+        policy: RetryPolicy for backoff configuration
+        operation_name: Name for logging
+
+    Returns:
+        Result from operation
+
+    Raises:
+        RuntimeError: If all retry attempts exhausted
+    """
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, policy.max_attempts + 1):
+        try:
+            return await operation()
+        except Exception as e:
+            last_error = e
+
+            if attempt >= policy.max_attempts:
+                break
+
+            if not policy.should_retry(e):
+                raise
+
+            delay = policy.calculate_delay(attempt)
+            logger.warning(
+                f"{operation_name} attempt {attempt}/{policy.max_attempts} failed: {e}. "
+                f"Retrying in {delay:.1f}s"
+            )
+            await asyncio.sleep(delay)
+
+    raise RuntimeError(f"All {policy.max_attempts} retry attempts for {operation_name} failed: {last_error}")
 
 
 # ============================================================================
@@ -63,6 +114,16 @@ class RateLimitConfig:
     max_retries: int = 3
     base_delay: float = 1.0
     max_delay: float = 60.0
+
+    def to_retry_policy(self) -> RetryPolicy:
+        """Convert to core RetryPolicy for consistent retry behavior."""
+        return RetryPolicy(
+            max_attempts=self.max_retries,
+            base_delay=self.base_delay,
+            max_delay=self.max_delay,
+            backoff=BackoffStrategy.EXPONENTIAL,
+            jitter=True,
+        )
 
 
 class RateLimiter:
@@ -209,7 +270,7 @@ class ClaudeLLMProvider(LLMProvider):
         max_tokens: int = 4096,
         json_mode: bool = False,
     ) -> LLMResponse:
-        """Generate completion from messages."""
+        """Generate completion from messages using centralized retry logic."""
         if not self._client:
             raise RuntimeError("Provider not initialized")
 
@@ -227,52 +288,47 @@ class ClaudeLLMProvider(LLMProvider):
                     "content": msg.content,
                 })
 
-        # Retry with exponential backoff
-        last_error = None
-        for attempt in range(self.rate_limiter.config.max_retries):
-            try:
-                kwargs = {
-                    "model": self.model,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "messages": api_messages,
-                }
-                if system_message:
-                    kwargs["system"] = system_message
+        # Build API kwargs
+        kwargs = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": api_messages,
+        }
+        if system_message:
+            kwargs["system"] = system_message
 
-                response = await self._client.messages.create(**kwargs)
+        # Define the API call operation
+        async def _api_call() -> LLMResponse:
+            response = await self._client.messages.create(**kwargs)
 
-                # Track usage
-                usage = {
-                    "input_tokens": response.usage.input_tokens,
-                    "output_tokens": response.usage.output_tokens,
-                }
-                self._total_tokens += usage["input_tokens"] + usage["output_tokens"]
-                self.rate_limiter.record_usage(usage["input_tokens"] + usage["output_tokens"])
+            # Track usage
+            usage = {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+            }
+            self._total_tokens += usage["input_tokens"] + usage["output_tokens"]
+            self.rate_limiter.record_usage(usage["input_tokens"] + usage["output_tokens"])
 
-                content = response.content[0].text if response.content else ""
+            content = response.content[0].text if response.content else ""
 
-                # If JSON mode requested, try to extract JSON
-                if json_mode:
-                    content = self._extract_json(content)
+            # If JSON mode requested, try to extract JSON
+            if json_mode:
+                content = self._extract_json(content)
 
-                return LLMResponse(
-                    content=content,
-                    model=self.model,
-                    usage=usage,
-                    finish_reason=response.stop_reason or "stop",
-                )
+            return LLMResponse(
+                content=content,
+                model=self.model,
+                usage=usage,
+                finish_reason=response.stop_reason or "stop",
+            )
 
-            except Exception as e:
-                last_error = e
-                delay = min(
-                    self.rate_limiter.config.base_delay * (2 ** attempt),
-                    self.rate_limiter.config.max_delay,
-                )
-                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s")
-                await asyncio.sleep(delay)
-
-        raise RuntimeError(f"All retry attempts failed: {last_error}")
+        # Execute with centralized retry logic
+        return await _execute_with_retry(
+            operation=_api_call,
+            policy=self.rate_limiter.config.to_retry_policy(),
+            operation_name="Claude API call",
+        )
 
     async def generate_structured(
         self,

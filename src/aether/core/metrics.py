@@ -14,13 +14,26 @@ import functools
 import statistics
 import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, Deque, Dict, Generic, List, Optional, TypeVar, Union
 
 from aether.core.logging import get_logger
+
+# ============================================================================
+# System Constants
+# ============================================================================
+
+# Maximum number of observations to keep per histogram label set
+# Prevents unbounded memory growth in long-running processes
+MAX_HISTOGRAM_OBSERVATIONS = 10000
+
+# Default threshold percentages for system health checks
+MEMORY_CRITICAL_PERCENT = 90
+MEMORY_WARNING_PERCENT = 80
+DISK_CRITICAL_PERCENT = 95
 
 logger = get_logger(__name__)
 
@@ -174,6 +187,7 @@ class Histogram:
     Histogram metric for distributions.
 
     Tracks count, sum, and buckets of observations.
+    Uses bounded deques to prevent unbounded memory growth.
 
     Usage:
         latency = Histogram(
@@ -192,19 +206,28 @@ class Histogram:
         description: str = "",
         buckets: Optional[tuple] = None,
         labels: Optional[List[str]] = None,
+        max_observations: int = MAX_HISTOGRAM_OBSERVATIONS,
     ):
         self.name = name
         self.description = description
         self.buckets = buckets or self.DEFAULT_BUCKETS
         self.label_names = labels or []
+        self._max_observations = max_observations
 
         self._counts: Dict[tuple, int] = defaultdict(int)
         self._sums: Dict[tuple, float] = defaultdict(float)
         self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(
             lambda: defaultdict(int)
         )
-        self._observations: Dict[tuple, List[float]] = defaultdict(list)
+        # Use deque with maxlen to bound memory usage
+        self._observations: Dict[tuple, Deque[float]] = {}
         self._lock = threading.Lock()
+
+    def _get_observation_deque(self, key: tuple) -> Deque[float]:
+        """Get or create a bounded deque for observations."""
+        if key not in self._observations:
+            self._observations[key] = deque(maxlen=self._max_observations)
+        return self._observations[key]
 
     def observe(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
         """Record an observation."""
@@ -212,7 +235,9 @@ class Histogram:
         with self._lock:
             self._counts[key] += 1
             self._sums[key] += value
-            self._observations[key].append(value)
+            # Use bounded deque to prevent unbounded memory growth
+            observation_deque = self._get_observation_deque(key)
+            observation_deque.append(value)
 
             # Update bucket counts
             for bucket in self.buckets:
@@ -247,10 +272,10 @@ class Histogram:
     def get_percentile(
         self, percentile: float, labels: Optional[Dict[str, str]] = None
     ) -> Optional[float]:
-        """Calculate percentile from observations."""
+        """Calculate percentile from observations (uses recent observations only)."""
         key = self._labels_to_key(labels)
         with self._lock:
-            obs = self._observations[key]
+            obs = self._observations.get(key)
             if not obs:
                 return None
             sorted_obs = sorted(obs)
@@ -260,10 +285,10 @@ class Histogram:
     def get_stats(
         self, labels: Optional[Dict[str, str]] = None
     ) -> Dict[str, float]:
-        """Get statistical summary."""
+        """Get statistical summary (uses recent observations only)."""
         key = self._labels_to_key(labels)
         with self._lock:
-            obs = self._observations[key]
+            obs = self._observations.get(key)
             if not obs:
                 return {
                     "count": 0,
@@ -277,7 +302,9 @@ class Histogram:
                     "p99": 0,
                 }
 
-            sorted_obs = sorted(obs)
+            # Convert deque to list for statistics operations
+            obs_list = list(obs)
+            sorted_obs = sorted(obs_list)
             return {
                 "count": len(obs),
                 "sum": sum(obs),

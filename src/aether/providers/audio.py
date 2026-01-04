@@ -28,11 +28,14 @@ Example:
 from __future__ import annotations
 
 import logging
+import os
+import re
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 
@@ -46,6 +49,129 @@ from aether.providers.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Security: Safe Subprocess Execution
+# ============================================================================
+
+# Allowed executables whitelist
+_ALLOWED_EXECUTABLES = frozenset({"fluidsynth"})
+
+# Shell metacharacters that indicate injection attempts
+_SHELL_METACHAR_PATTERN = re.compile(r'[;&|`$<>\\"\'\n\r]')
+
+
+class SubprocessSecurityError(Exception):
+    """Raised when subprocess input validation fails."""
+    pass
+
+
+def _validate_subprocess_args(cmd: List[str]) -> None:
+    """
+    Validate subprocess arguments for security.
+
+    Raises:
+        SubprocessSecurityError: If validation fails.
+    """
+    if not cmd:
+        raise SubprocessSecurityError("Empty command")
+
+    # Validate executable is in whitelist
+    executable = Path(cmd[0]).name
+    if executable not in _ALLOWED_EXECUTABLES:
+        raise SubprocessSecurityError(
+            f"Executable '{executable}' not in whitelist: {_ALLOWED_EXECUTABLES}"
+        )
+
+    # Check all arguments for shell metacharacters
+    for i, arg in enumerate(cmd):
+        if _SHELL_METACHAR_PATTERN.search(arg):
+            raise SubprocessSecurityError(
+                f"Shell metacharacter detected in argument {i}: {repr(arg[:50])}"
+            )
+
+    # Validate file paths don't contain path traversal
+    for arg in cmd[1:]:
+        if arg.startswith('-'):
+            continue  # Skip flags
+        # Check for path traversal attempts
+        if '..' in arg or arg.startswith('/etc') or arg.startswith('/proc'):
+            # Allow absolute paths but verify they're safe
+            try:
+                resolved = Path(arg).resolve()
+                # Ensure path doesn't escape to sensitive directories
+                sensitive_dirs = {'/etc', '/proc', '/sys', '/dev'}
+                for sensitive in sensitive_dirs:
+                    if str(resolved).startswith(sensitive):
+                        raise SubprocessSecurityError(
+                            f"Path traversal to sensitive directory: {arg}"
+                        )
+            except (OSError, ValueError):
+                pass  # Path doesn't exist yet, that's OK
+
+
+def _safe_subprocess_run(
+    cmd: List[str],
+    timeout: int = 120,
+    **kwargs
+) -> subprocess.CompletedProcess:
+    """
+    Safely execute subprocess with input validation.
+
+    Args:
+        cmd: Command and arguments list
+        timeout: Maximum execution time in seconds
+        **kwargs: Additional subprocess.run arguments
+
+    Returns:
+        CompletedProcess result
+
+    Raises:
+        SubprocessSecurityError: If validation fails
+        subprocess.TimeoutExpired: If command times out
+        subprocess.SubprocessError: If command fails
+    """
+    _validate_subprocess_args(cmd)
+
+    # Ensure we never use shell=True
+    kwargs['shell'] = False
+
+    # Force capture output for security logging
+    if 'capture_output' not in kwargs:
+        kwargs['capture_output'] = True
+
+    logger.debug(f"Executing safe subprocess: {cmd[0]}")
+    return subprocess.run(cmd, timeout=timeout, **kwargs)
+
+
+# ============================================================================
+# Security: Safe Temporary File Handling
+# ============================================================================
+
+@contextmanager
+def _safe_temp_directory() -> Generator[Path, None, None]:
+    """
+    Create a temporary directory with guaranteed cleanup.
+
+    Ensures cleanup even if exceptions occur.
+    """
+    tmpdir = tempfile.mkdtemp(prefix='aether_audio_')
+    tmppath = Path(tmpdir)
+    try:
+        yield tmppath
+    finally:
+        # Secure cleanup: remove all files then directory
+        try:
+            for item in tmppath.rglob('*'):
+                if item.is_file():
+                    item.unlink()
+            for item in sorted(tmppath.rglob('*'), reverse=True):
+                if item.is_dir():
+                    item.rmdir()
+            tmppath.rmdir()
+        except OSError as e:
+            logger.warning(f"Temp directory cleanup failed: {e}")
 
 
 # ============================================================================
@@ -170,15 +296,14 @@ class SynthAudioProvider(AudioProvider):
 
     async def initialize(self) -> bool:
         """Initialize the provider."""
-        # Check for FluidSynth
+        # Check for FluidSynth using safe subprocess execution
         try:
-            result = subprocess.run(
+            result = _safe_subprocess_run(
                 ["fluidsynth", "--version"],
-                capture_output=True,
                 timeout=5,
             )
             self._fluidsynth_available = result.returncode == 0
-        except (subprocess.SubprocessError, FileNotFoundError):
+        except (subprocess.SubprocessError, FileNotFoundError, SubprocessSecurityError):
             self._fluidsynth_available = False
 
         if self._fluidsynth_available:
@@ -218,9 +343,9 @@ class SynthAudioProvider(AudioProvider):
         midi_data: MIDIFile,
         soundfont_path: Path,
     ) -> AudioBuffer:
-        """Render MIDI using FluidSynth CLI."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+        """Render MIDI using FluidSynth CLI with secure subprocess handling."""
+        # Use safe temp directory with guaranteed cleanup
+        with _safe_temp_directory() as tmpdir:
             midi_path = tmpdir / "input.mid"
             wav_path = tmpdir / "output.wav"
 
@@ -229,28 +354,33 @@ class SynthAudioProvider(AudioProvider):
             midi_provider = AlgorithmicMIDIProvider()
             await midi_provider.render_to_file(midi_data, midi_path)
 
-            # Render with FluidSynth
+            # Validate soundfont path is safe
+            sf_path_resolved = soundfont_path.resolve()
+            if not sf_path_resolved.exists():
+                logger.error(f"SoundFont not found: {soundfont_path}")
+                return await self._render_fallback(midi_data)
+
+            # Render with FluidSynth using safe subprocess
             cmd = [
                 "fluidsynth",
                 "-ni",
                 "-g", "0.5",  # Gain
                 "-r", str(self.sample_rate),
-                str(soundfont_path),
+                str(sf_path_resolved),
                 str(midi_path),
                 "-F", str(wav_path),
             ]
 
             try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    timeout=120,
-                )
+                result = _safe_subprocess_run(cmd, timeout=120)
                 if result.returncode != 0:
                     logger.error(f"FluidSynth error: {result.stderr.decode()}")
                     return await self._render_fallback(midi_data)
             except subprocess.TimeoutExpired:
                 logger.error("FluidSynth rendering timed out")
+                return await self._render_fallback(midi_data)
+            except SubprocessSecurityError as e:
+                logger.error(f"Security validation failed: {e}")
                 return await self._render_fallback(midi_data)
 
             # Load the rendered audio

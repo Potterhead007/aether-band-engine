@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import re
 import sys
 import time
 import uuid
@@ -21,7 +22,90 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, TypeVar, Union
+
+
+# ============================================================================
+# Security: Sensitive Data Redaction
+# ============================================================================
+
+# Fields that should be redacted in logs (case-insensitive matching)
+REDACTED_FIELD_NAMES: FrozenSet[str] = frozenset({
+    'api_key', 'apikey', 'api-key',
+    'password', 'passwd', 'pwd',
+    'secret', 'secret_key', 'secretkey',
+    'token', 'access_token', 'refresh_token', 'auth_token',
+    'authorization', 'auth',
+    'credential', 'credentials',
+    'private_key', 'privatekey',
+    'api_secret', 'client_secret',
+    'bearer', 'jwt',
+    'anthropic_api_key', 'openai_api_key',
+    'llm_api_key', 'embedding_api_key',
+})
+
+# Patterns that indicate sensitive values (for catching secrets in strings)
+_SENSITIVE_VALUE_PATTERNS = [
+    re.compile(r'sk-[a-zA-Z0-9]{20,}'),       # OpenAI API keys
+    re.compile(r'sk-ant-[a-zA-Z0-9]{20,}'),   # Anthropic API keys
+    re.compile(r'Bearer\s+[a-zA-Z0-9\-_.]+'),  # Bearer tokens
+    re.compile(r'[a-zA-Z0-9]{32,}'),          # Generic long API keys (only in values)
+]
+
+REDACTED_PLACEHOLDER = "***REDACTED***"
+
+
+def _is_sensitive_field(field_name: str) -> bool:
+    """Check if a field name indicates sensitive data."""
+    return field_name.lower() in REDACTED_FIELD_NAMES
+
+
+def _redact_sensitive_value(value: str) -> str:
+    """Redact sensitive patterns from a string value."""
+    result = value
+    for pattern in _SENSITIVE_VALUE_PATTERNS:
+        result = pattern.sub(REDACTED_PLACEHOLDER, result)
+    return result
+
+
+def _redact_dict(data: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
+    """
+    Recursively redact sensitive fields from a dictionary.
+
+    Args:
+        data: Dictionary to redact
+        depth: Current recursion depth (max 10 to prevent infinite loops)
+
+    Returns:
+        Dictionary with sensitive values redacted
+    """
+    if depth > 10:
+        return data
+
+    redacted = {}
+    for key, value in data.items():
+        if _is_sensitive_field(key):
+            redacted[key] = REDACTED_PLACEHOLDER
+        elif isinstance(value, dict):
+            redacted[key] = _redact_dict(value, depth + 1)
+        elif isinstance(value, list):
+            redacted[key] = [
+                _redact_dict(item, depth + 1) if isinstance(item, dict)
+                else (REDACTED_PLACEHOLDER if _is_sensitive_field(str(item)) else item)
+                for item in value
+            ]
+        elif isinstance(value, str):
+            # Check for sensitive patterns in string values
+            redacted[key] = _redact_sensitive_value(value)
+        else:
+            redacted[key] = value
+
+    return redacted
+
+
+# ============================================================================
+# Context variables for distributed tracing
+# ============================================================================
 
 # Context variables for distributed tracing
 _trace_id: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
@@ -100,6 +184,7 @@ class StructuredFormatter(logging.Formatter):
     JSON formatter for structured logging.
 
     Outputs logs as JSON lines for easy parsing by log aggregators.
+    Automatically redacts sensitive fields for security.
     """
 
     def __init__(
@@ -108,18 +193,25 @@ class StructuredFormatter(logging.Formatter):
         include_context: bool = True,
         include_location: bool = True,
         indent: Optional[int] = None,
+        redact_sensitive: bool = True,
     ):
         super().__init__()
         self.include_timestamp = include_timestamp
         self.include_context = include_context
         self.include_location = include_location
         self.indent = indent
+        self.redact_sensitive = redact_sensitive
 
     def format(self, record: logging.LogRecord) -> str:
+        # Get message and apply redaction to message content
+        message = record.getMessage()
+        if self.redact_sensitive:
+            message = _redact_sensitive_value(message)
+
         log_entry: Dict[str, Any] = {
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": message,
         }
 
         if self.include_timestamp:
@@ -139,9 +231,12 @@ class StructuredFormatter(logging.Formatter):
 
         # Include exception info
         if record.exc_info:
-            log_entry["exception"] = self.formatException(record.exc_info)
+            exc_text = self.formatException(record.exc_info)
+            if self.redact_sensitive:
+                exc_text = _redact_sensitive_value(exc_text)
+            log_entry["exception"] = exc_text
 
-        # Include extra fields from record
+        # Include extra fields from record (with redaction)
         extra_fields = {}
         for key, value in record.__dict__.items():
             if key not in (
@@ -151,11 +246,25 @@ class StructuredFormatter(logging.Formatter):
                 "stack_info", "exc_info", "exc_text", "thread", "threadName",
                 "message", "taskName",
             ):
+                # Check if field name is sensitive
+                if self.redact_sensitive and _is_sensitive_field(key):
+                    extra_fields[key] = REDACTED_PLACEHOLDER
+                    continue
+
                 try:
                     json.dumps(value)  # Check if serializable
-                    extra_fields[key] = value
+                    # Redact nested dicts
+                    if self.redact_sensitive and isinstance(value, dict):
+                        extra_fields[key] = _redact_dict(value)
+                    elif self.redact_sensitive and isinstance(value, str):
+                        extra_fields[key] = _redact_sensitive_value(value)
+                    else:
+                        extra_fields[key] = value
                 except (TypeError, ValueError):
-                    extra_fields[key] = str(value)
+                    val_str = str(value)
+                    if self.redact_sensitive:
+                        val_str = _redact_sensitive_value(val_str)
+                    extra_fields[key] = val_str
 
         if extra_fields:
             log_entry["extra"] = extra_fields

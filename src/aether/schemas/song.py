@@ -76,8 +76,8 @@ class SongSpec(IdentifiableModel):
     album_id: Optional[UUID] = Field(default=None)
     track_number: Optional[int] = Field(default=None, ge=1)
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "title": "Midnight Protocol",
                 "artist_name": "Neon Circuit",
@@ -97,3 +97,4 @@ class SongSpec(IdentifiableModel):
                 "is_instrumental": False,
             }
         }
+    }
