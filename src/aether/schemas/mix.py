@@ -17,9 +17,7 @@ from aether.schemas.base import (
 class EQBand(AetherBaseModel):
     """A single EQ band."""
 
-    band_type: str = Field(
-        description="lowshelf, highshelf, peak, lowpass, highpass, notch"
-    )
+    band_type: str = Field(description="lowshelf, highshelf, peak, lowpass, highpass, notch")
     frequency_hz: int = Field(ge=20, le=20000)
     gain_db: float = Field(ge=-24.0, le=24.0, default=0.0)
     q: float = Field(ge=0.1, le=10.0, default=1.0)

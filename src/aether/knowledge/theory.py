@@ -19,17 +19,43 @@ import math
 
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 ENHARMONIC_MAP = {
-    "Db": "C#", "Eb": "D#", "Fb": "E", "Gb": "F#", "Ab": "G#", "Bb": "A#",
-    "B#": "C", "E#": "F", "Cb": "B",
+    "Db": "C#",
+    "Eb": "D#",
+    "Fb": "E",
+    "Gb": "F#",
+    "Ab": "G#",
+    "Bb": "A#",
+    "B#": "C",
+    "E#": "F",
+    "Cb": "B",
 }
 
 # Intervals in semitones
 INTERVALS = {
-    "P1": 0, "m2": 1, "M2": 2, "m3": 3, "M3": 4, "P4": 5,
-    "TT": 6, "d5": 6, "A4": 6, "P5": 7, "m6": 8, "M6": 9,
-    "m7": 10, "M7": 11, "P8": 12, "m9": 13, "M9": 14,
-    "m10": 15, "M10": 16, "P11": 17, "A11": 18, "P12": 19,
-    "m13": 20, "M13": 21,
+    "P1": 0,
+    "m2": 1,
+    "M2": 2,
+    "m3": 3,
+    "M3": 4,
+    "P4": 5,
+    "TT": 6,
+    "d5": 6,
+    "A4": 6,
+    "P5": 7,
+    "m6": 8,
+    "M6": 9,
+    "m7": 10,
+    "M7": 11,
+    "P8": 12,
+    "m9": 13,
+    "M9": 14,
+    "m10": 15,
+    "M10": 16,
+    "P11": 17,
+    "A11": 18,
+    "P12": 19,
+    "m13": 20,
+    "M13": 21,
 }
 
 # Scale patterns (intervals from root)
@@ -191,7 +217,9 @@ def get_diatonic_chord(root: str, scale_type: str, degree: int) -> Tuple[str, st
     return chord_root, qualities[(degree - 1) % 7]
 
 
-def get_diatonic_progression(root: str, scale_type: str, degrees: List[int]) -> List[Tuple[str, str]]:
+def get_diatonic_progression(
+    root: str, scale_type: str, degrees: List[int]
+) -> List[Tuple[str, str]]:
     """Get chords for a progression given in scale degrees."""
     return [get_diatonic_chord(root, scale_type, d) for d in degrees]
 
@@ -211,7 +239,7 @@ def roman_to_degree(roman: str) -> Tuple[int, str]:
     for suffix in ["maj7", "min7", "dim7", "7", "6", "9", "11", "13", "m7b5"]:
         if roman.endswith(suffix):
             quality_suffix = suffix
-            base_roman = roman[:-len(suffix)]
+            base_roman = roman[: -len(suffix)]
             break
 
     # Handle augmented/diminished
@@ -224,8 +252,20 @@ def roman_to_degree(roman: str) -> Tuple[int, str]:
 
     # Parse degree
     roman_map = {
-        "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
-        "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7,
+        "i": 1,
+        "ii": 2,
+        "iii": 3,
+        "iv": 4,
+        "v": 5,
+        "vi": 6,
+        "vii": 7,
+        "I": 1,
+        "II": 2,
+        "III": 3,
+        "IV": 4,
+        "V": 5,
+        "VI": 6,
+        "VII": 7,
     }
 
     degree = roman_map.get(base_roman.lower().replace("b", "").replace("#", ""))
@@ -276,6 +316,7 @@ def parse_progression(root: str, scale_type: str, roman_numerals: str) -> List[T
 @dataclass
 class VoiceLeadingViolation:
     """A voice leading violation."""
+
     type: str
     description: str
     voice1: Optional[int] = None
@@ -311,46 +352,54 @@ def check_voice_leading(
                 motion1 = c2[i] - c1[i]
                 motion2 = c2[j] - c1[j]
                 if motion1 != 0 and motion1 == motion2:  # Parallel motion
-                    violations.append(VoiceLeadingViolation(
-                        type="parallel_fifths",
-                        description=f"Parallel fifths between voices {i} and {j}",
-                        voice1=i,
-                        voice2=j,
-                    ))
+                    violations.append(
+                        VoiceLeadingViolation(
+                            type="parallel_fifths",
+                            description=f"Parallel fifths between voices {i} and {j}",
+                            voice1=i,
+                            voice2=j,
+                        )
+                    )
 
             # Check for parallel octaves
             if interval1 == 0 and interval2 == 0:
                 motion1 = c2[i] - c1[i]
                 motion2 = c2[j] - c1[j]
                 if motion1 != 0 and motion1 == motion2:
-                    violations.append(VoiceLeadingViolation(
-                        type="parallel_octaves",
-                        description=f"Parallel octaves between voices {i} and {j}",
-                        voice1=i,
-                        voice2=j,
-                    ))
+                    violations.append(
+                        VoiceLeadingViolation(
+                            type="parallel_octaves",
+                            description=f"Parallel octaves between voices {i} and {j}",
+                            voice1=i,
+                            voice2=j,
+                        )
+                    )
 
     # Check for voice crossing
     for i in range(min_voices - 1):
         if c2[i] > c2[i + 1]:
-            violations.append(VoiceLeadingViolation(
-                type="voice_crossing",
-                description=f"Voice {i} crosses above voice {i + 1}",
-                voice1=i,
-                voice2=i + 1,
-                severity=0.5,
-            ))
+            violations.append(
+                VoiceLeadingViolation(
+                    type="voice_crossing",
+                    description=f"Voice {i} crosses above voice {i + 1}",
+                    voice1=i,
+                    voice2=i + 1,
+                    severity=0.5,
+                )
+            )
 
     # Check for large leaps (> octave)
     for i in range(min_voices):
         leap = abs(c2[i] - c1[i])
         if leap > 12:
-            violations.append(VoiceLeadingViolation(
-                type="large_leap",
-                description=f"Voice {i} leaps more than an octave ({leap} semitones)",
-                voice1=i,
-                severity=0.7,
-            ))
+            violations.append(
+                VoiceLeadingViolation(
+                    type="large_leap",
+                    description=f"Voice {i} leaps more than an octave ({leap} semitones)",
+                    voice1=i,
+                    severity=0.7,
+                )
+            )
 
     return violations
 
@@ -438,7 +487,9 @@ def calculate_singability(midi_notes: List[int]) -> float:
     range_info = analyze_melody_range(midi_notes)
     range_penalty = max(0, (range_info["range"] - 12) / 24)
 
-    score = (stepwise_ratio * 0.5) + ((1 - large_interval_penalty) * 0.3) + ((1 - range_penalty) * 0.2)
+    score = (
+        (stepwise_ratio * 0.5) + ((1 - large_interval_penalty) * 0.3) + ((1 - range_penalty) * 0.2)
+    )
     return max(0, min(1, score))
 
 

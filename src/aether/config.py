@@ -46,8 +46,15 @@ class PathsConfig(BaseSettings):
 
     def ensure_directories(self) -> None:
         """Create all required directories."""
-        for attr in ["genres_dir", "instruments_dir", "samples_dir",
-                     "soundfonts_dir", "output_dir", "projects_dir", "cache_dir"]:
+        for attr in [
+            "genres_dir",
+            "instruments_dir",
+            "samples_dir",
+            "soundfonts_dir",
+            "output_dir",
+            "projects_dir",
+            "cache_dir",
+        ]:
             path = self.get_absolute(getattr(self, attr))
             path.mkdir(parents=True, exist_ok=True)
 

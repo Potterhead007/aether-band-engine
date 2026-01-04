@@ -31,7 +31,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Type variable for async wrapper
-T = TypeVar('T')
+T = TypeVar("T")
 
 # Thread pool for async SQLite operations (SQLite is not async-safe)
 # Using max_workers=4 to allow concurrent reads while writes are serialized by SQLite
@@ -44,8 +44,7 @@ def _get_db_executor() -> ThreadPoolExecutor:
     global _DB_EXECUTOR
     if _DB_EXECUTOR is None:
         _DB_EXECUTOR = ThreadPoolExecutor(
-            max_workers=_DB_EXECUTOR_MAX_WORKERS,
-            thread_name_prefix='aether_db_'
+            max_workers=_DB_EXECUTOR_MAX_WORKERS, thread_name_prefix="aether_db_"
         )
     return _DB_EXECUTOR
 
@@ -69,6 +68,7 @@ async def _run_in_executor(func: Callable[..., T], *args, **kwargs) -> T:
 
 class ArtifactType(str, Enum):
     """Types of artifacts in the pipeline."""
+
     # Specs
     SONG_SPEC = "song_spec"
     HARMONY_SPEC = "harmony_spec"
@@ -98,6 +98,7 @@ class ArtifactType(str, Enum):
 @dataclass
 class ArtifactMetadata:
     """Metadata for an artifact."""
+
     artifact_id: str
     artifact_type: ArtifactType
     song_id: Optional[str]
@@ -159,7 +160,8 @@ class ArtifactStore:
     def _init_database(self) -> None:
         """Initialize SQLite database for metadata."""
         with self._get_connection() as conn:
-            conn.executescript("""
+            conn.executescript(
+                """
                 CREATE TABLE IF NOT EXISTS schema_version (
                     version INTEGER PRIMARY KEY
                 );
@@ -204,7 +206,8 @@ class ArtifactStore:
                     ON artifacts(checksum);
                 CREATE INDEX IF NOT EXISTS idx_artifacts_created
                     ON artifacts(created_at);
-            """)
+            """
+            )
 
     @contextmanager
     def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
@@ -299,31 +302,48 @@ class ArtifactStore:
 
         # Store metadata
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO artifacts (
                     artifact_id, artifact_type, song_id, name, version,
                     checksum, size_bytes, mime_type, created_at, created_by,
                     blob_path
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                artifact_id, artifact_type.value, song_id, name, version,
-                checksum, len(data_bytes), mime_type, created_at.isoformat(),
-                created_by, str(blob_path.relative_to(self.base_path)),
-            ))
+            """,
+                (
+                    artifact_id,
+                    artifact_type.value,
+                    song_id,
+                    name,
+                    version,
+                    checksum,
+                    len(data_bytes),
+                    mime_type,
+                    created_at.isoformat(),
+                    created_by,
+                    str(blob_path.relative_to(self.base_path)),
+                ),
+            )
 
             # Store tags
             for key, value in tags.items():
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO artifact_tags (artifact_id, key, value)
                     VALUES (?, ?, ?)
-                """, (artifact_id, key, value))
+                """,
+                    (artifact_id, key, value),
+                )
 
             # Store parent relationships
             for parent_id in parent_ids:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO artifact_parents (artifact_id, parent_id)
                     VALUES (?, ?)
-                """, (artifact_id, parent_id))
+                """,
+                    (artifact_id, parent_id),
+                )
 
         metadata = ArtifactMetadata(
             artifact_id=artifact_id,
@@ -352,17 +372,23 @@ class ArtifactStore:
         """Get next version number for an artifact."""
         with self._get_connection() as conn:
             if song_id:
-                row = conn.execute("""
+                row = conn.execute(
+                    """
                     SELECT MAX(version) as max_version FROM artifacts
                     WHERE song_id = ? AND artifact_type = ? AND name = ?
                     AND is_deleted = 0
-                """, (song_id, artifact_type.value, name)).fetchone()
+                """,
+                    (song_id, artifact_type.value, name),
+                ).fetchone()
             else:
-                row = conn.execute("""
+                row = conn.execute(
+                    """
                     SELECT MAX(version) as max_version FROM artifacts
                     WHERE song_id IS NULL AND artifact_type = ? AND name = ?
                     AND is_deleted = 0
-                """, (artifact_type.value, name)).fetchone()
+                """,
+                    (artifact_type.value, name),
+                ).fetchone()
 
             max_version = row["max_version"] if row["max_version"] else 0
             return max_version + 1
@@ -370,10 +396,13 @@ class ArtifactStore:
     def get(self, artifact_id: str) -> Optional[bytes]:
         """Get artifact data by ID."""
         with self._get_connection() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT blob_path FROM artifacts
                 WHERE artifact_id = ? AND is_deleted = 0
-            """, (artifact_id,)).fetchone()
+            """,
+                (artifact_id,),
+            ).fetchone()
 
             if not row:
                 return None
@@ -395,25 +424,35 @@ class ArtifactStore:
     def get_metadata(self, artifact_id: str) -> Optional[ArtifactMetadata]:
         """Get artifact metadata by ID."""
         with self._get_connection() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT * FROM artifacts WHERE artifact_id = ? AND is_deleted = 0
-            """, (artifact_id,)).fetchone()
+            """,
+                (artifact_id,),
+            ).fetchone()
 
             if not row:
                 return None
 
             # Get tags
             tags = {}
-            for tag_row in conn.execute("""
+            for tag_row in conn.execute(
+                """
                 SELECT key, value FROM artifact_tags WHERE artifact_id = ?
-            """, (artifact_id,)):
+            """,
+                (artifact_id,),
+            ):
                 tags[tag_row["key"]] = tag_row["value"]
 
             # Get parents
             parents = [
-                r["parent_id"] for r in conn.execute("""
+                r["parent_id"]
+                for r in conn.execute(
+                    """
                     SELECT parent_id FROM artifact_parents WHERE artifact_id = ?
-                """, (artifact_id,))
+                """,
+                    (artifact_id,),
+                )
             ]
 
             return ArtifactMetadata(
@@ -439,17 +478,23 @@ class ArtifactStore:
         """List all artifacts for a song."""
         with self._get_connection() as conn:
             if artifact_type:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT artifact_id FROM artifacts
                     WHERE song_id = ? AND artifact_type = ? AND is_deleted = 0
                     ORDER BY created_at DESC
-                """, (song_id, artifact_type.value)).fetchall()
+                """,
+                    (song_id, artifact_type.value),
+                ).fetchall()
             else:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT artifact_id FROM artifacts
                     WHERE song_id = ? AND is_deleted = 0
                     ORDER BY created_at DESC
-                """, (song_id,)).fetchall()
+                """,
+                    (song_id,),
+                ).fetchall()
 
         return [self.get_metadata(row["artifact_id"]) for row in rows]
 
@@ -461,12 +506,15 @@ class ArtifactStore:
     ) -> Optional[ArtifactMetadata]:
         """Get the latest version of an artifact."""
         with self._get_connection() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT artifact_id FROM artifacts
                 WHERE song_id = ? AND artifact_type = ? AND name = ?
                 AND is_deleted = 0
                 ORDER BY version DESC LIMIT 1
-            """, (song_id, artifact_type.value, name)).fetchone()
+            """,
+                (song_id, artifact_type.value, name),
+            ).fetchone()
 
             if not row:
                 return None
@@ -490,22 +538,31 @@ class ArtifactStore:
         """Delete an artifact (soft delete by default)."""
         with self._get_connection() as conn:
             if soft:
-                result = conn.execute("""
+                result = conn.execute(
+                    """
                     UPDATE artifacts SET is_deleted = 1
                     WHERE artifact_id = ? AND is_deleted = 0
-                """, (artifact_id,))
+                """,
+                    (artifact_id,),
+                )
             else:
                 # Hard delete - remove blob and metadata
-                row = conn.execute("""
+                row = conn.execute(
+                    """
                     SELECT blob_path, checksum FROM artifacts WHERE artifact_id = ?
-                """, (artifact_id,)).fetchone()
+                """,
+                    (artifact_id,),
+                ).fetchone()
 
                 if row:
                     # Check if blob is used by other artifacts
-                    other = conn.execute("""
+                    other = conn.execute(
+                        """
                         SELECT COUNT(*) as count FROM artifacts
                         WHERE checksum = ? AND artifact_id != ? AND is_deleted = 0
-                    """, (row["checksum"], artifact_id)).fetchone()
+                    """,
+                        (row["checksum"], artifact_id),
+                    ).fetchone()
 
                     if other["count"] == 0:
                         # Safe to delete blob
@@ -514,25 +571,33 @@ class ArtifactStore:
                             blob_path.unlink()
 
                     conn.execute("DELETE FROM artifact_tags WHERE artifact_id = ?", (artifact_id,))
-                    conn.execute("DELETE FROM artifact_parents WHERE artifact_id = ?", (artifact_id,))
-                    result = conn.execute("DELETE FROM artifacts WHERE artifact_id = ?", (artifact_id,))
+                    conn.execute(
+                        "DELETE FROM artifact_parents WHERE artifact_id = ?", (artifact_id,)
+                    )
+                    result = conn.execute(
+                        "DELETE FROM artifacts WHERE artifact_id = ?", (artifact_id,)
+                    )
 
             return result.rowcount > 0
 
     def get_stats(self) -> Dict[str, Any]:
         """Get storage statistics."""
         with self._get_connection() as conn:
-            total = conn.execute("""
+            total = conn.execute(
+                """
                 SELECT COUNT(*) as count, SUM(size_bytes) as total_size
                 FROM artifacts WHERE is_deleted = 0
-            """).fetchone()
+            """
+            ).fetchone()
 
             by_type = {}
-            for row in conn.execute("""
+            for row in conn.execute(
+                """
                 SELECT artifact_type, COUNT(*) as count, SUM(size_bytes) as total_size
                 FROM artifacts WHERE is_deleted = 0
                 GROUP BY artifact_type
-            """):
+            """
+            ):
                 by_type[row["artifact_type"]] = {
                     "count": row["count"],
                     "size_bytes": row["total_size"] or 0,

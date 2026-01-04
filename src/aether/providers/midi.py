@@ -111,7 +111,15 @@ def note_name_to_midi(note: str, octave: int = 4) -> int:
     note = note.upper().replace("♯", "#").replace("♭", "b")
 
     # Handle flats by converting to sharps
-    flat_to_sharp = {"DB": "C#", "EB": "D#", "FB": "E", "GB": "F#", "AB": "G#", "BB": "A#", "CB": "B"}
+    flat_to_sharp = {
+        "DB": "C#",
+        "EB": "D#",
+        "FB": "E",
+        "GB": "F#",
+        "AB": "G#",
+        "BB": "A#",
+        "CB": "B",
+    }
     if len(note) == 2 and note[1] == "B" and note in flat_to_sharp:
         note = flat_to_sharp[note]
 
@@ -393,13 +401,15 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             duration = beats_per_bar * bars_per_chord if bar % bars_per_chord == 0 else 0
             if duration > 0:
                 for pitch in chord_notes:
-                    notes.append(MIDINote(
-                        pitch=pitch,
-                        velocity=self._rng.randint(70, 90),
-                        start_time=current_beat,
-                        duration=duration - 0.5,
-                        channel=0,
-                    ))
+                    notes.append(
+                        MIDINote(
+                            pitch=pitch,
+                            velocity=self._rng.randint(70, 90),
+                            start_time=current_beat,
+                            duration=duration - 0.5,
+                            channel=0,
+                        )
+                    )
 
             current_beat += beats_per_bar
 
@@ -433,41 +443,49 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
             if style == "root_fifth":
                 # Root on beat 1, fifth on beat 3
-                notes.append(MIDINote(
-                    pitch=bass_root,
-                    velocity=self._rng.randint(80, 100),
-                    start_time=current_beat,
-                    duration=1.5,
-                    channel=1,
-                ))
-                if beats_per_bar >= 4:
-                    notes.append(MIDINote(
-                        pitch=bass_root + 7,  # Fifth
-                        velocity=self._rng.randint(70, 90),
-                        start_time=current_beat + 2,
+                notes.append(
+                    MIDINote(
+                        pitch=bass_root,
+                        velocity=self._rng.randint(80, 100),
+                        start_time=current_beat,
                         duration=1.5,
                         channel=1,
-                    ))
+                    )
+                )
+                if beats_per_bar >= 4:
+                    notes.append(
+                        MIDINote(
+                            pitch=bass_root + 7,  # Fifth
+                            velocity=self._rng.randint(70, 90),
+                            start_time=current_beat + 2,
+                            duration=1.5,
+                            channel=1,
+                        )
+                    )
             elif style == "walking":
                 # Walking bass line
                 scale = get_scale_notes(bass_root, "major" if quality == "major" else "minor", 1)
                 for beat in range(beats_per_bar):
                     pitch = self._rng.choice(scale)
-                    notes.append(MIDINote(
-                        pitch=pitch,
-                        velocity=self._rng.randint(75, 95),
-                        start_time=current_beat + beat,
-                        duration=0.9,
-                        channel=1,
-                    ))
+                    notes.append(
+                        MIDINote(
+                            pitch=pitch,
+                            velocity=self._rng.randint(75, 95),
+                            start_time=current_beat + beat,
+                            duration=0.9,
+                            channel=1,
+                        )
+                    )
             else:  # Simple root
-                notes.append(MIDINote(
-                    pitch=bass_root,
-                    velocity=self._rng.randint(85, 100),
-                    start_time=current_beat,
-                    duration=beats_per_bar - 0.5,
-                    channel=1,
-                ))
+                notes.append(
+                    MIDINote(
+                        pitch=bass_root,
+                        velocity=self._rng.randint(85, 100),
+                        start_time=current_beat,
+                        duration=beats_per_bar - 0.5,
+                        channel=1,
+                    )
+                )
 
             current_beat += beats_per_bar
 
@@ -513,6 +531,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                     target_height = 1 - progress
                 elif contour == "wave":
                     import math
+
                     target_height = 0.5 + 0.5 * math.sin(progress * math.pi * 4)
                 else:
                     target_height = 0.5
@@ -529,13 +548,15 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                 durations = [0.5, 1.0, 1.5, 2.0]
                 duration = self._rng.choice(durations)
 
-                notes.append(MIDINote(
-                    pitch=scale[current_pitch_idx],
-                    velocity=self._rng.randint(70, 100),
-                    start_time=current_beat,
-                    duration=duration * 0.9,
-                    channel=2,
-                ))
+                notes.append(
+                    MIDINote(
+                        pitch=scale[current_pitch_idx],
+                        velocity=self._rng.randint(70, 100),
+                        start_time=current_beat,
+                        duration=duration * 0.9,
+                        channel=2,
+                    )
+                )
 
                 current_beat += duration
             else:
@@ -564,12 +585,44 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             if style == "standard":
                 # Standard rock/pop pattern
                 # Kick on 1 and 3
-                notes.append(MIDINote(pitch=GM_DRUMS["kick"], velocity=100, start_time=current_beat, duration=0.5, channel=9))
-                notes.append(MIDINote(pitch=GM_DRUMS["kick"], velocity=90, start_time=current_beat + 2, duration=0.5, channel=9))
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["kick"],
+                        velocity=100,
+                        start_time=current_beat,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["kick"],
+                        velocity=90,
+                        start_time=current_beat + 2,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
 
                 # Snare on 2 and 4
-                notes.append(MIDINote(pitch=GM_DRUMS["snare"], velocity=100, start_time=current_beat + 1, duration=0.5, channel=9))
-                notes.append(MIDINote(pitch=GM_DRUMS["snare"], velocity=95, start_time=current_beat + 3, duration=0.5, channel=9))
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["snare"],
+                        velocity=100,
+                        start_time=current_beat + 1,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["snare"],
+                        velocity=95,
+                        start_time=current_beat + 3,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
 
                 # Hi-hat on every 8th
                 for eighth in range(8):
@@ -578,38 +631,110 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                     if eighth % 2 == 1 and swing > 0:
                         beat += swing * 0.5
                     velocity = 80 if eighth % 2 == 0 else 60
-                    notes.append(MIDINote(pitch=GM_DRUMS["hihat_closed"], velocity=velocity, start_time=beat, duration=0.25, channel=9))
+                    notes.append(
+                        MIDINote(
+                            pitch=GM_DRUMS["hihat_closed"],
+                            velocity=velocity,
+                            start_time=beat,
+                            duration=0.25,
+                            channel=9,
+                        )
+                    )
 
             elif style == "boom_bap":
                 # Hip-hop boom bap pattern
                 # Kick pattern
                 kick_pattern = [0, 0.75, 2.5]
                 for k in kick_pattern:
-                    notes.append(MIDINote(pitch=GM_DRUMS["kick"], velocity=100, start_time=current_beat + k, duration=0.5, channel=9))
+                    notes.append(
+                        MIDINote(
+                            pitch=GM_DRUMS["kick"],
+                            velocity=100,
+                            start_time=current_beat + k,
+                            duration=0.5,
+                            channel=9,
+                        )
+                    )
 
                 # Snare on 2 and 4
-                notes.append(MIDINote(pitch=GM_DRUMS["snare"], velocity=100, start_time=current_beat + 1, duration=0.5, channel=9))
-                notes.append(MIDINote(pitch=GM_DRUMS["snare"], velocity=95, start_time=current_beat + 3, duration=0.5, channel=9))
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["snare"],
+                        velocity=100,
+                        start_time=current_beat + 1,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["snare"],
+                        velocity=95,
+                        start_time=current_beat + 3,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
 
                 # Hi-hat pattern (with swing)
                 for eighth in range(8):
                     beat = current_beat + (eighth * 0.5)
                     if eighth % 2 == 1:
                         beat += swing * 0.5
-                    notes.append(MIDINote(pitch=GM_DRUMS["hihat_closed"], velocity=self._rng.randint(60, 80), start_time=beat, duration=0.25, channel=9))
+                    notes.append(
+                        MIDINote(
+                            pitch=GM_DRUMS["hihat_closed"],
+                            velocity=self._rng.randint(60, 80),
+                            start_time=beat,
+                            duration=0.25,
+                            channel=9,
+                        )
+                    )
 
             elif style == "four_on_floor":
                 # Electronic/dance pattern
                 for beat_offset in range(4):
-                    notes.append(MIDINote(pitch=GM_DRUMS["kick"], velocity=100, start_time=current_beat + beat_offset, duration=0.5, channel=9))
+                    notes.append(
+                        MIDINote(
+                            pitch=GM_DRUMS["kick"],
+                            velocity=100,
+                            start_time=current_beat + beat_offset,
+                            duration=0.5,
+                            channel=9,
+                        )
+                    )
 
                 # Snare/clap on 2 and 4
-                notes.append(MIDINote(pitch=GM_DRUMS["clap"], velocity=95, start_time=current_beat + 1, duration=0.5, channel=9))
-                notes.append(MIDINote(pitch=GM_DRUMS["clap"], velocity=95, start_time=current_beat + 3, duration=0.5, channel=9))
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["clap"],
+                        velocity=95,
+                        start_time=current_beat + 1,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
+                notes.append(
+                    MIDINote(
+                        pitch=GM_DRUMS["clap"],
+                        velocity=95,
+                        start_time=current_beat + 3,
+                        duration=0.5,
+                        channel=9,
+                    )
+                )
 
                 # Open hi-hat on off-beats
                 for beat_offset in range(4):
-                    notes.append(MIDINote(pitch=GM_DRUMS["hihat_open"], velocity=70, start_time=current_beat + beat_offset + 0.5, duration=0.25, channel=9))
+                    notes.append(
+                        MIDINote(
+                            pitch=GM_DRUMS["hihat_open"],
+                            velocity=70,
+                            start_time=current_beat + beat_offset + 0.5,
+                            duration=0.25,
+                            channel=9,
+                        )
+                    )
 
             current_beat += beats_per_bar
 
@@ -630,13 +755,15 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             # Velocity variation
             velocity_offset = int(self._rng.gauss(0, amount * 10))
 
-            humanized_notes.append(MIDINote(
-                pitch=note.pitch,
-                velocity=max(1, min(127, note.velocity + velocity_offset)),
-                start_time=max(0, note.start_time + timing_offset),
-                duration=note.duration,
-                channel=note.channel,
-            ))
+            humanized_notes.append(
+                MIDINote(
+                    pitch=note.pitch,
+                    velocity=max(1, min(127, note.velocity + velocity_offset)),
+                    start_time=max(0, note.start_time + timing_offset),
+                    duration=note.duration,
+                    channel=note.channel,
+                )
+            )
 
         return MIDITrack(
             name=track.name,
@@ -662,17 +789,17 @@ class AlgorithmicMIDIProvider(MIDIProvider):
         # Add tempo track
         tempo_track = mido.MidiTrack()
         mid.tracks.append(tempo_track)
-        tempo_track.append(mido.MetaMessage(
-            'set_tempo',
-            tempo=mido.bpm2tempo(midi_data.tempo_bpm),
-            time=0
-        ))
-        tempo_track.append(mido.MetaMessage(
-            'time_signature',
-            numerator=midi_data.time_signature[0],
-            denominator=midi_data.time_signature[1],
-            time=0
-        ))
+        tempo_track.append(
+            mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(midi_data.tempo_bpm), time=0)
+        )
+        tempo_track.append(
+            mido.MetaMessage(
+                "time_signature",
+                numerator=midi_data.time_signature[0],
+                denominator=midi_data.time_signature[1],
+                time=0,
+            )
+        )
 
         # Add each track
         for track in midi_data.tracks:
@@ -682,12 +809,11 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
             # Set program
             if track.channel != 9:  # Don't set program for drums
-                midi_track.append(mido.Message(
-                    'program_change',
-                    program=track.program,
-                    channel=track.channel,
-                    time=0
-                ))
+                midi_track.append(
+                    mido.Message(
+                        "program_change", program=track.program, channel=track.channel, time=0
+                    )
+                )
 
             # Sort notes by start time
             sorted_notes = sorted(track.notes, key=lambda n: n.start_time)
@@ -698,8 +824,8 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                 start_tick = int(note.start_time * midi_data.ticks_per_beat)
                 duration_tick = int(note.duration * midi_data.ticks_per_beat)
 
-                events.append((start_tick, 'note_on', note.pitch, note.velocity, note.channel))
-                events.append((start_tick + duration_tick, 'note_off', note.pitch, 0, note.channel))
+                events.append((start_tick, "note_on", note.pitch, note.velocity, note.channel))
+                events.append((start_tick + duration_tick, "note_off", note.pitch, 0, note.channel))
 
             # Sort by time
             events.sort(key=lambda e: e[0])
@@ -711,13 +837,11 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                 delta = tick - current_tick
                 current_tick = tick
 
-                midi_track.append(mido.Message(
-                    event_type,
-                    note=pitch,
-                    velocity=velocity,
-                    channel=channel,
-                    time=delta
-                ))
+                midi_track.append(
+                    mido.Message(
+                        event_type, note=pitch, velocity=velocity, channel=channel, time=delta
+                    )
+                )
 
         # Save
         output_path = Path(output_path)
@@ -742,9 +866,9 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
         for track in mid.tracks:
             for msg in track:
-                if msg.type == 'set_tempo':
+                if msg.type == "set_tempo":
                     tempo_bpm = mido.tempo2bpm(msg.tempo)
-                elif msg.type == 'time_signature':
+                elif msg.type == "time_signature":
                     time_sig = (msg.numerator, msg.denominator)
 
         # Convert tracks
@@ -760,33 +884,37 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             for msg in mido_track:
                 current_tick += msg.time
 
-                if msg.type == 'program_change':
+                if msg.type == "program_change":
                     program = msg.program
                     channel = msg.channel
-                elif msg.type == 'note_on' and msg.velocity > 0:
+                elif msg.type == "note_on" and msg.velocity > 0:
                     key = (msg.note, msg.channel)
                     active_notes[key] = (current_tick, msg.velocity, msg.channel)
-                elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                elif msg.type == "note_off" or (msg.type == "note_on" and msg.velocity == 0):
                     key = (msg.note, msg.channel)
                     if key in active_notes:
                         start_tick, velocity, ch = active_notes.pop(key)
                         duration_tick = current_tick - start_tick
 
-                        notes.append(MIDINote(
-                            pitch=msg.note,
-                            velocity=velocity,
-                            start_time=start_tick / mid.ticks_per_beat,
-                            duration=duration_tick / mid.ticks_per_beat,
-                            channel=ch,
-                        ))
+                        notes.append(
+                            MIDINote(
+                                pitch=msg.note,
+                                velocity=velocity,
+                                start_time=start_tick / mid.ticks_per_beat,
+                                duration=duration_tick / mid.ticks_per_beat,
+                                channel=ch,
+                            )
+                        )
 
             if notes:
-                tracks.append(MIDITrack(
-                    name=mido_track.name or f"Track {len(tracks)}",
-                    notes=notes,
-                    program=program,
-                    channel=channel,
-                ))
+                tracks.append(
+                    MIDITrack(
+                        name=mido_track.name or f"Track {len(tracks)}",
+                        notes=notes,
+                        program=program,
+                        channel=channel,
+                    )
+                )
 
         return MIDIFile(
             tracks=tracks,
@@ -816,12 +944,14 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                     )
                     for note in track.notes
                 ]
-                transposed_tracks.append(MIDITrack(
-                    name=track.name,
-                    notes=transposed_notes,
-                    program=track.program,
-                    channel=track.channel,
-                ))
+                transposed_tracks.append(
+                    MIDITrack(
+                        name=track.name,
+                        notes=transposed_notes,
+                        program=track.program,
+                        channel=track.channel,
+                    )
+                )
 
         return MIDIFile(
             tracks=transposed_tracks,
@@ -846,20 +976,24 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                 # Apply quantization with strength
                 new_start = note.start_time + (nearest_grid - note.start_time) * strength
 
-                quantized_notes.append(MIDINote(
-                    pitch=note.pitch,
-                    velocity=note.velocity,
-                    start_time=new_start,
-                    duration=note.duration,
-                    channel=note.channel,
-                ))
+                quantized_notes.append(
+                    MIDINote(
+                        pitch=note.pitch,
+                        velocity=note.velocity,
+                        start_time=new_start,
+                        duration=note.duration,
+                        channel=note.channel,
+                    )
+                )
 
-            quantized_tracks.append(MIDITrack(
-                name=track.name,
-                notes=quantized_notes,
-                program=track.program,
-                channel=track.channel,
-            ))
+            quantized_tracks.append(
+                MIDITrack(
+                    name=track.name,
+                    notes=quantized_notes,
+                    program=track.program,
+                    channel=track.channel,
+                )
+            )
 
         return MIDIFile(
             tracks=quantized_tracks,

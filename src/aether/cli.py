@@ -85,9 +85,7 @@ def _sanitize_project_name(name: str) -> str:
     sanitized = "".join(c for c in name if c.isalnum() or c in "-_")
     # Ensure not empty after sanitization
     if not sanitized:
-        raise click.BadParameter(
-            "Project name must contain at least one alphanumeric character"
-        )
+        raise click.BadParameter("Project name must contain at least one alphanumeric character")
     # Ensure doesn't start with hyphen (could be interpreted as flag)
     if sanitized.startswith("-"):
         sanitized = "_" + sanitized[1:]
@@ -128,16 +126,19 @@ def new_project(ctx: click.Context, name: str, genre: Optional[str]) -> None:
     }
 
     import yaml
+
     with open(project_dir / "project.yaml", "w") as f:
         yaml.dump(project_config, f)
 
-    console.print(Panel(
-        f"[green]Created project:[/green] {safe_name}\n"
-        f"[dim]Location:[/dim] {project_dir}\n"
-        f"[dim]Genre:[/dim] {genre or 'Not specified'}",
-        title="New Project",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            f"[green]Created project:[/green] {safe_name}\n"
+            f"[dim]Location:[/dim] {project_dir}\n"
+            f"[dim]Genre:[/dim] {genre or 'Not specified'}",
+            title="New Project",
+            border_style="green",
+        )
+    )
 
 
 @main.command("list-projects")
@@ -158,6 +159,7 @@ def list_projects(ctx: click.Context) -> None:
     table.add_column("Path", style="dim")
 
     import yaml
+
     for project_dir in sorted(projects_dir.iterdir()):
         if project_dir.is_dir():
             config_file = project_dir / "project.yaml"
@@ -182,7 +184,9 @@ def list_projects(ctx: click.Context) -> None:
 @main.command("build-track")
 @click.argument("title")
 @click.option("--genre", "-g", required=True, help="Genre ID")
-@click.option("--bpm", "-b", type=int, default=None, help="Tempo in BPM (optional, uses genre default)")
+@click.option(
+    "--bpm", "-b", type=int, default=None, help="Tempo in BPM (optional, uses genre default)"
+)
 @click.option("--key", "-k", default=None, help="Musical key (e.g., 'Am', 'C')")
 @click.option("--mood", "-m", default=None, help="Primary mood")
 @click.option("--duration", "-d", type=int, default=210, help="Target duration in seconds")
@@ -227,19 +231,21 @@ def build_track(
     # Build creative brief
     creative_brief = brief or f"A {mood or 'compelling'} {genre} track"
 
-    console.print(Panel(
-        f"[bold]Building Track:[/bold] {title}\n\n"
-        f"[cyan]Genre:[/cyan] {genre}\n"
-        f"[cyan]BPM:[/cyan] {bpm or 'Auto'}\n"
-        f"[cyan]Key:[/cyan] {key or 'Auto'}\n"
-        f"[cyan]Mood:[/cyan] {mood or 'Auto'}\n"
-        f"[cyan]Duration:[/cyan] {duration}s\n"
-        f"[cyan]Vocals:[/cyan] {'No' if no_vocals else 'Yes'}\n"
-        f"[cyan]Seed:[/cyan] {seed or 'Random'}\n"
-        f"[cyan]Brief:[/cyan] {creative_brief}",
-        title="AETHER Track Builder",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Building Track:[/bold] {title}\n\n"
+            f"[cyan]Genre:[/cyan] {genre}\n"
+            f"[cyan]BPM:[/cyan] {bpm or 'Auto'}\n"
+            f"[cyan]Key:[/cyan] {key or 'Auto'}\n"
+            f"[cyan]Mood:[/cyan] {mood or 'Auto'}\n"
+            f"[cyan]Duration:[/cyan] {duration}s\n"
+            f"[cyan]Vocals:[/cyan] {'No' if no_vocals else 'Yes'}\n"
+            f"[cyan]Seed:[/cyan] {seed or 'Random'}\n"
+            f"[cyan]Brief:[/cyan] {creative_brief}",
+            title="AETHER Track Builder",
+            border_style="cyan",
+        )
+    )
 
     async def run_pipeline():
         pipeline = MusicPipeline()
@@ -255,7 +261,9 @@ def build_track(
             elif event.event_type == "task_completed":
                 stages_completed.append(event.task_id)
                 duration_ms = event.data.get("duration_ms", 0)
-                console.print(f"  [green]✓[/green] Completed: {event.task_id} ({duration_ms:.0f}ms)")
+                console.print(
+                    f"  [green]✓[/green] Completed: {event.task_id} ({duration_ms:.0f}ms)"
+                )
             elif event.event_type == "task_failed":
                 error = event.data.get("error", "Unknown")
                 console.print(f"  [red]✗[/red] Failed: {event.task_id} - {error}")
@@ -289,16 +297,18 @@ def build_track(
         # Display results
         status = result.get("status", "unknown")
         if status == "completed":
-            console.print(Panel(
-                f"[bold green]Track Generated Successfully![/bold green]\n\n"
-                f"[cyan]Song ID:[/cyan] {result.get('song_id')}\n"
-                f"[cyan]Title:[/cyan] {result.get('title')}\n"
-                f"[cyan]Genre:[/cyan] {result.get('genre')}\n"
-                f"[cyan]QA Passed:[/cyan] {result.get('qa_report', {}).get('passed', 'N/A')}\n"
-                f"[cyan]Ready for Distribution:[/cyan] {result.get('ready_for_distribution', False)}",
-                title="Pipeline Complete",
-                border_style="green",
-            ))
+            console.print(
+                Panel(
+                    f"[bold green]Track Generated Successfully![/bold green]\n\n"
+                    f"[cyan]Song ID:[/cyan] {result.get('song_id')}\n"
+                    f"[cyan]Title:[/cyan] {result.get('title')}\n"
+                    f"[cyan]Genre:[/cyan] {result.get('genre')}\n"
+                    f"[cyan]QA Passed:[/cyan] {result.get('qa_report', {}).get('passed', 'N/A')}\n"
+                    f"[cyan]Ready for Distribution:[/cyan] {result.get('ready_for_distribution', False)}",
+                    title="Pipeline Complete",
+                    border_style="green",
+                )
+            )
 
             # Show task summary
             task_results = result.get("task_results", {})
@@ -313,7 +323,7 @@ def build_track(
                     table.add_row(
                         task_id,
                         f"[{status_style}]{task_data.get('status', 'unknown')}[/{status_style}]",
-                        f"{task_data.get('duration_ms', 0):.0f}ms"
+                        f"{task_data.get('duration_ms', 0):.0f}ms",
                     )
                 console.print(table)
         else:
@@ -348,7 +358,9 @@ def pipeline_list(ctx: click.Context) -> None:
             with open(state_file) as f:
                 state = json.load(f)
             status = state.get("status", "unknown")
-            status_style = "green" if status == "completed" else "yellow" if status == "running" else "red"
+            status_style = (
+                "green" if status == "completed" else "yellow" if status == "running" else "red"
+            )
             table.add_row(
                 state.get("workflow_id", "unknown")[:8] + "...",
                 state.get("name", "unnamed"),
@@ -393,17 +405,19 @@ def pipeline_status(ctx: click.Context, workflow_id: str) -> None:
     status = state.get("status", "unknown")
     status_style = "green" if status == "completed" else "yellow" if status == "running" else "red"
 
-    console.print(Panel(
-        f"[bold]Workflow:[/bold] {state.get('name', 'unnamed')}\n\n"
-        f"[cyan]ID:[/cyan] {state.get('workflow_id', 'unknown')}\n"
-        f"[cyan]Status:[/cyan] [{status_style}]{status}[/{status_style}]\n"
-        f"[cyan]Created:[/cyan] {state.get('created_at', 'unknown')}\n"
-        f"[cyan]Updated:[/cyan] {state.get('updated_at', 'unknown')}\n"
-        f"[cyan]Completed Tasks:[/cyan] {len(state.get('completed_tasks', []))}\n"
-        f"[cyan]Failed Tasks:[/cyan] {len(state.get('failed_tasks', []))}",
-        title="Pipeline Status",
-        border_style=status_style,
-    ))
+    console.print(
+        Panel(
+            f"[bold]Workflow:[/bold] {state.get('name', 'unnamed')}\n\n"
+            f"[cyan]ID:[/cyan] {state.get('workflow_id', 'unknown')}\n"
+            f"[cyan]Status:[/cyan] [{status_style}]{status}[/{status_style}]\n"
+            f"[cyan]Created:[/cyan] {state.get('created_at', 'unknown')}\n"
+            f"[cyan]Updated:[/cyan] {state.get('updated_at', 'unknown')}\n"
+            f"[cyan]Completed Tasks:[/cyan] {len(state.get('completed_tasks', []))}\n"
+            f"[cyan]Failed Tasks:[/cyan] {len(state.get('failed_tasks', []))}",
+            title="Pipeline Status",
+            border_style=status_style,
+        )
+    )
 
     # Show task breakdown
     tasks = state.get("tasks", {})
@@ -416,7 +430,15 @@ def pipeline_status(ctx: click.Context, workflow_id: str) -> None:
 
         for task_id, task_data in tasks.items():
             task_status = task_data.get("status", "unknown")
-            ts = "green" if task_status == "completed" else "yellow" if task_status in ["running", "queued"] else "red" if task_status == "failed" else "dim"
+            ts = (
+                "green"
+                if task_status == "completed"
+                else (
+                    "yellow"
+                    if task_status in ["running", "queued"]
+                    else "red" if task_status == "failed" else "dim"
+                )
+            )
             table.add_row(
                 task_id,
                 task_data.get("name", ""),
@@ -480,14 +502,16 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
         # Save updated state
         workflow.save_state()
 
-        console.print(Panel(
-            f"[bold green]Pipeline Resumed Successfully[/bold green]\n\n"
-            f"[cyan]Status:[/cyan] {workflow.status.value}\n"
-            f"[cyan]Completed:[/cyan] {len(workflow._completed_tasks)}\n"
-            f"[cyan]Failed:[/cyan] {len(workflow._failed_tasks)}",
-            title="Resume Complete",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                f"[bold green]Pipeline Resumed Successfully[/bold green]\n\n"
+                f"[cyan]Status:[/cyan] {workflow.status.value}\n"
+                f"[cyan]Completed:[/cyan] {len(workflow._completed_tasks)}\n"
+                f"[cyan]Failed:[/cyan] {len(workflow._failed_tasks)}",
+                title="Resume Complete",
+                border_style="green",
+            )
+        )
 
     except Exception as e:
         console.print(f"[red]Failed to resume pipeline:[/red] {e}")
@@ -495,7 +519,9 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
 
 
 @main.command("build-album")
-@click.option("--config", "-c", type=click.Path(exists=True), required=True, help="Album config YAML")
+@click.option(
+    "--config", "-c", type=click.Path(exists=True), required=True, help="Album config YAML"
+)
 @click.pass_context
 def build_album(ctx: click.Context, config: str) -> None:
     """Build a complete album from configuration."""
@@ -595,15 +621,17 @@ def status(ctx: click.Context) -> None:
     """Show AETHER system status."""
     config = ctx.obj["config"]
 
-    console.print(Panel(
-        f"[bold]AETHER Band Engine[/bold] v{__version__}\n\n"
-        f"[cyan]Status:[/cyan] Operational\n"
-        f"[cyan]LLM Provider:[/cyan] {config.providers.llm_provider}\n"
-        f"[cyan]Audio Provider:[/cyan] {config.providers.audio_provider}\n"
-        f"[cyan]Debug Mode:[/cyan] {config.debug}\n",
-        title="System Status",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            f"[bold]AETHER Band Engine[/bold] v{__version__}\n\n"
+            f"[cyan]Status:[/cyan] Operational\n"
+            f"[cyan]LLM Provider:[/cyan] {config.providers.llm_provider}\n"
+            f"[cyan]Audio Provider:[/cyan] {config.providers.audio_provider}\n"
+            f"[cyan]Debug Mode:[/cyan] {config.debug}\n",
+            title="System Status",
+            border_style="green",
+        )
+    )
 
 
 if __name__ == "__main__":

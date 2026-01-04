@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 # Async Support
 # =============================================================================
 
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for async tests."""
@@ -32,6 +33,7 @@ def event_loop():
 # =============================================================================
 # Temporary Directories
 # =============================================================================
+
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
@@ -51,6 +53,7 @@ def temp_output_dir(temp_dir: Path) -> Path:
 # =============================================================================
 # Audio Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def sample_rate() -> int:
@@ -88,17 +91,19 @@ def long_stereo_audio(sample_rate: int) -> np.ndarray:
 
     # Mix of frequencies
     signal = (
-        np.sin(2 * np.pi * 100 * t) * 0.3 +  # Bass
-        np.sin(2 * np.pi * 440 * t) * 0.4 +  # Mid
-        np.sin(2 * np.pi * 2000 * t) * 0.2   # High
+        np.sin(2 * np.pi * 100 * t) * 0.3  # Bass
+        + np.sin(2 * np.pi * 440 * t) * 0.4  # Mid
+        + np.sin(2 * np.pi * 2000 * t) * 0.2  # High
     )
 
     # Add some dynamics
-    envelope = np.concatenate([
-        np.linspace(0, 1, samples // 10),
-        np.ones(samples * 8 // 10),
-        np.linspace(1, 0, samples // 10),
-    ])[:samples]
+    envelope = np.concatenate(
+        [
+            np.linspace(0, 1, samples // 10),
+            np.ones(samples * 8 // 10),
+            np.linspace(1, 0, samples // 10),
+        ]
+    )[:samples]
 
     signal = signal * envelope
 
@@ -108,6 +113,7 @@ def long_stereo_audio(sample_rate: int) -> np.ndarray:
 # =============================================================================
 # Spec Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def song_spec() -> dict:
@@ -260,6 +266,7 @@ def master_spec() -> dict:
 # Mock Providers
 # =============================================================================
 
+
 @pytest.fixture
 def mock_llm_provider():
     """Mock LLM provider."""
@@ -287,9 +294,7 @@ def mock_audio_provider(sample_rate: int):
     mock.render_midi = AsyncMock(
         return_value=np.random.randn(2, sample_rate * 30).astype(np.float32) * 0.5
     )
-    mock.synthesize = AsyncMock(
-        return_value=np.random.randn(sample_rate).astype(np.float32) * 0.5
-    )
+    mock.synthesize = AsyncMock(return_value=np.random.randn(sample_rate).astype(np.float32) * 0.5)
     return mock
 
 
@@ -306,6 +311,7 @@ def mock_embedding_provider():
 # =============================================================================
 # Provider Registry Mock
 # =============================================================================
+
 
 @pytest.fixture
 def mock_provider_registry(
@@ -329,6 +335,7 @@ def mock_provider_registry(
 # Genre Profile Mock
 # =============================================================================
 
+
 @pytest.fixture
 def mock_genre_profile():
     """Mock genre profile."""
@@ -350,14 +357,16 @@ def mock_genre_profile():
             typical_progressions=[["I", "V", "vi", "IV"]],
         ),
         arrangement=MagicMock(
-            typical_structures=[{
-                "name": "standard",
-                "sections": [
-                    {"type": "intro", "length_bars": 4},
-                    {"type": "verse", "length_bars": 16},
-                    {"type": "chorus", "length_bars": 8},
-                ]
-            }],
+            typical_structures=[
+                {
+                    "name": "standard",
+                    "sections": [
+                        {"type": "intro", "length_bars": 4},
+                        {"type": "verse", "length_bars": 16},
+                        {"type": "chorus", "length_bars": 8},
+                    ],
+                }
+            ],
         ),
         instrumentation=MagicMock(
             core_instruments=["drums", "bass", "synth"],
@@ -376,6 +385,7 @@ def mock_genre_profile():
 # =============================================================================
 # Configuration
 # =============================================================================
+
 
 @pytest.fixture
 def test_config(temp_dir: Path):
@@ -398,14 +408,11 @@ def test_config(temp_dir: Path):
 # Test Markers
 # =============================================================================
 
+
 def pytest_configure(config):
     """Configure custom markers."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "requires_soundfont: marks tests requiring soundfont"
-    )
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
+    config.addinivalue_line("markers", "requires_soundfont: marks tests requiring soundfont")

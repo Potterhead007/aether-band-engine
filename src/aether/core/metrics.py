@@ -216,9 +216,7 @@ class Histogram:
 
         self._counts: Dict[tuple, int] = defaultdict(int)
         self._sums: Dict[tuple, float] = defaultdict(float)
-        self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(
-            lambda: defaultdict(int)
-        )
+        self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(lambda: defaultdict(int))
         # Use deque with maxlen to bound memory usage
         self._observations: Dict[tuple, Deque[float]] = {}
         self._lock = threading.Lock()
@@ -261,9 +259,7 @@ class Histogram:
         with self._lock:
             return self._sums[key]
 
-    def get_buckets(
-        self, labels: Optional[Dict[str, str]] = None
-    ) -> Dict[float, int]:
+    def get_buckets(self, labels: Optional[Dict[str, str]] = None) -> Dict[float, int]:
         """Get bucket counts."""
         key = self._labels_to_key(labels)
         with self._lock:
@@ -282,9 +278,7 @@ class Histogram:
             idx = int(len(sorted_obs) * percentile / 100)
             return sorted_obs[min(idx, len(sorted_obs) - 1)]
 
-    def get_stats(
-        self, labels: Optional[Dict[str, str]] = None
-    ) -> Dict[str, float]:
+    def get_stats(self, labels: Optional[Dict[str, str]] = None) -> Dict[str, float]:
         """Get statistical summary (uses recent observations only)."""
         key = self._labels_to_key(labels)
         with self._lock:
@@ -356,9 +350,7 @@ class Timer:
         self.histogram = Histogram(name, description, buckets, labels)
         self.name = name
 
-    def time(
-        self, labels: Optional[Dict[str, str]] = None
-    ) -> "_TimerContext":
+    def time(self, labels: Optional[Dict[str, str]] = None) -> "_TimerContext":
         """Create a timer context."""
         return _TimerContext(self.histogram, labels)
 
@@ -366,9 +358,7 @@ class Timer:
         """Record a duration directly."""
         self.histogram.observe(duration, labels)
 
-    def get_stats(
-        self, labels: Optional[Dict[str, str]] = None
-    ) -> Dict[str, float]:
+    def get_stats(self, labels: Optional[Dict[str, str]] = None) -> Dict[str, float]:
         """Get timing statistics."""
         return self.histogram.get_stats(labels)
 
@@ -397,6 +387,7 @@ class _TimerContext:
 
     def __call__(self, func: F) -> F:
         """Use as decorator."""
+
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             with self:
@@ -408,6 +399,7 @@ class _TimerContext:
                 return func(*args, **kwargs)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore
         return sync_wrapper  # type: ignore
@@ -493,9 +485,7 @@ class MetricsCollector:
         full_name = self._full_name(name)
         with self._lock:
             if full_name not in self._histograms:
-                self._histograms[full_name] = Histogram(
-                    full_name, description, buckets, labels
-                )
+                self._histograms[full_name] = Histogram(full_name, description, buckets, labels)
             return self._histograms[full_name]
 
     def timer(
@@ -509,9 +499,7 @@ class MetricsCollector:
         full_name = self._full_name(name)
         with self._lock:
             if full_name not in self._timers:
-                self._timers[full_name] = Timer(
-                    full_name, description, buckets, labels
-                )
+                self._timers[full_name] = Timer(full_name, description, buckets, labels)
             return self._timers[full_name]
 
     def collect(self) -> Dict[str, Any]:
@@ -528,19 +516,13 @@ class MetricsCollector:
             for name, counter in self._counters.items():
                 result["counters"][name] = {
                     "description": counter.description,
-                    "values": {
-                        str(k) if k else "default": v
-                        for k, v in counter.get_all().items()
-                    },
+                    "values": {str(k) if k else "default": v for k, v in counter.get_all().items()},
                 }
 
             for name, gauge in self._gauges.items():
                 result["gauges"][name] = {
                     "description": gauge.description,
-                    "values": {
-                        str(k) if k else "default": v
-                        for k, v in gauge.get_all().items()
-                    },
+                    "values": {str(k) if k else "default": v for k, v in gauge.get_all().items()},
                 }
 
             for name, histogram in self._histograms.items():
@@ -621,6 +603,7 @@ def get_metrics(prefix: str = "aether") -> MetricsCollector:
 # =============================================================================
 # Pre-defined AETHER Metrics
 # =============================================================================
+
 
 def setup_default_metrics() -> MetricsCollector:
     """Set up default AETHER metrics."""

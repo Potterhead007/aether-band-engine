@@ -64,6 +64,7 @@ _SHELL_METACHAR_PATTERN = re.compile(r'[;&|`$<>\\"\'\n\r]')
 
 class SubprocessSecurityError(Exception):
     """Raised when subprocess input validation fails."""
+
     pass
 
 
@@ -93,15 +94,15 @@ def _validate_subprocess_args(cmd: List[str]) -> None:
 
     # Validate file paths don't contain path traversal
     for arg in cmd[1:]:
-        if arg.startswith('-'):
+        if arg.startswith("-"):
             continue  # Skip flags
         # Check for path traversal attempts
-        if '..' in arg or arg.startswith('/etc') or arg.startswith('/proc'):
+        if ".." in arg or arg.startswith("/etc") or arg.startswith("/proc"):
             # Allow absolute paths but verify they're safe
             try:
                 resolved = Path(arg).resolve()
                 # Ensure path doesn't escape to sensitive directories
-                sensitive_dirs = {'/etc', '/proc', '/sys', '/dev'}
+                sensitive_dirs = {"/etc", "/proc", "/sys", "/dev"}
                 for sensitive in sensitive_dirs:
                     if str(resolved).startswith(sensitive):
                         raise SubprocessSecurityError(
@@ -112,9 +113,7 @@ def _validate_subprocess_args(cmd: List[str]) -> None:
 
 
 def _safe_subprocess_run(
-    cmd: List[str],
-    timeout: int = 120,
-    **kwargs
+    cmd: List[str], timeout: int = 120, **kwargs
 ) -> subprocess.CompletedProcess:
     """
     Safely execute subprocess with input validation.
@@ -135,11 +134,11 @@ def _safe_subprocess_run(
     _validate_subprocess_args(cmd)
 
     # Ensure we never use shell=True
-    kwargs['shell'] = False
+    kwargs["shell"] = False
 
     # Force capture output for security logging
-    if 'capture_output' not in kwargs:
-        kwargs['capture_output'] = True
+    if "capture_output" not in kwargs:
+        kwargs["capture_output"] = True
 
     logger.debug(f"Executing safe subprocess: {cmd[0]}")
     return subprocess.run(cmd, timeout=timeout, **kwargs)
@@ -149,6 +148,7 @@ def _safe_subprocess_run(
 # Security: Safe Temporary File Handling
 # ============================================================================
 
+
 @contextmanager
 def _safe_temp_directory() -> Generator[Path, None, None]:
     """
@@ -156,17 +156,17 @@ def _safe_temp_directory() -> Generator[Path, None, None]:
 
     Ensures cleanup even if exceptions occur.
     """
-    tmpdir = tempfile.mkdtemp(prefix='aether_audio_')
+    tmpdir = tempfile.mkdtemp(prefix="aether_audio_")
     tmppath = Path(tmpdir)
     try:
         yield tmppath
     finally:
         # Secure cleanup: remove all files then directory
         try:
-            for item in tmppath.rglob('*'):
+            for item in tmppath.rglob("*"):
                 if item.is_file():
                     item.unlink()
-            for item in sorted(tmppath.rglob('*'), reverse=True):
+            for item in sorted(tmppath.rglob("*"), reverse=True):
                 if item.is_dir():
                     item.rmdir()
             tmppath.rmdir()
@@ -351,6 +351,7 @@ class SynthAudioProvider(AudioProvider):
 
             # Save MIDI to temp file
             from aether.providers.midi import AlgorithmicMIDIProvider
+
             midi_provider = AlgorithmicMIDIProvider()
             await midi_provider.render_to_file(midi_data, midi_path)
 
@@ -364,11 +365,14 @@ class SynthAudioProvider(AudioProvider):
             cmd = [
                 "fluidsynth",
                 "-ni",
-                "-g", "0.5",  # Gain
-                "-r", str(self.sample_rate),
+                "-g",
+                "0.5",  # Gain
+                "-r",
+                str(self.sample_rate),
                 str(sf_path_resolved),
                 str(midi_path),
-                "-F", str(wav_path),
+                "-F",
+                str(wav_path),
             ]
 
             try:
@@ -589,6 +593,7 @@ class SynthAudioProvider(AudioProvider):
         """Load audio from file."""
         try:
             from aether.audio import read_audio
+
             audio_file = read_audio(path)
             return AudioBuffer(
                 data=audio_file.data,
@@ -599,6 +604,7 @@ class SynthAudioProvider(AudioProvider):
             # Fallback to scipy
             try:
                 from scipy.io import wavfile
+
                 sr, data = wavfile.read(str(path))
 
                 # Normalize to float
@@ -627,6 +633,7 @@ class SynthAudioProvider(AudioProvider):
         """Save audio to file."""
         try:
             from aether.audio import write_audio
+
             write_audio(
                 path=path,
                 data=buffer.data,
@@ -761,7 +768,7 @@ class SynthAudioProvider(AudioProvider):
         except ImportError:
             # Fallback to simple analysis
             peak = np.max(np.abs(buffer.data))
-            rms = np.sqrt(np.mean(buffer.data ** 2))
+            rms = np.sqrt(np.mean(buffer.data**2))
 
             return {
                 "integrated_lufs": -14.0,  # Placeholder

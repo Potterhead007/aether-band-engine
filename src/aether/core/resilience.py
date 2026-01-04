@@ -18,9 +18,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import (
-    Any, Callable, Dict, Generic, List, Optional, Set, Tuple, Type, TypeVar, Union
-)
+from typing import Any, Callable, Dict, Generic, List, Optional, Set, Tuple, Type, TypeVar, Union
 
 from aether.core.exceptions import (
     AetherError,
@@ -38,6 +36,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 # =============================================================================
 # Retry Policy
 # =============================================================================
+
 
 class BackoffStrategy(Enum):
     """Backoff strategies for retries."""
@@ -244,11 +243,12 @@ def retry(
 # Circuit Breaker
 # =============================================================================
 
+
 class CircuitState(Enum):
     """Circuit breaker states."""
 
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, rejecting requests
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, rejecting requests
     HALF_OPEN = "half_open"  # Testing if recovered
 
 
@@ -419,7 +419,9 @@ class CircuitBreaker:
             "state": self.state.value,
             "failure_count": self._failure_count,
             "success_count": self._success_count,
-            "last_failure_time": self._last_failure_time.isoformat() if self._last_failure_time else None,
+            "last_failure_time": (
+                self._last_failure_time.isoformat() if self._last_failure_time else None
+            ),
         }
 
     @classmethod
@@ -434,6 +436,7 @@ class CircuitBreaker:
 
     def __call__(self, func: F) -> F:
         """Use as decorator."""
+
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             if not self.allow_request():
@@ -513,6 +516,7 @@ def circuit_breaker(
 # Timeout
 # =============================================================================
 
+
 class TimeoutError(AetherError):
     """Operation timed out."""
 
@@ -531,6 +535,7 @@ def timeout(seconds: float) -> Callable[[F], F]:
         async def slow_operation():
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -566,6 +571,7 @@ def timeout(seconds: float) -> Callable[[F], F]:
 # Fallback
 # =============================================================================
 
+
 def fallback(
     fallback_func: Optional[Callable[..., T]] = None,
     fallback_value: Optional[T] = None,
@@ -588,6 +594,7 @@ def fallback(
         async def get_items_from_api():
             ...
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs) -> T:
@@ -629,6 +636,7 @@ def fallback(
 # Bulkhead (Concurrency Limiter)
 # =============================================================================
 
+
 class Bulkhead:
     """
     Bulkhead pattern for concurrency isolation.
@@ -668,6 +676,7 @@ class Bulkhead:
 
     def __call__(self, func: F) -> F:
         """Use as decorator."""
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             self._waiting += 1
@@ -701,6 +710,7 @@ class Bulkhead:
 # Combined Resilience
 # =============================================================================
 
+
 def resilient(
     name: str,
     max_retries: int = 3,
@@ -729,6 +739,7 @@ def resilient(
         async def call_api():
             ...
     """
+
     def decorator(func: F) -> F:
         # Build decorator chain from inside out
         wrapped = func

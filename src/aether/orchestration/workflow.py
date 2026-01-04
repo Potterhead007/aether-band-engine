@@ -41,6 +41,7 @@ TOutput = TypeVar("TOutput", bound=BaseModel)
 
 class TaskStatus(str, Enum):
     """Task execution status."""
+
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
@@ -53,6 +54,7 @@ class TaskStatus(str, Enum):
 
 class WorkflowStatus(str, Enum):
     """Overall workflow status."""
+
     INITIALIZING = "initializing"
     RUNNING = "running"
     PAUSED = "paused"
@@ -64,6 +66,7 @@ class WorkflowStatus(str, Enum):
 @dataclass
 class TaskResult:
     """Result of a task execution."""
+
     task_id: str
     status: TaskStatus
     output: Optional[Any] = None
@@ -90,16 +93,19 @@ class TaskResult:
 @dataclass
 class TaskNode:
     """A node in the workflow DAG representing a single task."""
+
     id: str
     name: str
     agent_type: str
     dependencies: List[str] = field(default_factory=list)
     config: Dict[str, Any] = field(default_factory=dict)
-    retry_policy: Dict[str, Any] = field(default_factory=lambda: {
-        "max_retries": 3,
-        "backoff_base": 2.0,
-        "backoff_max": 60.0,
-    })
+    retry_policy: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "max_retries": 3,
+            "backoff_base": 2.0,
+            "backoff_max": 60.0,
+        }
+    )
     timeout_seconds: float = 300.0
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[TaskResult] = None
@@ -111,6 +117,7 @@ class TaskNode:
 
 class WorkflowEvent(BaseModel):
     """Event emitted during workflow execution."""
+
     event_type: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     workflow_id: str
@@ -149,6 +156,7 @@ class EventBus:
 
 class WorkflowState(BaseModel):
     """Serializable workflow state for persistence and recovery."""
+
     workflow_id: str
     name: str
     status: WorkflowStatus
@@ -162,12 +170,15 @@ class WorkflowState(BaseModel):
 
     def compute_checksum(self) -> str:
         """Compute state checksum for integrity verification."""
-        state_str = json.dumps({
-            "workflow_id": self.workflow_id,
-            "tasks": self.tasks,
-            "completed_tasks": self.completed_tasks,
-            "context": self.context,
-        }, sort_keys=True)
+        state_str = json.dumps(
+            {
+                "workflow_id": self.workflow_id,
+                "tasks": self.tasks,
+                "completed_tasks": self.completed_tasks,
+                "context": self.context,
+            },
+            sort_keys=True,
+        )
         return hashlib.sha256(state_str.encode()).hexdigest()[:16]
 
 
@@ -340,7 +351,7 @@ class WorkflowOrchestrator:
             if retry_count < max_retries:
                 retry_count += 1
                 task.status = TaskStatus.RETRYING
-                backoff = min(backoff_base ** retry_count, backoff_max)
+                backoff = min(backoff_base**retry_count, backoff_max)
                 self._emit_event(
                     "task_retrying",
                     task_id=task.id,
@@ -624,20 +635,26 @@ def create_pipeline_workflow(
 
     # Add vocal tasks if needed
     if has_vocals:
-        tasks.insert(3, TaskNode(
-            id="lyrics",
-            name="Lyrics",
-            agent_type="lyrics",
-            dependencies=["arrangement"],
-            timeout_seconds=300.0,
-        ))
-        tasks.insert(4, TaskNode(
-            id="vocal_planning",
-            name="Vocal Planning",
-            agent_type="vocal",
-            dependencies=["lyrics"],
-            timeout_seconds=180.0,
-        ))
+        tasks.insert(
+            3,
+            TaskNode(
+                id="lyrics",
+                name="Lyrics",
+                agent_type="lyrics",
+                dependencies=["arrangement"],
+                timeout_seconds=300.0,
+            ),
+        )
+        tasks.insert(
+            4,
+            TaskNode(
+                id="vocal_planning",
+                name="Vocal Planning",
+                agent_type="vocal",
+                dependencies=["lyrics"],
+                timeout_seconds=180.0,
+            ),
+        )
         # Update sound_design to depend on vocal_planning
         for task in tasks:
             if task.id == "sound_design":

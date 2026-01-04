@@ -34,12 +34,14 @@ logger = logging.getLogger(__name__)
 
 class CompositionInput(BaseModel):
     """Input for Composition Agent."""
+
     song_spec: Dict[str, Any]
     genre_profile_id: str
 
 
 class CompositionOutput(BaseModel):
     """Output from Composition Agent."""
+
     harmony_spec: Dict[str, Any]
     melody_spec: Dict[str, Any]
     composition_decisions: list
@@ -81,9 +83,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             random.seed(seed)
 
         # Generate harmony
-        harmony_spec = await self._generate_harmony(
-            song_spec, profile, key_root, key_mode
-        )
+        harmony_spec = await self._generate_harmony(song_spec, profile, key_root, key_mode)
 
         # Generate melody
         melody_spec = await self._generate_melody(
@@ -141,12 +141,14 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             # Create voicings
             voicings = []
             for chord_root, chord_quality in chords:
-                voicings.append(ChordVoicing(
-                    root=NoteName(chord_root),
-                    quality=chord_quality,
-                    extensions=[],
-                    alterations=[],
-                ).model_dump())
+                voicings.append(
+                    ChordVoicing(
+                        root=NoteName(chord_root),
+                        quality=chord_quality,
+                        extensions=[],
+                        alterations=[],
+                    ).model_dump()
+                )
 
             progression = ChordProgression(
                 section_type=section_type,
@@ -180,6 +182,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
                     logger.debug(f"Voice leading issue: {violations[0].description}")
 
         from aether.schemas.base import KeySignature, Mode
+
         return HarmonySpec(
             song_id=str(song_spec["id"]),
             primary_key=KeySignature(root=NoteName(key_root), mode=Mode(key_mode)),
@@ -205,8 +208,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
 
         # Generate motifs
         motifs = [
-            self._create_motif(scale, profile, f"motif_{i}", is_hook=(i == 0))
-            for i in range(2)
+            self._create_motif(scale, profile, f"motif_{i}", is_hook=(i == 0)) for i in range(2)
         ]
 
         # Generate section melodies

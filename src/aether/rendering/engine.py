@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RenderingConfig:
     """Configuration for the rendering engine."""
+
     sample_rate: int = 48000
     bit_depth: int = 24
     output_dir: Optional[Path] = None
@@ -51,6 +52,7 @@ class RenderingConfig:
 @dataclass
 class RenderingResult:
     """Result of rendering pipeline."""
+
     success: bool
     song_id: str
     midi_file: Optional[MIDIFile] = None
@@ -224,7 +226,9 @@ class RenderingEngine:
                 "mode": key_mode,
             },
             melody_spec={
-                "contour": melody_spec.get("primary_hook", {}).get("contour", {}).get("contour_type", "arch"),
+                "contour": melody_spec.get("primary_hook", {})
+                .get("contour", {})
+                .get("contour_type", "arch"),
                 "range_octaves": melody_spec.get("typical_range_octaves", 1.5),
             },
             rhythm_spec={
@@ -232,7 +236,10 @@ class RenderingEngine:
                 "time_signature": time_signature,
             },
             arrangement_spec={
-                "sections": [s.get("section_type", "verse") for s in arrangement_spec.get("sections", [{"section_type": "verse"}])],
+                "sections": [
+                    s.get("section_type", "verse")
+                    for s in arrangement_spec.get("sections", [{"section_type": "verse"}])
+                ],
             },
         )
 
@@ -264,8 +271,7 @@ class RenderingEngine:
 
         # Create parallel render tasks for each track
         track_tasks: List[Coroutine[Any, Any, Tuple[str, AudioBuffer]]] = [
-            render_track(track, track.name)
-            for track in midi_file.tracks
+            render_track(track, track.name) for track in midi_file.tracks
         ]
 
         # Also render full MIDI in parallel
@@ -318,19 +324,24 @@ class RenderingEngine:
             else:
                 category = "other"
 
-            audio_stems.append(AudioStem(
-                name=name,
-                buffer=buffer,
-                category=category,
-            ))
+            audio_stems.append(
+                AudioStem(
+                    name=name,
+                    buffer=buffer,
+                    category=category,
+                )
+            )
 
         if not audio_stems:
             # No individual stems, use full render
-            return stems.get("full", AudioBuffer(
-                data=np.zeros((2, 44100)),
-                sample_rate=44100,
-                channels=2,
-            ))
+            return stems.get(
+                "full",
+                AudioBuffer(
+                    data=np.zeros((2, 44100)),
+                    sample_rate=44100,
+                    channels=2,
+                ),
+            )
 
         # Get levels from mix spec
         levels = {}
@@ -359,7 +370,9 @@ class RenderingEngine:
         """Apply mastering chain to mixed audio."""
         # Extract mastering parameters
         target_lufs = master_spec.get("loudness", {}).get("target_lufs", self.config.target_lufs)
-        true_peak = master_spec.get("true_peak", {}).get("ceiling_dbtp", self.config.true_peak_ceiling)
+        true_peak = master_spec.get("true_peak", {}).get(
+            "ceiling_dbtp", self.config.true_peak_ceiling
+        )
 
         # Use the mastering chain from audio module
         try:

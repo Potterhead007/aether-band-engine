@@ -27,9 +27,7 @@ class MelodicInterval(AetherBaseModel):
 class MelodicContour(AetherBaseModel):
     """Shape description of a melody."""
 
-    contour_type: str = Field(
-        description="arch, ascending, descending, wave, static"
-    )
+    contour_type: str = Field(description="arch, ascending, descending, wave, static")
     peak_position: Optional[float] = Field(
         default=None,
         ge=0.0,
@@ -44,9 +42,7 @@ class Motif(AetherBaseModel):
 
     name: str = Field(description="Identifier for this motif")
     notes: list[NoteName] = Field(min_length=2)
-    rhythm_pattern: list[float] = Field(
-        min_length=2, description="Note durations in beats"
-    )
+    rhythm_pattern: list[float] = Field(min_length=2, description="Note durations in beats")
     intervals: list[MelodicInterval] = Field(default_factory=list)
     contour: MelodicContour
     is_hook: bool = Field(default=False)
@@ -77,9 +73,7 @@ class SectionMelody(AetherBaseModel):
     uses_motifs: list[str] = Field(
         default_factory=list, description="Motif names used in this section"
     )
-    register: str = Field(
-        default="mid", description="low, mid, high - vocal/instrument register"
-    )
+    register: str = Field(default="mid", description="low, mid, high - vocal/instrument register")
 
 
 class MelodySpec(IdentifiableModel):

@@ -20,21 +20,13 @@ from aether.schemas.base import (
 class TonalTarget(AetherBaseModel):
     """Tonal balance targets for mastering."""
 
-    low_end_emphasis: float = Field(
-        ge=0.0, le=1.0, default=0.5, description="Sub/bass emphasis"
-    )
-    brightness: float = Field(
-        ge=0.0, le=1.0, default=0.5, description="High frequency presence"
-    )
-    warmth: float = Field(
-        ge=0.0, le=1.0, default=0.5, description="Low-mid warmth"
-    )
+    low_end_emphasis: float = Field(ge=0.0, le=1.0, default=0.5, description="Sub/bass emphasis")
+    brightness: float = Field(ge=0.0, le=1.0, default=0.5, description="High frequency presence")
+    warmth: float = Field(ge=0.0, le=1.0, default=0.5, description="Low-mid warmth")
     presence: float = Field(
         ge=0.0, le=1.0, default=0.5, description="Vocal presence range (2-5kHz)"
     )
-    air: float = Field(
-        ge=0.0, le=1.0, default=0.3, description="Ultra-high shimmer (10kHz+)"
-    )
+    air: float = Field(ge=0.0, le=1.0, default=0.3, description="Ultra-high shimmer (10kHz+)")
 
 
 class MultibandSettings(AetherBaseModel):
@@ -80,9 +72,7 @@ class MasterSpec(IdentifiableModel):
     tonal_target: TonalTarget = Field(default_factory=TonalTarget)
 
     # Processing chain
-    multiband_compression: list[MultibandSettings] = Field(
-        default_factory=list, max_length=5
-    )
+    multiband_compression: list[MultibandSettings] = Field(default_factory=list, max_length=5)
     limiter: LimiterSettings = Field(default_factory=LimiterSettings)
 
     # Stereo processing

@@ -20,9 +20,7 @@ class OriginalityCheck(AetherBaseModel):
     """Result of an originality check."""
 
     check_name: str
-    check_type: str = Field(
-        description="melody, lyrics, harmony, rhythm"
-    )
+    check_type: str = Field(description="melody, lyrics, harmony, rhythm")
     score: float = Field(ge=0.0, le=1.0)
     threshold: float = Field(ge=0.0, le=1.0)
     passed: bool

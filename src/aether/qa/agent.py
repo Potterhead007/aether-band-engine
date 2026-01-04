@@ -356,7 +356,9 @@ class QAAgent:
             "apple": QAThresholds(target_lufs=-16.0, max_true_peak_dbtp=-1.0),
             "youtube": QAThresholds(target_lufs=-14.0, max_true_peak_dbtp=-1.0),
             "tidal": QAThresholds(target_lufs=-14.0, max_true_peak_dbtp=-1.0),
-            "broadcast": QAThresholds(target_lufs=-23.0, lufs_tolerance=1.0, max_true_peak_dbtp=-1.0),
+            "broadcast": QAThresholds(
+                target_lufs=-23.0, lufs_tolerance=1.0, max_true_peak_dbtp=-1.0
+            ),
         }
 
         original_thresholds = self.config.thresholds
@@ -455,6 +457,7 @@ class QAAgent:
 
         try:
             from aether.knowledge import get_genre_manager
+
             manager = get_genre_manager()
             profile = manager.get(genre_id)
             self._genre_cache[genre_id] = profile
@@ -500,11 +503,13 @@ class QAAgent:
         """Load audio from file."""
         try:
             from aether.audio import read_audio
+
             audio_file = read_audio(Path(path))
             return audio_file.data
         except ImportError:
             # Fallback to basic loading
             import wave
+
             with wave.open(str(path), "rb") as f:
                 frames = f.readframes(f.getnframes())
                 audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32)

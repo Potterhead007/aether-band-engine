@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class AutomationCurve(str, Enum):
     """Automation interpolation curves."""
+
     LINEAR = "linear"
     EXPONENTIAL = "exponential"
     LOGARITHMIC = "logarithmic"
@@ -56,6 +57,7 @@ class AutomationCurve(str, Enum):
 @dataclass
 class AutomationPoint:
     """A single automation point."""
+
     time_seconds: float
     value: float
     curve: AutomationCurve = AutomationCurve.LINEAR
@@ -64,6 +66,7 @@ class AutomationPoint:
 @dataclass
 class AutomationLane:
     """Automation data for a single parameter."""
+
     target: str  # "track:kick:gain" or "bus:drums:pan"
     parameter: str
     points: List[AutomationPoint] = field(default_factory=list)
@@ -101,7 +104,7 @@ class AutomationLane:
                 if p1.curve == AutomationCurve.LINEAR:
                     factor = t
                 elif p1.curve == AutomationCurve.EXPONENTIAL:
-                    factor = t ** 2
+                    factor = t**2
                 elif p1.curve == AutomationCurve.LOGARITHMIC:
                     factor = math.sqrt(t)
                 elif p1.curve == AutomationCurve.S_CURVE:
@@ -120,6 +123,7 @@ class AutomationLane:
 @dataclass
 class TrackState:
     """Runtime state for a mix track."""
+
     name: str
     audio: Optional[StereoBuffer] = None
     gain_db: float = 0.0
@@ -150,6 +154,7 @@ class TrackState:
 @dataclass
 class BusState:
     """Runtime state for a mix bus."""
+
     name: str
     gain_db: float = 0.0
     output_bus: str = "master"
@@ -165,6 +170,7 @@ class BusState:
 @dataclass
 class SendEffect:
     """A send effect (reverb, delay, etc.)."""
+
     name: str
     process_fn: Callable[[StereoBuffer], StereoBuffer]
     return_gain_db: float = 0.0
@@ -464,10 +470,7 @@ class MixingEngine:
         lane = AutomationLane(
             target=target,
             parameter=parameter,
-            points=[
-                AutomationPoint(time_seconds=t, value=v, curve=curve)
-                for t, v in points
-            ],
+            points=[AutomationPoint(time_seconds=t, value=v, curve=curve) for t, v in points],
         )
         self.automation_lanes.append(lane)
 
@@ -608,8 +611,7 @@ class MixingEngine:
 
         # Initialize effect send buffers
         effect_sends: Dict[str, StereoBuffer] = {
-            name: np.zeros((2, total_samples))
-            for name in self.send_effects
+            name: np.zeros((2, total_samples)) for name in self.send_effects
         }
 
         # Process in blocks for automation
@@ -702,14 +704,17 @@ class MixingEngine:
             target_peak = db_to_linear(self.target_headroom_db)
             if peak > target_peak:
                 output *= target_peak / peak
-                logger.warning(f"Applied headroom limiting: {linear_to_db(peak):.1f} dB -> {self.target_headroom_db} dB")
+                logger.warning(
+                    f"Applied headroom limiting: {linear_to_db(peak):.1f} dB -> {self.target_headroom_db} dB"
+                )
 
         # Output metering
-        self.output_peak_db = linear_to_db(max(
-            np.max(np.abs(output[0])),
-            np.max(np.abs(output[1]))
-        ))
-        self.mono_compatible, self.phase_correlation = StereoProcessor.check_mono_compatibility(output)
+        self.output_peak_db = linear_to_db(
+            max(np.max(np.abs(output[0])), np.max(np.abs(output[1])))
+        )
+        self.mono_compatible, self.phase_correlation = StereoProcessor.check_mono_compatibility(
+            output
+        )
 
         logger.info(
             f"Mix complete: peak={self.output_peak_db:.1f} dB, "

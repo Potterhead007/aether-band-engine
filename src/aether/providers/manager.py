@@ -144,7 +144,9 @@ class ProviderManager:
                 results["embedding"] = False
 
         self._initialized = True
-        logger.info(f"Provider initialization complete: {sum(results.values())}/{len(results)} successful")
+        logger.info(
+            f"Provider initialization complete: {sum(results.values())}/{len(results)} successful"
+        )
 
         return results
 
@@ -236,10 +238,7 @@ class ProviderManager:
 
     def get_status(self) -> Dict[str, str]:
         """Get status of all providers."""
-        return {
-            name: provider.status.value
-            for name, provider in self._providers_created.items()
-        }
+        return {name: provider.status.value for name, provider in self._providers_created.items()}
 
 
 # Convenience function

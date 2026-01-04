@@ -359,6 +359,7 @@ class TestTimeout:
     @pytest.mark.asyncio
     async def test_timeout_not_exceeded(self):
         """Test function completes within timeout."""
+
         @timeout(1.0)
         async def fast_function():
             await asyncio.sleep(0.1)
@@ -389,6 +390,7 @@ class TestFallback:
     @pytest.mark.asyncio
     async def test_fallback_not_triggered(self):
         """Test fallback not triggered on success."""
+
         @fallback(fallback_value="fallback")
         async def succeed():
             return "success"
@@ -399,6 +401,7 @@ class TestFallback:
     @pytest.mark.asyncio
     async def test_fallback_value(self):
         """Test fallback value on failure."""
+
         @fallback(fallback_value="fallback")
         async def fail():
             raise ValueError("Fail")
@@ -409,6 +412,7 @@ class TestFallback:
     @pytest.mark.asyncio
     async def test_fallback_function(self):
         """Test fallback function on failure."""
+
         async def get_fallback():
             return "from_fallback"
 
@@ -422,6 +426,7 @@ class TestFallback:
     @pytest.mark.asyncio
     async def test_fallback_specific_exceptions(self):
         """Test fallback only on specific exceptions."""
+
         @fallback(fallback_value="fallback", exceptions=(ValueError,))
         async def fail_with_key_error():
             raise KeyError("Not caught")
@@ -431,6 +436,7 @@ class TestFallback:
 
     def test_fallback_sync(self):
         """Test fallback on sync function."""
+
         @fallback(fallback_value=[])
         def fail_sync():
             raise ValueError("Fail")
@@ -481,6 +487,7 @@ class TestResilient:
     @pytest.mark.asyncio
     async def test_resilient_success(self):
         """Test resilient decorator on success."""
+
         @resilient("test_success", max_retries=2)
         async def succeed():
             return "success"
@@ -508,6 +515,7 @@ class TestResilient:
     @pytest.mark.asyncio
     async def test_resilient_fallback(self):
         """Test resilient decorator with fallback."""
+
         @resilient(
             "test_fallback_combined",
             max_retries=2,

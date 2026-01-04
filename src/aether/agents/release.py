@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 class ReleaseMetadata(BaseModel):
     """Metadata for release."""
+
     title: str
     artist: str
     album: Optional[str] = None
@@ -41,6 +42,7 @@ class ReleaseMetadata(BaseModel):
 
 class ReleaseAsset(BaseModel):
     """A single release asset."""
+
     asset_type: str = Field(description="audio, artwork, lyrics, video")
     format: str
     file_path: Optional[str] = None
@@ -50,6 +52,7 @@ class ReleaseAsset(BaseModel):
 
 class ReleasePackage(BaseModel):
     """Complete release package."""
+
     release_id: str
     song_id: str
     metadata: ReleaseMetadata
@@ -200,31 +203,39 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
         formats = master_spec.get("formats", ["wav_24_48", "flac_24_48", "mp3_320"])
 
         for fmt in formats:
-            assets.append(ReleaseAsset(
-                asset_type="audio",
-                format=fmt,
-                file_path=None,  # Would be set during actual rendering
-            ))
+            assets.append(
+                ReleaseAsset(
+                    asset_type="audio",
+                    format=fmt,
+                    file_path=None,  # Would be set during actual rendering
+                )
+            )
 
         # Lyrics asset
         if lyric_spec.get("sections"):
-            assets.append(ReleaseAsset(
-                asset_type="lyrics",
-                format="txt",
-                file_path=None,
-            ))
-            assets.append(ReleaseAsset(
-                asset_type="lyrics",
-                format="lrc",  # Synced lyrics
-                file_path=None,
-            ))
+            assets.append(
+                ReleaseAsset(
+                    asset_type="lyrics",
+                    format="txt",
+                    file_path=None,
+                )
+            )
+            assets.append(
+                ReleaseAsset(
+                    asset_type="lyrics",
+                    format="lrc",  # Synced lyrics
+                    file_path=None,
+                )
+            )
 
         # Artwork placeholder
-        assets.append(ReleaseAsset(
-            asset_type="artwork",
-            format="jpg",
-            file_path=None,
-        ))
+        assets.append(
+            ReleaseAsset(
+                asset_type="artwork",
+                format="jpg",
+                file_path=None,
+            )
+        )
 
         return assets
 
@@ -273,6 +284,7 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
         # Format: CC-XXX-YY-NNNNN
         # CC = country, XXX = registrant, YY = year, NNNNN = designation
         import random
+
         year = str(datetime.utcnow().year)[2:]
         designation = str(random.randint(10000, 99999))
         return f"US-AET-{year}-{designation}"

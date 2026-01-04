@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class OriginalityCheckType(str, Enum):
     """Types of originality checks."""
+
     MELODY_INTERVAL = "melody_interval"
     MELODY_CONTOUR = "melody_contour"
     MELODY_RHYTHM = "melody_rhythm"
@@ -44,6 +45,7 @@ class OriginalityCheckType(str, Enum):
 @dataclass
 class OriginalityResult:
     """Result of an originality check."""
+
     check_type: OriginalityCheckType
     score: float  # 0.0 = not original, 1.0 = fully original
     threshold: float
@@ -56,6 +58,7 @@ class OriginalityResult:
 @dataclass
 class MelodyFingerprint:
     """Fingerprint of a melody for comparison."""
+
     interval_hash: str
     contour_signature: str
     rhythm_pattern: str
@@ -95,7 +98,7 @@ class MelodyOriginalityChecker:
         """Convert MIDI note sequence to interval sequence."""
         if len(midi_notes) < 2:
             return []
-        return [midi_notes[i+1] - midi_notes[i] for i in range(len(midi_notes) - 1)]
+        return [midi_notes[i + 1] - midi_notes[i] for i in range(len(midi_notes) - 1)]
 
     @staticmethod
     def intervals_to_contour(intervals: List[int]) -> str:
@@ -347,7 +350,7 @@ class LyricOriginalityChecker:
 
         ngrams = set()
         for i in range(len(words) - n + 1):
-            ngram = " ".join(words[i:i+n])
+            ngram = " ".join(words[i : i + n])
             ngrams.add(ngram)
 
         return ngrams
@@ -445,25 +448,29 @@ class LyricOriginalityChecker:
         overlap_ratio, matches = cls.check_against_known(full_text)
         originality_score = 1.0 - overlap_ratio
 
-        results.append(OriginalityResult(
-            check_type=OriginalityCheckType.LYRIC_NGRAM,
-            score=originality_score,
-            threshold=1.0 - cls.NGRAM_OVERLAP_THRESHOLD,
-            passed=overlap_ratio <= cls.NGRAM_OVERLAP_THRESHOLD,
-            details=f"Analyzed {len(all_lines)} lines, {len(full_text.split())} words",
-            similar_matches=matches,
-        ))
+        results.append(
+            OriginalityResult(
+                check_type=OriginalityCheckType.LYRIC_NGRAM,
+                score=originality_score,
+                threshold=1.0 - cls.NGRAM_OVERLAP_THRESHOLD,
+                passed=overlap_ratio <= cls.NGRAM_OVERLAP_THRESHOLD,
+                details=f"Analyzed {len(all_lines)} lines, {len(full_text.split())} words",
+                similar_matches=matches,
+            )
+        )
 
         # Rhyme pattern check (just informational)
         if all_lines:
             rhyme_pattern = cls.extract_rhyme_pattern(all_lines[:8])  # First 8 lines
-            results.append(OriginalityResult(
-                check_type=OriginalityCheckType.LYRIC_RHYME,
-                score=1.0,  # Rhyme patterns themselves aren't copyrightable
-                threshold=0.0,
-                passed=True,
-                details=f"Rhyme pattern: {rhyme_pattern}",
-            ))
+            results.append(
+                OriginalityResult(
+                    check_type=OriginalityCheckType.LYRIC_RHYME,
+                    score=1.0,  # Rhyme patterns themselves aren't copyrightable
+                    threshold=0.0,
+                    passed=True,
+                    details=f"Rhyme pattern: {rhyme_pattern}",
+                )
+            )
 
         return results
 
@@ -567,7 +574,7 @@ class AudioEmbeddingChecker:
         """
         # Simple spectral analysis
         frame_size = int(0.025 * sample_rate)  # 25ms
-        hop_size = int(0.010 * sample_rate)    # 10ms
+        hop_size = int(0.010 * sample_rate)  # 10ms
 
         if len(audio.shape) > 1:
             audio = np.mean(audio, axis=0)  # Mix to mono
@@ -578,19 +585,19 @@ class AudioEmbeddingChecker:
 
         for i in range(n_frames):
             start = i * hop_size
-            frame = audio[start:start + frame_size]
+            frame = audio[start : start + frame_size]
 
             # Simple spectral features
             if len(frame) > 0:
                 # RMS energy
-                features[i, 0] = np.sqrt(np.mean(frame ** 2))
+                features[i, 0] = np.sqrt(np.mean(frame**2))
 
                 # Zero crossing rate
                 features[i, 1] = np.mean(np.abs(np.diff(np.sign(frame)))) / 2
 
                 # Spectral centroid approximation
                 fft = np.abs(np.fft.rfft(frame))
-                freqs = np.fft.rfftfreq(len(frame), 1/sample_rate)
+                freqs = np.fft.rfftfreq(len(frame), 1 / sample_rate)
                 if np.sum(fft) > 0:
                     features[i, 2] = np.sum(freqs * fft) / np.sum(fft)
 

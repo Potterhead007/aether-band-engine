@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 class ProviderStatus(str, Enum):
     """Provider operational status."""
+
     AVAILABLE = "available"
     UNAVAILABLE = "unavailable"
     DEGRADED = "degraded"
@@ -27,6 +28,7 @@ class ProviderStatus(str, Enum):
 @dataclass
 class ProviderInfo:
     """Information about a provider."""
+
     name: str
     version: str
     provider_type: str
@@ -77,6 +79,7 @@ class BaseProvider(ABC):
 @dataclass
 class MIDINote:
     """A single MIDI note."""
+
     pitch: int  # 0-127
     velocity: int  # 0-127
     start_time: float  # In beats
@@ -87,6 +90,7 @@ class MIDINote:
 @dataclass
 class MIDITrack:
     """A MIDI track containing notes."""
+
     name: str
     notes: List[MIDINote]
     program: int = 0  # MIDI program number
@@ -96,6 +100,7 @@ class MIDITrack:
 @dataclass
 class MIDIFile:
     """Complete MIDI file data."""
+
     tracks: List[MIDITrack]
     tempo_bpm: float
     time_signature: tuple  # (numerator, denominator)
@@ -160,6 +165,7 @@ class MIDIProvider(BaseProvider):
 @dataclass
 class AudioBuffer:
     """Audio data buffer."""
+
     data: Any  # numpy array
     sample_rate: int
     channels: int
@@ -172,6 +178,7 @@ class AudioBuffer:
 @dataclass
 class AudioStem:
     """A single audio stem."""
+
     name: str
     buffer: AudioBuffer
     category: str  # drums, bass, keys, vocals, etc.
@@ -244,6 +251,7 @@ class AudioProvider(BaseProvider):
 @dataclass
 class VoiceProfile:
     """Parametric voice definition (NOT a clone)."""
+
     gender: str  # masculine, feminine, androgynous
     age: str  # young, adult, mature
     brightness: float  # 0-1
@@ -255,6 +263,7 @@ class VoiceProfile:
 @dataclass
 class VocalRequest:
     """Request for vocal synthesis."""
+
     text: str
     voice_profile: VoiceProfile
     melody_pitches: List[int]  # MIDI pitches
@@ -298,6 +307,7 @@ class VocalProvider(BaseProvider):
 @dataclass
 class LLMMessage:
     """A message in an LLM conversation."""
+
     role: str  # system, user, assistant
     content: str
 
@@ -305,6 +315,7 @@ class LLMMessage:
 @dataclass
 class LLMResponse:
     """Response from LLM."""
+
     content: str
     model: str
     usage: Dict[str, int]  # tokens used
@@ -346,6 +357,7 @@ class LLMProvider(BaseProvider):
 @dataclass
 class EmbeddingResult:
     """Result of embedding generation."""
+
     embedding: List[float]
     model: str
     dimensions: int
@@ -397,10 +409,7 @@ class ProviderRegistry:
 
     def get_by_type(self, provider_type: str) -> List[BaseProvider]:
         """Get all providers of a type."""
-        return [
-            p for p in self._providers.values()
-            if p.provider_type == provider_type
-        ]
+        return [p for p in self._providers.values() if p.provider_type == provider_type]
 
     async def initialize_all(self) -> Dict[str, bool]:
         """Initialize all providers."""

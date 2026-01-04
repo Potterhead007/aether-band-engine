@@ -18,9 +18,7 @@ class SynthPatch(AetherBaseModel):
     """Synthesizer patch specification."""
 
     name: str
-    synth_type: str = Field(
-        description="subtractive, fm, wavetable, granular, additive"
-    )
+    synth_type: str = Field(description="subtractive, fm, wavetable, granular, additive")
     # Oscillators
     osc1_waveform: str = Field(default="saw", description="sine, saw, square, triangle, noise")
     osc2_waveform: Optional[str] = Field(default=None)
@@ -50,9 +48,7 @@ class SampleSource(AetherBaseModel):
     """Audio sample source specification."""
 
     name: str
-    source_type: str = Field(
-        description="soundfont, oneshot, loop, recorded"
-    )
+    source_type: str = Field(description="soundfont, oneshot, loop, recorded")
     soundfont_bank: Optional[int] = Field(default=None, ge=0)
     soundfont_preset: Optional[int] = Field(default=None, ge=0)
     file_path: Optional[str] = Field(default=None)
@@ -64,15 +60,11 @@ class InstrumentAssignment(AetherBaseModel):
 
     instrument_name: str = Field(description="From ArrangementSpec.instruments")
     source_type: str = Field(description="synth, sample, vocal")
-    patch_name: Optional[str] = Field(
-        default=None, description="Reference to SynthPatch if synth"
-    )
+    patch_name: Optional[str] = Field(default=None, description="Reference to SynthPatch if synth")
     sample_name: Optional[str] = Field(
         default=None, description="Reference to SampleSource if sample"
     )
-    velocity_curve: str = Field(
-        default="linear", description="linear, soft, hard, s-curve"
-    )
+    velocity_curve: str = Field(default="linear", description="linear, soft, hard, s-curve")
     layer_count: int = Field(ge=1, le=8, default=1)
 
 

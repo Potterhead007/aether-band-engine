@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 class TechnicalCheckType(str, Enum):
     """Types of technical checks."""
+
     LOUDNESS_INTEGRATED = "loudness_integrated"
     LOUDNESS_SHORT_TERM = "loudness_short_term"
     LOUDNESS_RANGE = "loudness_range"
@@ -65,14 +66,16 @@ class TechnicalCheckType(str, Enum):
 
 class CheckSeverity(str, Enum):
     """Severity of check failures."""
-    CRITICAL = "critical"   # Must pass for release
-    WARNING = "warning"     # Should pass, can release with note
-    INFO = "info"          # Informational only
+
+    CRITICAL = "critical"  # Must pass for release
+    WARNING = "warning"  # Should pass, can release with note
+    INFO = "info"  # Informational only
 
 
 @dataclass
 class TechnicalCheckResult:
     """Result of a technical check."""
+
     check_type: TechnicalCheckType
     severity: CheckSeverity
     measured_value: float
@@ -87,6 +90,7 @@ class TechnicalCheckResult:
 @dataclass
 class TechnicalReport:
     """Complete technical validation report."""
+
     sample_rate: int
     bit_depth: int
     channels: int
@@ -137,55 +141,75 @@ class LoudnessValidator:
 
         # Integrated loudness
         lufs_diff = abs(measurement.integrated_lufs - self.target_lufs)
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.LOUDNESS_INTEGRATED,
-            severity=CheckSeverity.CRITICAL,
-            measured_value=measurement.integrated_lufs,
-            target_value=self.target_lufs,
-            tolerance=self.tolerance_lufs,
-            passed=lufs_diff <= self.tolerance_lufs,
-            unit="LUFS",
-            details=f"Integrated loudness: {measurement.integrated_lufs:.1f} LUFS",
-            recommendation="Adjust limiter threshold or input gain" if lufs_diff > self.tolerance_lufs else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.LOUDNESS_INTEGRATED,
+                severity=CheckSeverity.CRITICAL,
+                measured_value=measurement.integrated_lufs,
+                target_value=self.target_lufs,
+                tolerance=self.tolerance_lufs,
+                passed=lufs_diff <= self.tolerance_lufs,
+                unit="LUFS",
+                details=f"Integrated loudness: {measurement.integrated_lufs:.1f} LUFS",
+                recommendation=(
+                    "Adjust limiter threshold or input gain"
+                    if lufs_diff > self.tolerance_lufs
+                    else None
+                ),
+            )
+        )
 
         # True peak
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.TRUE_PEAK,
-            severity=CheckSeverity.CRITICAL,
-            measured_value=measurement.true_peak_dbtp,
-            target_value=self.target_peak_dbtp,
-            tolerance=0.0,
-            passed=measurement.true_peak_dbtp <= self.target_peak_dbtp,
-            unit="dBTP",
-            details=f"True peak: {measurement.true_peak_dbtp:.1f} dBTP",
-            recommendation="Lower ceiling or add limiting" if measurement.true_peak_dbtp > self.target_peak_dbtp else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.TRUE_PEAK,
+                severity=CheckSeverity.CRITICAL,
+                measured_value=measurement.true_peak_dbtp,
+                target_value=self.target_peak_dbtp,
+                tolerance=0.0,
+                passed=measurement.true_peak_dbtp <= self.target_peak_dbtp,
+                unit="dBTP",
+                details=f"True peak: {measurement.true_peak_dbtp:.1f} dBTP",
+                recommendation=(
+                    "Lower ceiling or add limiting"
+                    if measurement.true_peak_dbtp > self.target_peak_dbtp
+                    else None
+                ),
+            )
+        )
 
         # Sample peak
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.SAMPLE_PEAK,
-            severity=CheckSeverity.WARNING,
-            measured_value=measurement.sample_peak_db,
-            target_value=-0.1,
-            tolerance=0.0,
-            passed=measurement.sample_peak_db <= -0.1,
-            unit="dBFS",
-            details=f"Sample peak: {measurement.sample_peak_db:.1f} dBFS",
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.SAMPLE_PEAK,
+                severity=CheckSeverity.WARNING,
+                measured_value=measurement.sample_peak_db,
+                target_value=-0.1,
+                tolerance=0.0,
+                passed=measurement.sample_peak_db <= -0.1,
+                unit="dBFS",
+                details=f"Sample peak: {measurement.sample_peak_db:.1f} dBFS",
+            )
+        )
 
         # Loudness range
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.LOUDNESS_RANGE,
-            severity=CheckSeverity.WARNING,
-            measured_value=measurement.loudness_range_lu,
-            target_value=8.0,
-            tolerance=2.0,
-            passed=measurement.loudness_range_lu >= self.min_dynamic_range_lu,
-            unit="LU",
-            details=f"Loudness range: {measurement.loudness_range_lu:.1f} LU",
-            recommendation="Reduce compression to increase dynamics" if measurement.loudness_range_lu < self.min_dynamic_range_lu else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.LOUDNESS_RANGE,
+                severity=CheckSeverity.WARNING,
+                measured_value=measurement.loudness_range_lu,
+                target_value=8.0,
+                tolerance=2.0,
+                passed=measurement.loudness_range_lu >= self.min_dynamic_range_lu,
+                unit="LU",
+                details=f"Loudness range: {measurement.loudness_range_lu:.1f} LU",
+                recommendation=(
+                    "Reduce compression to increase dynamics"
+                    if measurement.loudness_range_lu < self.min_dynamic_range_lu
+                    else None
+                ),
+            )
+        )
 
         return results
 
@@ -212,17 +236,21 @@ class StereoValidator:
 
         # Phase correlation
         correlation = StereoProcessor.calculate_correlation(audio)
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.PHASE_CORRELATION,
-            severity=CheckSeverity.WARNING,
-            measured_value=correlation,
-            target_value=0.5,
-            tolerance=0.2,
-            passed=correlation > 0.3,
-            unit="",
-            details=f"Stereo correlation: {correlation:.3f}",
-            recommendation="Check for phase issues between L/R channels" if correlation < 0.3 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.PHASE_CORRELATION,
+                severity=CheckSeverity.WARNING,
+                measured_value=correlation,
+                target_value=0.5,
+                tolerance=0.2,
+                passed=correlation > 0.3,
+                unit="",
+                details=f"Stereo correlation: {correlation:.3f}",
+                recommendation=(
+                    "Check for phase issues between L/R channels" if correlation < 0.3 else None
+                ),
+            )
+        )
 
         # Mono compatibility
         mono_ok, _ = StereoProcessor.check_mono_compatibility(audio)
@@ -231,17 +259,23 @@ class StereoValidator:
         stereo_level = linear_to_db(max(np.max(np.abs(audio[0])), np.max(np.abs(audio[1]))))
         mono_loss = stereo_level - mono_level
 
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.MONO_COMPATIBILITY,
-            severity=CheckSeverity.WARNING,
-            measured_value=mono_loss,
-            target_value=0.0,
-            tolerance=3.0,
-            passed=mono_ok and mono_loss < 3.0,
-            unit="dB",
-            details=f"Mono fold-down loss: {mono_loss:.1f} dB",
-            recommendation="Phase cancellation detected - check stereo processing" if mono_loss >= 3.0 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.MONO_COMPATIBILITY,
+                severity=CheckSeverity.WARNING,
+                measured_value=mono_loss,
+                target_value=0.0,
+                tolerance=3.0,
+                passed=mono_ok and mono_loss < 3.0,
+                unit="dB",
+                details=f"Mono fold-down loss: {mono_loss:.1f} dB",
+                recommendation=(
+                    "Phase cancellation detected - check stereo processing"
+                    if mono_loss >= 3.0
+                    else None
+                ),
+            )
+        )
 
         return results
 
@@ -278,17 +312,19 @@ class AudioQualityValidator:
         max_dc = max(abs(dc_offset_l), abs(dc_offset_r))
         dc_db = linear_to_db(max_dc) if max_dc > 0 else -100
 
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.DC_OFFSET,
-            severity=CheckSeverity.WARNING,
-            measured_value=max_dc,
-            target_value=0.0,
-            tolerance=0.001,
-            passed=max_dc < 0.001,
-            unit="",
-            details=f"DC offset: {max_dc:.6f} ({dc_db:.1f} dB)",
-            recommendation="Apply DC offset removal filter" if max_dc >= 0.001 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.DC_OFFSET,
+                severity=CheckSeverity.WARNING,
+                measured_value=max_dc,
+                target_value=0.0,
+                tolerance=0.001,
+                passed=max_dc < 0.001,
+                unit="",
+                details=f"DC offset: {max_dc:.6f} ({dc_db:.1f} dB)",
+                recommendation="Apply DC offset removal filter" if max_dc >= 0.001 else None,
+            )
+        )
 
         # Clipping detection
         clip_threshold = 0.9999
@@ -297,17 +333,19 @@ class AudioQualityValidator:
         total_clipped = clipped_samples_l + clipped_samples_r
         clip_percentage = (total_clipped / (audio.shape[1] * 2)) * 100
 
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.CLIPPING,
-            severity=CheckSeverity.CRITICAL,
-            measured_value=clip_percentage,
-            target_value=0.0,
-            tolerance=0.01,
-            passed=clip_percentage < 0.01,
-            unit="%",
-            details=f"Clipping: {total_clipped} samples ({clip_percentage:.4f}%)",
-            recommendation="Reduce gain to eliminate clipping" if total_clipped > 0 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.CLIPPING,
+                severity=CheckSeverity.CRITICAL,
+                measured_value=clip_percentage,
+                target_value=0.0,
+                tolerance=0.01,
+                passed=clip_percentage < 0.01,
+                unit="%",
+                details=f"Clipping: {total_clipped} samples ({clip_percentage:.4f}%)",
+                recommendation="Reduce gain to eliminate clipping" if total_clipped > 0 else None,
+            )
+        )
 
         # Noise floor estimation (using quietest portions)
         block_size = int(0.1 * sample_rate)  # 100ms blocks
@@ -317,8 +355,8 @@ class AudioQualityValidator:
             block_rms = []
             for i in range(n_blocks):
                 start = i * block_size
-                block = audio[:, start:start + block_size]
-                rms = np.sqrt(np.mean(block ** 2))
+                block = audio[:, start : start + block_size]
+                rms = np.sqrt(np.mean(block**2))
                 if rms > 1e-10:
                     block_rms.append(rms)
 
@@ -331,17 +369,19 @@ class AudioQualityValidator:
         else:
             noise_floor_db = -100
 
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.NOISE_FLOOR,
-            severity=CheckSeverity.INFO,
-            measured_value=noise_floor_db,
-            target_value=-60.0,
-            tolerance=10.0,
-            passed=noise_floor_db < -50.0,
-            unit="dBFS",
-            details=f"Estimated noise floor: {noise_floor_db:.1f} dBFS",
-            recommendation="Apply noise reduction" if noise_floor_db > -50.0 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.NOISE_FLOOR,
+                severity=CheckSeverity.INFO,
+                measured_value=noise_floor_db,
+                target_value=-60.0,
+                tolerance=10.0,
+                passed=noise_floor_db < -50.0,
+                unit="dBFS",
+                details=f"Estimated noise floor: {noise_floor_db:.1f} dBFS",
+                recommendation="Apply noise reduction" if noise_floor_db > -50.0 else None,
+            )
+        )
 
         # Silence detection at start/end
         silence_threshold = 0.001
@@ -364,35 +404,39 @@ class AudioQualityValidator:
         end_silence_ms = (end_silence / sample_rate) * 1000
 
         # Some silence is expected for fades
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.SILENCE,
-            severity=CheckSeverity.INFO,
-            measured_value=start_silence_ms,
-            target_value=0.0,
-            tolerance=500.0,
-            passed=start_silence_ms < 1000,  # Less than 1 second
-            unit="ms",
-            details=f"Start silence: {start_silence_ms:.0f}ms, End silence: {end_silence_ms:.0f}ms",
-            recommendation="Trim excessive silence" if start_silence_ms > 500 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.SILENCE,
+                severity=CheckSeverity.INFO,
+                measured_value=start_silence_ms,
+                target_value=0.0,
+                tolerance=500.0,
+                passed=start_silence_ms < 1000,  # Less than 1 second
+                unit="ms",
+                details=f"Start silence: {start_silence_ms:.0f}ms, End silence: {end_silence_ms:.0f}ms",
+                recommendation="Trim excessive silence" if start_silence_ms > 500 else None,
+            )
+        )
 
         # Crest factor (peak to RMS ratio)
         peak = max(np.max(np.abs(audio[0])), np.max(np.abs(audio[1])))
-        rms = np.sqrt(np.mean(audio ** 2))
+        rms = np.sqrt(np.mean(audio**2))
         crest_factor = peak / rms if rms > 0 else 0
         crest_factor_db = 20 * math.log10(crest_factor) if crest_factor > 0 else 0
 
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.CREST_FACTOR,
-            severity=CheckSeverity.INFO,
-            measured_value=crest_factor_db,
-            target_value=12.0,
-            tolerance=6.0,
-            passed=crest_factor_db >= 6.0,
-            unit="dB",
-            details=f"Crest factor: {crest_factor_db:.1f} dB",
-            recommendation="Audio may be over-compressed" if crest_factor_db < 6.0 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.CREST_FACTOR,
+                severity=CheckSeverity.INFO,
+                measured_value=crest_factor_db,
+                target_value=12.0,
+                tolerance=6.0,
+                passed=crest_factor_db >= 6.0,
+                unit="dB",
+                details=f"Crest factor: {crest_factor_db:.1f} dB",
+                recommendation="Audio may be over-compressed" if crest_factor_db < 6.0 else None,
+            )
+        )
 
         return results
 
@@ -436,11 +480,11 @@ class SpectralValidator:
         # Compute spectrum
         n_fft = min(len(mono), 8192)
         spectrum = np.abs(np.fft.rfft(mono, n=n_fft))
-        freqs = np.fft.rfftfreq(n_fft, 1/sample_rate)
+        freqs = np.fft.rfftfreq(n_fft, 1 / sample_rate)
 
         # Calculate energy per band
         band_energies = {}
-        total_energy = np.sum(spectrum ** 2)
+        total_energy = np.sum(spectrum**2)
 
         for name, low, high in self.BANDS:
             mask = (freqs >= low) & (freqs < high)
@@ -449,23 +493,28 @@ class SpectralValidator:
 
         # Check for spectral issues
         # Sub-bass should be present but not dominant
-        results.append(TechnicalCheckResult(
-            check_type=TechnicalCheckType.SPECTRAL_BALANCE,
-            severity=CheckSeverity.INFO,
-            measured_value=band_energies.get("sub_bass", 0) * 100,
-            target_value=10.0,
-            tolerance=10.0,
-            passed=band_energies.get("sub_bass", 0) < 0.3,  # Less than 30%
-            unit="%",
-            details=f"Sub-bass energy: {band_energies.get('sub_bass', 0)*100:.1f}%",
-            recommendation="Excessive sub-bass detected" if band_energies.get("sub_bass", 0) > 0.3 else None,
-        ))
+        results.append(
+            TechnicalCheckResult(
+                check_type=TechnicalCheckType.SPECTRAL_BALANCE,
+                severity=CheckSeverity.INFO,
+                measured_value=band_energies.get("sub_bass", 0) * 100,
+                target_value=10.0,
+                tolerance=10.0,
+                passed=band_energies.get("sub_bass", 0) < 0.3,  # Less than 30%
+                unit="%",
+                details=f"Sub-bass energy: {band_energies.get('sub_bass', 0)*100:.1f}%",
+                recommendation=(
+                    "Excessive sub-bass detected"
+                    if band_energies.get("sub_bass", 0) > 0.3
+                    else None
+                ),
+            )
+        )
 
         # Build spectral summary
-        spectral_summary = ", ".join([
-            f"{name}: {energy*100:.1f}%"
-            for name, energy in band_energies.items()
-        ])
+        spectral_summary = ", ".join(
+            [f"{name}: {energy*100:.1f}%" for name, energy in band_energies.items()]
+        )
 
         logger.debug(f"Spectral balance: {spectral_summary}")
 
@@ -544,14 +593,17 @@ class TechnicalValidator:
 
         # Determine overall pass/fail
         all_critical_passed = all(
-            c.passed for c in all_checks
-            if c.severity == CheckSeverity.CRITICAL
+            c.passed for c in all_checks if c.severity == CheckSeverity.CRITICAL
         )
         all_passed = all(c.passed for c in all_checks)
 
         # Build summary
-        failed_critical = [c for c in all_checks if c.severity == CheckSeverity.CRITICAL and not c.passed]
-        failed_warnings = [c for c in all_checks if c.severity == CheckSeverity.WARNING and not c.passed]
+        failed_critical = [
+            c for c in all_checks if c.severity == CheckSeverity.CRITICAL and not c.passed
+        ]
+        failed_warnings = [
+            c for c in all_checks if c.severity == CheckSeverity.WARNING and not c.passed
+        ]
 
         if all_passed:
             summary = "All technical checks passed"
@@ -588,7 +640,7 @@ class TechnicalValidator:
         correlation = StereoProcessor.calculate_correlation(audio)
 
         peak = max(np.max(np.abs(audio[0])), np.max(np.abs(audio[1])))
-        rms = np.sqrt(np.mean(audio ** 2))
+        rms = np.sqrt(np.mean(audio**2))
 
         return {
             "integrated_lufs": measurement.integrated_lufs,

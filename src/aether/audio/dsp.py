@@ -27,6 +27,7 @@ StereoBuffer = NDArray[np.float64]  # Shape: (2, samples) or (samples, 2)
 
 class FilterType(str, Enum):
     """Biquad filter types."""
+
     LOWPASS = "lowpass"
     HIGHPASS = "highpass"
     BANDPASS = "bandpass"
@@ -40,6 +41,7 @@ class FilterType(str, Enum):
 @dataclass
 class BiquadCoefficients:
     """Biquad filter coefficients (Direct Form II Transposed)."""
+
     b0: float = 1.0
     b1: float = 0.0
     b2: float = 0.0
@@ -50,6 +52,7 @@ class BiquadCoefficients:
 @dataclass
 class BiquadState:
     """Filter state for continuous processing."""
+
     z1: float = 0.0
     z2: float = 0.0
 
@@ -240,6 +243,7 @@ class ParametricEQ:
 @dataclass
 class CompressorState:
     """Compressor envelope follower state."""
+
     envelope: float = 0.0
     gain_reduction_db: float = 0.0
 
@@ -290,8 +294,8 @@ class Compressor:
             return (level_db - self.threshold_db) * (1 - 1 / self.ratio)
         else:
             # In knee region - soft transition
-            knee_factor = (level_db - self.threshold_db + self.knee_db / 2)
-            knee_factor = knee_factor ** 2 / (2 * self.knee_db)
+            knee_factor = level_db - self.threshold_db + self.knee_db / 2
+            knee_factor = knee_factor**2 / (2 * self.knee_db)
             return knee_factor * (1 - 1 / self.ratio)
 
     def process_stereo(self, audio: StereoBuffer) -> Tuple[StereoBuffer, AudioBuffer]:
@@ -321,14 +325,14 @@ class Compressor:
             if target_gr > self.state_l.gain_reduction_db:
                 # Attack
                 self.state_l.gain_reduction_db = (
-                    self.attack_coeff * self.state_l.gain_reduction_db +
-                    (1 - self.attack_coeff) * target_gr
+                    self.attack_coeff * self.state_l.gain_reduction_db
+                    + (1 - self.attack_coeff) * target_gr
                 )
             else:
                 # Release
                 self.state_l.gain_reduction_db = (
-                    self.release_coeff * self.state_l.gain_reduction_db +
-                    (1 - self.release_coeff) * target_gr
+                    self.release_coeff * self.state_l.gain_reduction_db
+                    + (1 - self.release_coeff) * target_gr
                 )
 
             # Apply gain reduction + makeup
@@ -391,10 +395,10 @@ class TruePeakLimiter:
                 self.os_filter[i] = math.sin(2 * math.pi * cutoff * n) / (math.pi * n)
             # Apply Blackman-Harris window
             self.os_filter[i] *= (
-                0.35875 -
-                0.48829 * math.cos(2 * math.pi * i / (n_taps - 1)) +
-                0.14128 * math.cos(4 * math.pi * i / (n_taps - 1)) -
-                0.01168 * math.cos(6 * math.pi * i / (n_taps - 1))
+                0.35875
+                - 0.48829 * math.cos(2 * math.pi * i / (n_taps - 1))
+                + 0.14128 * math.cos(4 * math.pi * i / (n_taps - 1))
+                - 0.01168 * math.cos(6 * math.pi * i / (n_taps - 1))
             )
 
     def _get_true_peak(self, samples: AudioBuffer) -> float:
@@ -402,9 +406,7 @@ class TruePeakLimiter:
         # Simple 4x interpolation for peak detection
         # For production, use proper polyphase interpolation
         upsampled = np.interp(
-            np.linspace(0, len(samples) - 1, len(samples) * 4),
-            np.arange(len(samples)),
-            samples
+            np.linspace(0, len(samples) - 1, len(samples) * 4), np.arange(len(samples)), samples
         )
         return np.max(np.abs(upsampled))
 
@@ -436,8 +438,7 @@ class TruePeakLimiter:
                 self.current_gain = target_gain  # Instant attack
             else:
                 self.current_gain = (
-                    self.release_coeff * self.current_gain +
-                    (1 - self.release_coeff) * target_gain
+                    self.release_coeff * self.current_gain + (1 - self.release_coeff) * target_gain
                 )
 
             # Apply gain to delayed signal
@@ -456,9 +457,10 @@ class TruePeakLimiter:
 @dataclass
 class LoudnessMeasurement:
     """Loudness measurement results per ITU-R BS.1770-4."""
+
     integrated_lufs: float
     short_term_lufs: float  # 3 second window
-    momentary_lufs: float   # 400ms window
+    momentary_lufs: float  # 400ms window
     loudness_range_lu: float  # LRA
     true_peak_dbtp: float
     sample_peak_db: float
@@ -564,10 +566,7 @@ class LoudnessMeter:
         k_weighted = self._apply_k_weighting(audio)
 
         # Sample peak
-        self.sample_peak_max = max(
-            np.max(np.abs(audio[0])),
-            np.max(np.abs(audio[1]))
-        )
+        self.sample_peak_max = max(np.max(np.abs(audio[0])), np.max(np.abs(audio[1])))
         sample_peak_db = 20 * math.log10(max(self.sample_peak_max, 1e-10))
 
         # True peak (4x oversampling)
@@ -575,7 +574,7 @@ class LoudnessMeter:
             upsampled = np.interp(
                 np.linspace(0, len(audio[ch]) - 1, len(audio[ch]) * 4),
                 np.arange(len(audio[ch])),
-                audio[ch]
+                audio[ch],
             )
             self.true_peak_max = max(self.true_peak_max, np.max(np.abs(upsampled)))
         true_peak_dbtp = 20 * math.log10(max(self.true_peak_max, 1e-10))
@@ -583,7 +582,7 @@ class LoudnessMeter:
         # Calculate block loudness values
         block_loudness = []
         for i in range(0, k_weighted.shape[1] - self.momentary_samples, self.hop_samples):
-            block = k_weighted[:, i:i + self.momentary_samples]
+            block = k_weighted[:, i : i + self.momentary_samples]
             loudness = self._calculate_block_loudness(block)
             block_loudness.append(loudness)
 
@@ -605,9 +604,11 @@ class LoudnessMeter:
         # Short-term (last 3s)
         short_term_blocks = max(1, int(3.0 / 0.1))  # 3s / 100ms hop
         short_term_subset = block_loudness[-short_term_blocks:]
-        short_term_lufs = 10 * math.log10(
-            np.mean([10 ** (l / 10) for l in short_term_subset])
-        ) if short_term_subset else -70.0
+        short_term_lufs = (
+            10 * math.log10(np.mean([10 ** (l / 10) for l in short_term_subset]))
+            if short_term_subset
+            else -70.0
+        )
 
         # Integrated with gating (EBU R128)
         # Absolute threshold: -70 LUFS
@@ -615,18 +616,14 @@ class LoudnessMeter:
 
         if above_abs_threshold:
             # Relative threshold: -10 LU below ungated mean
-            ungated_mean = 10 * math.log10(
-                np.mean([10 ** (l / 10) for l in above_abs_threshold])
-            )
+            ungated_mean = 10 * math.log10(np.mean([10 ** (l / 10) for l in above_abs_threshold]))
             relative_threshold = ungated_mean - 10.0
 
             # Apply relative gate
             gated_blocks = [l for l in above_abs_threshold if l > relative_threshold]
 
             if gated_blocks:
-                integrated_lufs = 10 * math.log10(
-                    np.mean([10 ** (l / 10) for l in gated_blocks])
-                )
+                integrated_lufs = 10 * math.log10(np.mean([10 ** (l / 10) for l in gated_blocks]))
             else:
                 integrated_lufs = -70.0
         else:
@@ -720,7 +717,7 @@ class StereoProcessor:
 
         # Calculate correlation
         num = np.sum(l * r)
-        denom = math.sqrt(np.sum(l ** 2) * np.sum(r ** 2))
+        denom = math.sqrt(np.sum(l**2) * np.sum(r**2))
 
         if denom < 1e-10:
             return 1.0

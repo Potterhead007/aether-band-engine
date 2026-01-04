@@ -20,11 +20,13 @@ logger = logging.getLogger(__name__)
 
 class GenreNotFoundError(Exception):
     """Raised when a genre profile is not found."""
+
     pass
 
 
 class GenreValidationError(Exception):
     """Raised when a genre profile fails validation."""
+
     pass
 
 

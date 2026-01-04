@@ -12,16 +12,19 @@ __author__ = "AETHER Team"
 
 from aether.config import AetherConfig, get_config, init_config
 
+
 # Pipeline exports (lazy import to avoid circular dependencies)
 def generate_track(*args, **kwargs):
     """Generate a complete track through the AETHER pipeline."""
     from aether.orchestration import generate_track as _generate_track
+
     return _generate_track(*args, **kwargs)
 
 
 def create_pipeline(*args, **kwargs):
     """Create a new MusicPipeline instance."""
     from aether.orchestration import MusicPipeline
+
     return MusicPipeline(*args, **kwargs)
 
 

@@ -75,9 +75,7 @@ class HarmonyProfile(AetherBaseModel):
     """Harmonic characteristics of the genre."""
 
     common_modes: list[Mode]
-    typical_progressions: list[str] = Field(
-        min_length=1, description="Roman numeral progressions"
-    )
+    typical_progressions: list[str] = Field(min_length=1, description="Roman numeral progressions")
     tension_level: float = Field(ge=0.0, le=1.0)
     jazz_influence: float = Field(ge=0.0, le=1.0, default=0.0)
     modal_interchange_common: bool = Field(default=False)
@@ -107,9 +105,7 @@ class InstrumentationProfile(AetherBaseModel):
 
     essential: list[str] = Field(min_length=1)
     common: list[str] = Field(default_factory=list)
-    forbidden: list[str] = Field(
-        default_factory=list, description="Anachronistic instruments"
-    )
+    forbidden: list[str] = Field(default_factory=list, description="Anachronistic instruments")
 
 
 # Production

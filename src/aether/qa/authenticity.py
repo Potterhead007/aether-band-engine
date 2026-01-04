@@ -44,10 +44,10 @@ class ScoreLevel(Enum):
     """Authenticity score levels (1-5 scale)."""
 
     EXCELLENT = 5  # Perfect genre authenticity
-    GOOD = 4       # Strong adherence with minor deviations
+    GOOD = 4  # Strong adherence with minor deviations
     ACCEPTABLE = 3  # Meets minimum standards
-    POOR = 2       # Noticeable issues
-    FAILING = 1    # Wrong style entirely
+    POOR = 2  # Noticeable issues
+    FAILING = 1  # Wrong style entirely
 
 
 @dataclass
@@ -303,51 +303,65 @@ class TempoGrooveEvaluator(DimensionEvaluator):
             else:
                 bpm_diff = rhythm.bpm - tempo_range.max_bpm
 
-        checks.append((
-            bpm_in_range,
-            f"BPM within range ({tempo_range.min_bpm}-{tempo_range.max_bpm})",
-            f"BPM {rhythm.bpm:.1f} is {bpm_diff:.1f} BPM outside range",
-            f"Adjust tempo to {tempo_range.typical_bpm} BPM",
-        ))
+        checks.append(
+            (
+                bpm_in_range,
+                f"BPM within range ({tempo_range.min_bpm}-{tempo_range.max_bpm})",
+                f"BPM {rhythm.bpm:.1f} is {bpm_diff:.1f} BPM outside range",
+                f"Adjust tempo to {tempo_range.typical_bpm} BPM",
+            )
+        )
 
         # Check 2: Swing amount appropriate
         swing_in_range = (
-            rhythm_profile.swing_amount_min <= rhythm.swing_amount
+            rhythm_profile.swing_amount_min
+            <= rhythm.swing_amount
             <= rhythm_profile.swing_amount_max
         )
-        checks.append((
-            swing_in_range,
-            f"Swing amount appropriate ({rhythm_profile.swing_amount_min}-{rhythm_profile.swing_amount_max})",
-            f"Swing {rhythm.swing_amount:.2f} outside expected range",
-            f"Set swing to approximately {rhythm_profile.swing_amount_typical:.2f}",
-        ))
+        checks.append(
+            (
+                swing_in_range,
+                f"Swing amount appropriate ({rhythm_profile.swing_amount_min}-{rhythm_profile.swing_amount_max})",
+                f"Swing {rhythm.swing_amount:.2f} outside expected range",
+                f"Set swing to approximately {rhythm_profile.swing_amount_typical:.2f}",
+            )
+        )
 
         # Check 3: Feel matches genre
-        feel_matches = rhythm.feel in rhythm_profile.feels or rhythm.feel.replace("_", " ") in rhythm_profile.feels
-        checks.append((
-            feel_matches,
-            f"Rhythmic feel matches genre",
-            f"Feel '{rhythm.feel}' not typical (expected: {rhythm_profile.feels})",
-            f"Use {rhythm_profile.feels[0]} feel for this genre",
-        ))
+        feel_matches = (
+            rhythm.feel in rhythm_profile.feels
+            or rhythm.feel.replace("_", " ") in rhythm_profile.feels
+        )
+        checks.append(
+            (
+                feel_matches,
+                f"Rhythmic feel matches genre",
+                f"Feel '{rhythm.feel}' not typical (expected: {rhythm_profile.feels})",
+                f"Use {rhythm_profile.feels[0]} feel for this genre",
+            )
+        )
 
         # Check 4: Time signature
         time_sig_matches = rhythm.time_signature in rhythm_profile.time_signatures
-        checks.append((
-            time_sig_matches,
-            "Time signature appropriate",
-            f"Time signature {rhythm.time_signature} uncommon (expected: {rhythm_profile.time_signatures})",
-            f"Use {rhythm_profile.time_signatures[0]} time signature",
-        ))
+        checks.append(
+            (
+                time_sig_matches,
+                "Time signature appropriate",
+                f"Time signature {rhythm.time_signature} uncommon (expected: {rhythm_profile.time_signatures})",
+                f"Use {rhythm_profile.time_signatures[0]} time signature",
+            )
+        )
 
         # Check 5: Groove pocket (not over-quantized)
         has_pocket = rhythm.groove_pocket_deviation > 0.01 or rhythm.swing_amount > 0
-        checks.append((
-            has_pocket,
-            "Has natural groove/pocket",
-            "Rhythm sounds too quantized/mechanical",
-            "Add subtle timing variations for human feel",
-        ))
+        checks.append(
+            (
+                has_pocket,
+                "Has natural groove/pocket",
+                "Rhythm sounds too quantized/mechanical",
+                "Add subtle timing variations for human feel",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -366,13 +380,17 @@ class HarmonicEvaluator(DimensionEvaluator):
         harmony_profile = genre_profile.harmony
 
         # Check 1: Mode appropriate
-        mode_appropriate = harmony.mode.lower() in [m.value.lower() for m in harmony_profile.common_modes]
-        checks.append((
-            mode_appropriate,
-            f"Mode appropriate for genre",
-            f"Mode '{harmony.mode}' uncommon (expected: {[m.value for m in harmony_profile.common_modes]})",
-            f"Consider using {harmony_profile.common_modes[0].value} mode",
-        ))
+        mode_appropriate = harmony.mode.lower() in [
+            m.value.lower() for m in harmony_profile.common_modes
+        ]
+        checks.append(
+            (
+                mode_appropriate,
+                f"Mode appropriate for genre",
+                f"Mode '{harmony.mode}' uncommon (expected: {[m.value for m in harmony_profile.common_modes]})",
+                f"Consider using {harmony_profile.common_modes[0].value} mode",
+            )
+        )
 
         # Check 2: Progression fits style
         progression_matches = False
@@ -381,41 +399,49 @@ class HarmonicEvaluator(DimensionEvaluator):
             prog_normalized = prog.lower().replace(" ", "")
             for expected in harmony_profile.typical_progressions:
                 expected_normalized = expected.lower().replace(" ", "")
-                if prog_normalized == expected_normalized or prog_normalized.startswith(expected_normalized[:6]):
+                if prog_normalized == expected_normalized or prog_normalized.startswith(
+                    expected_normalized[:6]
+                ):
                     progression_matches = True
                     matched_prog = prog
                     break
             if progression_matches:
                 break
 
-        checks.append((
-            progression_matches,
-            "Chord progression fits genre style",
-            f"Progressions {harmony.detected_progressions[:2]} not typical",
-            f"Try progressions like: {harmony_profile.typical_progressions[:2]}",
-        ))
+        checks.append(
+            (
+                progression_matches,
+                "Chord progression fits genre style",
+                f"Progressions {harmony.detected_progressions[:2]} not typical",
+                f"Try progressions like: {harmony_profile.typical_progressions[:2]}",
+            )
+        )
 
         # Check 3: Jazz influence level
         expected_jazz = harmony_profile.jazz_influence
         jazz_diff = abs(harmony.jazz_chord_ratio - expected_jazz)
         jazz_appropriate = jazz_diff < 0.3
-        checks.append((
-            jazz_appropriate,
-            "Jazz influence level appropriate",
-            f"Jazz chord ratio {harmony.jazz_chord_ratio:.2f} differs from expected {expected_jazz:.2f}",
-            f"{'Add more extended chords' if harmony.jazz_chord_ratio < expected_jazz else 'Simplify chord voicings'}",
-        ))
+        checks.append(
+            (
+                jazz_appropriate,
+                "Jazz influence level appropriate",
+                f"Jazz chord ratio {harmony.jazz_chord_ratio:.2f} differs from expected {expected_jazz:.2f}",
+                f"{'Add more extended chords' if harmony.jazz_chord_ratio < expected_jazz else 'Simplify chord voicings'}",
+            )
+        )
 
         # Check 4: Tension level
         expected_tension = harmony_profile.tension_level
         tension_diff = abs(harmony.tension_level - expected_tension)
         tension_appropriate = tension_diff < 0.25
-        checks.append((
-            tension_appropriate,
-            "Harmonic tension level fits genre",
-            f"Tension level {harmony.tension_level:.2f} differs from expected {expected_tension:.2f}",
-            f"{'Increase harmonic tension' if harmony.tension_level < expected_tension else 'Reduce harmonic tension'}",
-        ))
+        checks.append(
+            (
+                tension_appropriate,
+                "Harmonic tension level fits genre",
+                f"Tension level {harmony.tension_level:.2f} differs from expected {expected_tension:.2f}",
+                f"{'Increase harmonic tension' if harmony.tension_level < expected_tension else 'Reduce harmonic tension'}",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -436,45 +462,54 @@ class MelodicEvaluator(DimensionEvaluator):
         # Check 1: Range appropriate
         range_diff = abs(melody.range_octaves - melody_profile.typical_range_octaves)
         range_ok = range_diff < 0.75
-        checks.append((
-            range_ok,
-            f"Melodic range fits genre ({melody_profile.typical_range_octaves:.1f} octaves typical)",
-            f"Range {melody.range_octaves:.1f} octaves differs from typical {melody_profile.typical_range_octaves:.1f}",
-            f"{'Expand' if melody.range_octaves < melody_profile.typical_range_octaves else 'Constrain'} melodic range",
-        ))
+        checks.append(
+            (
+                range_ok,
+                f"Melodic range fits genre ({melody_profile.typical_range_octaves:.1f} octaves typical)",
+                f"Range {melody.range_octaves:.1f} octaves differs from typical {melody_profile.typical_range_octaves:.1f}",
+                f"{'Expand' if melody.range_octaves < melody_profile.typical_range_octaves else 'Constrain'} melodic range",
+            )
+        )
 
         # Check 2: Interval vocabulary
         expected_intervals = set(melody_profile.interval_vocabulary)
         used_intervals = set(melody.intervals_used)
-        interval_overlap = len(expected_intervals & used_intervals) / max(len(expected_intervals), 1)
+        interval_overlap = len(expected_intervals & used_intervals) / max(
+            len(expected_intervals), 1
+        )
         intervals_ok = interval_overlap >= 0.4 or len(used_intervals) <= 3
-        checks.append((
-            intervals_ok,
-            "Interval vocabulary matches genre",
-            f"Intervals {list(used_intervals)[:5]} differ from typical {list(expected_intervals)[:5]}",
-            "Adjust melodic intervals to match genre conventions",
-        ))
+        checks.append(
+            (
+                intervals_ok,
+                "Interval vocabulary matches genre",
+                f"Intervals {list(used_intervals)[:5]} differ from typical {list(expected_intervals)[:5]}",
+                "Adjust melodic intervals to match genre conventions",
+            )
+        )
 
         # Check 3: Contour preference
         contour_matches = melody.contour_type in melody_profile.contour_preferences
-        checks.append((
-            contour_matches,
-            "Melodic contour fits genre style",
-            f"Contour '{melody.contour_type}' uncommon (expected: {melody_profile.contour_preferences})",
-            f"Reshape melody with {melody_profile.contour_preferences[0]} contour",
-        ))
+        checks.append(
+            (
+                contour_matches,
+                "Melodic contour fits genre style",
+                f"Contour '{melody.contour_type}' uncommon (expected: {melody_profile.contour_preferences})",
+                f"Reshape melody with {melody_profile.contour_preferences[0]} contour",
+            )
+        )
 
         # Check 4: Phrase length
         phrase_ok = any(
-            abs(melody.average_phrase_length_bars - pl) < 1
-            for pl in melody_profile.phrase_lengths
+            abs(melody.average_phrase_length_bars - pl) < 1 for pl in melody_profile.phrase_lengths
         )
-        checks.append((
-            phrase_ok,
-            f"Phrase lengths appropriate ({melody_profile.phrase_lengths} bars typical)",
-            f"Phrase length {melody.average_phrase_length_bars:.1f} bars unusual",
-            f"Structure phrases in {melody_profile.phrase_lengths[0]}-bar units",
-        ))
+        checks.append(
+            (
+                phrase_ok,
+                f"Phrase lengths appropriate ({melody_profile.phrase_lengths} bars typical)",
+                f"Phrase length {melody.average_phrase_length_bars:.1f} bars unusual",
+                f"Structure phrases in {melody_profile.phrase_lengths[0]}-bar units",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -497,72 +532,94 @@ class ProductionEvaluator(DimensionEvaluator):
         # Check 1: Low-end emphasis
         low_end_diff = abs(production.low_end_emphasis - mix_chars.low_end_emphasis)
         low_end_ok = low_end_diff < 0.25
-        checks.append((
-            low_end_ok,
-            "Low-end emphasis matches genre",
-            f"Low-end {production.low_end_emphasis:.2f} differs from target {mix_chars.low_end_emphasis:.2f}",
-            f"{'Boost' if production.low_end_emphasis < mix_chars.low_end_emphasis else 'Reduce'} low frequencies",
-        ))
+        checks.append(
+            (
+                low_end_ok,
+                "Low-end emphasis matches genre",
+                f"Low-end {production.low_end_emphasis:.2f} differs from target {mix_chars.low_end_emphasis:.2f}",
+                f"{'Boost' if production.low_end_emphasis < mix_chars.low_end_emphasis else 'Reduce'} low frequencies",
+            )
+        )
 
         # Check 2: Brightness
         brightness_diff = abs(production.brightness - mix_chars.brightness)
         brightness_ok = brightness_diff < 0.25
-        checks.append((
-            brightness_ok,
-            "Brightness level appropriate",
-            f"Brightness {production.brightness:.2f} differs from target {mix_chars.brightness:.2f}",
-            f"{'Brighten' if production.brightness < mix_chars.brightness else 'Darken'} the mix",
-        ))
+        checks.append(
+            (
+                brightness_ok,
+                "Brightness level appropriate",
+                f"Brightness {production.brightness:.2f} differs from target {mix_chars.brightness:.2f}",
+                f"{'Brighten' if production.brightness < mix_chars.brightness else 'Darken'} the mix",
+            )
+        )
 
         # Check 3: Stereo width
         width_diff = abs(production.stereo_width - mix_chars.width)
         width_ok = width_diff < 0.25
-        checks.append((
-            width_ok,
-            "Stereo width fits genre",
-            f"Width {production.stereo_width:.2f} differs from target {mix_chars.width:.2f}",
-            f"{'Widen' if production.stereo_width < mix_chars.width else 'Narrow'} the stereo image",
-        ))
+        checks.append(
+            (
+                width_ok,
+                "Stereo width fits genre",
+                f"Width {production.stereo_width:.2f} differs from target {mix_chars.width:.2f}",
+                f"{'Widen' if production.stereo_width < mix_chars.width else 'Narrow'} the stereo image",
+            )
+        )
 
         # Check 4: Vintage warmth
         warmth_diff = abs(production.vintage_warmth - mix_chars.vintage_warmth)
         warmth_ok = warmth_diff < 0.3
-        checks.append((
-            warmth_ok,
-            "Vintage warmth level appropriate",
-            f"Warmth {production.vintage_warmth:.2f} differs from target {mix_chars.vintage_warmth:.2f}",
-            f"{'Add' if production.vintage_warmth < mix_chars.vintage_warmth else 'Reduce'} analog saturation/warmth",
-        ))
+        checks.append(
+            (
+                warmth_ok,
+                "Vintage warmth level appropriate",
+                f"Warmth {production.vintage_warmth:.2f} differs from target {mix_chars.vintage_warmth:.2f}",
+                f"{'Add' if production.vintage_warmth < mix_chars.vintage_warmth else 'Reduce'} analog saturation/warmth",
+            )
+        )
 
         # Check 5: Signature effects present
         expected_effects = set(e.lower() for e in prod_profile.signature_effects)
         detected_effects = set(e.lower() for e in production.effects_detected)
         effect_overlap = len(expected_effects & detected_effects)
         effects_ok = effect_overlap >= min(2, len(expected_effects)) or len(expected_effects) == 0
-        checks.append((
-            effects_ok,
-            "Signature effects present",
-            f"Missing expected effects: {list(expected_effects - detected_effects)[:3]}",
-            f"Add characteristic effects: {prod_profile.signature_effects[:2]}",
-        ))
+        checks.append(
+            (
+                effects_ok,
+                "Signature effects present",
+                f"Missing expected effects: {list(expected_effects - detected_effects)[:3]}",
+                f"Add characteristic effects: {prod_profile.signature_effects[:2]}",
+            )
+        )
 
         # Check 6: Loudness in genre range
-        lufs_ok = master_targets.loudness_lufs_min <= production.integrated_lufs <= master_targets.loudness_lufs_max
-        checks.append((
-            lufs_ok,
-            f"Loudness in genre range ({master_targets.loudness_lufs_min} to {master_targets.loudness_lufs_max} LUFS)",
-            f"Loudness {production.integrated_lufs:.1f} LUFS outside range",
-            f"Target {(master_targets.loudness_lufs_min + master_targets.loudness_lufs_max) / 2:.1f} LUFS",
-        ))
+        lufs_ok = (
+            master_targets.loudness_lufs_min
+            <= production.integrated_lufs
+            <= master_targets.loudness_lufs_max
+        )
+        checks.append(
+            (
+                lufs_ok,
+                f"Loudness in genre range ({master_targets.loudness_lufs_min} to {master_targets.loudness_lufs_max} LUFS)",
+                f"Loudness {production.integrated_lufs:.1f} LUFS outside range",
+                f"Target {(master_targets.loudness_lufs_min + master_targets.loudness_lufs_max) / 2:.1f} LUFS",
+            )
+        )
 
         # Check 7: Dynamic range
-        dr_ok = master_targets.dynamic_range_lu_min <= production.dynamic_range_lu <= master_targets.dynamic_range_lu_max
-        checks.append((
-            dr_ok,
-            f"Dynamic range appropriate ({master_targets.dynamic_range_lu_min}-{master_targets.dynamic_range_lu_max} LU)",
-            f"DR {production.dynamic_range_lu:.1f} LU outside range",
-            f"Target {(master_targets.dynamic_range_lu_min + master_targets.dynamic_range_lu_max) / 2:.1f} LU",
-        ))
+        dr_ok = (
+            master_targets.dynamic_range_lu_min
+            <= production.dynamic_range_lu
+            <= master_targets.dynamic_range_lu_max
+        )
+        checks.append(
+            (
+                dr_ok,
+                f"Dynamic range appropriate ({master_targets.dynamic_range_lu_min}-{master_targets.dynamic_range_lu_max} LU)",
+                f"DR {production.dynamic_range_lu:.1f} LU outside range",
+                f"Target {(master_targets.dynamic_range_lu_min + master_targets.dynamic_range_lu_max) / 2:.1f} LU",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -581,44 +638,57 @@ class ArrangementEvaluator(DimensionEvaluator):
         arr_profile = genre_profile.arrangement
 
         # Check 1: Duration in range
-        duration_ok = arr_profile.typical_duration.min_seconds <= arrangement.duration_seconds <= arr_profile.typical_duration.max_seconds
-        checks.append((
-            duration_ok,
-            f"Duration in genre range ({arr_profile.typical_duration.min_seconds}-{arr_profile.typical_duration.max_seconds}s)",
-            f"Duration {arrangement.duration_seconds:.0f}s outside typical range",
-            f"Target {(arr_profile.typical_duration.min_seconds + arr_profile.typical_duration.max_seconds) // 2}s",
-        ))
+        duration_ok = (
+            arr_profile.typical_duration.min_seconds
+            <= arrangement.duration_seconds
+            <= arr_profile.typical_duration.max_seconds
+        )
+        checks.append(
+            (
+                duration_ok,
+                f"Duration in genre range ({arr_profile.typical_duration.min_seconds}-{arr_profile.typical_duration.max_seconds}s)",
+                f"Duration {arrangement.duration_seconds:.0f}s outside typical range",
+                f"Target {(arr_profile.typical_duration.min_seconds + arr_profile.typical_duration.max_seconds) // 2}s",
+            )
+        )
 
         # Check 2: Structure matches
         structure_normalized = arrangement.structure.lower().replace(" ", "-")
         structure_matches = any(
-            self._structure_similarity(structure_normalized, expected.lower().replace(" ", "-")) > 0.5
+            self._structure_similarity(structure_normalized, expected.lower().replace(" ", "-"))
+            > 0.5
             for expected in arr_profile.common_structures
         )
-        checks.append((
-            structure_matches,
-            "Song structure fits genre conventions",
-            f"Structure '{arrangement.structure}' unusual for genre",
-            f"Consider structure like: {arr_profile.common_structures[0]}",
-        ))
+        checks.append(
+            (
+                structure_matches,
+                "Song structure fits genre conventions",
+                f"Structure '{arrangement.structure}' unusual for genre",
+                f"Consider structure like: {arr_profile.common_structures[0]}",
+            )
+        )
 
         # Check 3: Energy curve type
         energy_matches = arrangement.energy_curve_type == arr_profile.energy_curve_type
-        checks.append((
-            energy_matches,
-            f"Energy curve matches genre ({arr_profile.energy_curve_type})",
-            f"Energy curve '{arrangement.energy_curve_type}' differs from expected",
-            f"Shape dynamics with {arr_profile.energy_curve_type} energy curve",
-        ))
+        checks.append(
+            (
+                energy_matches,
+                f"Energy curve matches genre ({arr_profile.energy_curve_type})",
+                f"Energy curve '{arrangement.energy_curve_type}' differs from expected",
+                f"Shape dynamics with {arr_profile.energy_curve_type} energy curve",
+            )
+        )
 
         # Check 4: Has proper intro/outro
         has_bookends = arrangement.has_intro and arrangement.has_outro
-        checks.append((
-            has_bookends,
-            "Has proper intro and outro",
-            "Missing intro or outro section",
-            "Add intro and outro sections",
-        ))
+        checks.append(
+            (
+                has_bookends,
+                "Has proper intro and outro",
+                "Missing intro or outro section",
+                "Add intro and outro sections",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -650,34 +720,46 @@ class InstrumentationEvaluator(DimensionEvaluator):
         forbidden = set(i.lower() for i in instr_profile.forbidden)
 
         # Check 1: Essential instruments present
-        essential_present = sum(1 for e in essential if any(e in inst or inst in e for inst in instruments))
+        essential_present = sum(
+            1 for e in essential if any(e in inst or inst in e for inst in instruments)
+        )
         essential_ok = essential_present >= len(essential) * 0.6
-        checks.append((
-            essential_ok,
-            "Essential instruments present",
-            f"Missing essential: {list(essential - instruments)[:3]}",
-            f"Add essential instruments: {list(essential)[:3]}",
-        ))
+        checks.append(
+            (
+                essential_ok,
+                "Essential instruments present",
+                f"Missing essential: {list(essential - instruments)[:3]}",
+                f"Add essential instruments: {list(essential)[:3]}",
+            )
+        )
 
         # Check 2: No forbidden instruments
-        forbidden_found = [f for f in forbidden if any(f in inst or inst in f for inst in instruments)]
+        forbidden_found = [
+            f for f in forbidden if any(f in inst or inst in f for inst in instruments)
+        ]
         no_forbidden = len(forbidden_found) == 0
-        checks.append((
-            no_forbidden,
-            "No anachronistic/forbidden instruments",
-            f"Contains inappropriate: {forbidden_found[:3]}",
-            f"Remove: {forbidden_found[:2]}" if forbidden_found else "",
-        ))
+        checks.append(
+            (
+                no_forbidden,
+                "No anachronistic/forbidden instruments",
+                f"Contains inappropriate: {forbidden_found[:3]}",
+                f"Remove: {forbidden_found[:2]}" if forbidden_found else "",
+            )
+        )
 
         # Check 3: Has common instruments
-        common_present = sum(1 for c in common if any(c in inst or inst in c for inst in instruments))
+        common_present = sum(
+            1 for c in common if any(c in inst or inst in c for inst in instruments)
+        )
         common_ok = common_present >= 1 or len(common) == 0
-        checks.append((
-            common_ok,
-            "Uses common genre instruments",
-            "Missing common genre instruments",
-            f"Consider adding: {list(common)[:2]}",
-        ))
+        checks.append(
+            (
+                common_ok,
+                "Uses common genre instruments",
+                "Missing common genre instruments",
+                f"Consider adding: {list(common)[:2]}",
+            )
+        )
 
         return self._calculate_score(checks)
 
@@ -787,15 +869,17 @@ class GenreAuthenticityEvaluator:
 
             weighted_score = (blended_score / 5.0) * dimension.weight
 
-            dimension_scores.append(DimensionScore(
-                dimension_name=dimension.name,
-                weight=dimension.weight,
-                raw_score=blended_score,
-                weighted_score=weighted_score,
-                criteria_met=criteria_met,
-                criteria_failed=criteria_failed,
-                improvement_suggestions=suggestions,
-            ))
+            dimension_scores.append(
+                DimensionScore(
+                    dimension_name=dimension.name,
+                    weight=dimension.weight,
+                    raw_score=blended_score,
+                    weighted_score=weighted_score,
+                    criteria_met=criteria_met,
+                    criteria_failed=criteria_failed,
+                    improvement_suggestions=suggestions,
+                )
+            )
 
         # Calculate overall score (sum of weighted scores)
         overall_score = sum(ds.weighted_score for ds in dimension_scores)
@@ -807,12 +891,12 @@ class GenreAuthenticityEvaluator:
         sorted_by_score = sorted(dimension_scores, key=lambda d: d.raw_score, reverse=True)
         top_strengths = [
             f"{d.dimension_name}: {d.raw_score:.1f}/5"
-            for d in sorted_by_score if d.raw_score >= 4.0
+            for d in sorted_by_score
+            if d.raw_score >= 4.0
         ][:3]
 
         top_weaknesses = [
-            f"{d.dimension_name}: {d.raw_score:.1f}/5"
-            for d in sorted_by_score if d.raw_score < 3.0
+            f"{d.dimension_name}: {d.raw_score:.1f}/5" for d in sorted_by_score if d.raw_score < 3.0
         ][:3]
 
         # Prioritize improvements by impact (weight * deficit)
@@ -830,7 +914,9 @@ class GenreAuthenticityEvaluator:
         # Generate evaluation notes
         notes = []
         if passed:
-            notes.append(f"Track passes genre authenticity threshold ({rubric.minimum_passing_score:.0%})")
+            notes.append(
+                f"Track passes genre authenticity threshold ({rubric.minimum_passing_score:.0%})"
+            )
         else:
             deficit = rubric.minimum_passing_score - overall_score
             notes.append(f"Track needs {deficit:.0%} improvement to pass threshold")
@@ -904,12 +990,19 @@ class GenreAuthenticityEvaluator:
             return analysis.rhythm.swing_amount > 0 or analysis.rhythm.groove_pocket_deviation > 0
 
         # Lo-fi/vintage checks
-        if "vinyl" in criterion or "lo-fi" in criterion or "lofi" in criterion or "dust" in criterion:
+        if (
+            "vinyl" in criterion
+            or "lo-fi" in criterion
+            or "lofi" in criterion
+            or "dust" in criterion
+        ):
             return analysis.production.has_vinyl_texture or analysis.production.vintage_warmth > 0.5
 
         # Filter/warmth checks
         if "warm" in criterion or "filter" in criterion or "muffled" in criterion:
-            return analysis.production.vintage_warmth > 0.4 or analysis.production.has_lo_fi_filtering
+            return (
+                analysis.production.vintage_warmth > 0.4 or analysis.production.has_lo_fi_filtering
+            )
 
         # Gated reverb checks
         if "gated" in criterion:

@@ -14,8 +14,14 @@ from pydantic import BaseModel
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.knowledge import get_genre_manager
 from aether.schemas.mix import (
-    MixSpec, TrackSettings, BusSettings, EQBand, Compressor,
-    SpatialSettings, Automation, AutomationPoint
+    MixSpec,
+    TrackSettings,
+    BusSettings,
+    EQBand,
+    Compressor,
+    SpatialSettings,
+    Automation,
+    AutomationPoint,
 )
 from aether.schemas.base import SectionType
 from aether.storage import ArtifactType
@@ -113,72 +119,80 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
         buses = []
 
         # Drum bus
-        buses.append(BusSettings(
-            bus_name="drums",
-            gain_db=0.0,
-            eq_bands=[
-                EQBand(band_type="highpass", frequency_hz=40, gain_db=0.0, q=0.7),
-                EQBand(band_type="peak", frequency_hz=4000, gain_db=2.0, q=1.5),
-            ],
-            compressor=Compressor(
-                threshold_db=-18.0,
-                ratio=3.0,
-                attack_ms=20.0,
-                release_ms=150.0,
-            ),
-            output_bus="master",
-        ))
+        buses.append(
+            BusSettings(
+                bus_name="drums",
+                gain_db=0.0,
+                eq_bands=[
+                    EQBand(band_type="highpass", frequency_hz=40, gain_db=0.0, q=0.7),
+                    EQBand(band_type="peak", frequency_hz=4000, gain_db=2.0, q=1.5),
+                ],
+                compressor=Compressor(
+                    threshold_db=-18.0,
+                    ratio=3.0,
+                    attack_ms=20.0,
+                    release_ms=150.0,
+                ),
+                output_bus="master",
+            )
+        )
 
         # Bass bus
-        buses.append(BusSettings(
-            bus_name="bass",
-            gain_db=0.0,
-            eq_bands=[
-                EQBand(band_type="highpass", frequency_hz=30, gain_db=0.0, q=0.7),
-                EQBand(band_type="lowshelf", frequency_hz=80, gain_db=2.0, q=0.8),
-            ],
-            compressor=Compressor(
-                threshold_db=-15.0,
-                ratio=4.0,
-                attack_ms=10.0,
-                release_ms=100.0,
-            ),
-            output_bus="master",
-        ))
+        buses.append(
+            BusSettings(
+                bus_name="bass",
+                gain_db=0.0,
+                eq_bands=[
+                    EQBand(band_type="highpass", frequency_hz=30, gain_db=0.0, q=0.7),
+                    EQBand(band_type="lowshelf", frequency_hz=80, gain_db=2.0, q=0.8),
+                ],
+                compressor=Compressor(
+                    threshold_db=-15.0,
+                    ratio=4.0,
+                    attack_ms=10.0,
+                    release_ms=100.0,
+                ),
+                output_bus="master",
+            )
+        )
 
         # Music bus (synths, keys, guitars)
-        buses.append(BusSettings(
-            bus_name="music",
-            gain_db=-2.0,
-            eq_bands=[
-                EQBand(band_type="highpass", frequency_hz=100, gain_db=0.0, q=0.7),
-            ],
-            compressor=Compressor(
-                threshold_db=-20.0,
-                ratio=2.5,
-                attack_ms=30.0,
-                release_ms=200.0,
-            ),
-            output_bus="master",
-        ))
+        buses.append(
+            BusSettings(
+                bus_name="music",
+                gain_db=-2.0,
+                eq_bands=[
+                    EQBand(band_type="highpass", frequency_hz=100, gain_db=0.0, q=0.7),
+                ],
+                compressor=Compressor(
+                    threshold_db=-20.0,
+                    ratio=2.5,
+                    attack_ms=30.0,
+                    release_ms=200.0,
+                ),
+                output_bus="master",
+            )
+        )
 
         # Vocal bus
-        buses.append(BusSettings(
-            bus_name="vocals",
-            gain_db=1.0,
-            eq_bands=[
-                EQBand(band_type="highpass", frequency_hz=80, gain_db=0.0, q=0.7),
-                EQBand(band_type="peak", frequency_hz=3000, gain_db=2.0, q=2.0),
-                EQBand(band_type="highshelf", frequency_hz=10000, gain_db=1.5, q=0.7),
-            ],
-            compressor=Compressor(
-                threshold_db=-16.0,
-                ratio=4.0,
-                attack_ms=5.0,
-                release_ms=80.0,
-            ),
-            output_bus="master",
-        ))
+        buses.append(
+            BusSettings(
+                bus_name="vocals",
+                gain_db=1.0,
+                eq_bands=[
+                    EQBand(band_type="highpass", frequency_hz=80, gain_db=0.0, q=0.7),
+                    EQBand(band_type="peak", frequency_hz=3000, gain_db=2.0, q=2.0),
+                    EQBand(band_type="highshelf", frequency_hz=10000, gain_db=1.5, q=0.7),
+                ],
+                compressor=Compressor(
+                    threshold_db=-16.0,
+                    ratio=4.0,
+                    attack_ms=5.0,
+                    release_ms=80.0,
+                ),
+                output_bus="master",
+            )
+        )
 
         return buses
 
@@ -281,9 +295,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
                 EQBand(band_type="highpass", frequency_hz=80, gain_db=0.0, q=0.7),
             ]
 
-    def _create_automation(
-        self, sections: List[Dict], instruments: List[Dict]
-    ) -> List[Automation]:
+    def _create_automation(self, sections: List[Dict], instruments: List[Dict]) -> List[Automation]:
         """Create mix automation for dynamic movement."""
         automations = []
 
@@ -298,26 +310,30 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
             # Master gain automation for section dynamics
             if section_type == SectionType.CHORUS.value:
                 # Slight boost for chorus
-                automations.append(Automation(
-                    target_track="master",
-                    parameter="gain",
-                    points=[
-                        AutomationPoint(time_seconds=current_time, value=0.0),
-                        AutomationPoint(time_seconds=current_time + 1.0, value=1.0),
-                    ],
-                    curve_type="exponential",
-                ))
+                automations.append(
+                    Automation(
+                        target_track="master",
+                        parameter="gain",
+                        points=[
+                            AutomationPoint(time_seconds=current_time, value=0.0),
+                            AutomationPoint(time_seconds=current_time + 1.0, value=1.0),
+                        ],
+                        curve_type="exponential",
+                    )
+                )
             elif section_type == SectionType.BRIDGE.value:
                 # Pull back for bridge
-                automations.append(Automation(
-                    target_track="master",
-                    parameter="gain",
-                    points=[
-                        AutomationPoint(time_seconds=current_time, value=0.0),
-                        AutomationPoint(time_seconds=current_time + 1.0, value=-2.0),
-                    ],
-                    curve_type="linear",
-                ))
+                automations.append(
+                    Automation(
+                        target_track="master",
+                        parameter="gain",
+                        points=[
+                            AutomationPoint(time_seconds=current_time, value=0.0),
+                            AutomationPoint(time_seconds=current_time + 1.0, value=-2.0),
+                        ],
+                        curve_type="linear",
+                    )
+                )
 
             current_time += duration
 

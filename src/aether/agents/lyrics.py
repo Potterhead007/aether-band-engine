@@ -171,12 +171,14 @@ class LyricsAgent(BaseAgent[LyricsInput, LyricsOutput]):
             syllables = self._count_syllables(line_text)
             stresses = self._estimate_stresses(syllables)
 
-            lines.append(LyricLine(
-                text=line_text,
-                syllable_count=syllables,
-                syllable_stresses=stresses,
-                rhyme_tag=rhyme_tags[i % len(rhyme_tags)],
-            ).model_dump())
+            lines.append(
+                LyricLine(
+                    text=line_text,
+                    syllable_count=syllables,
+                    syllable_stresses=stresses,
+                    rhyme_tag=rhyme_tags[i % len(rhyme_tags)],
+                ).model_dump()
+            )
 
         return {
             "section_type": section_type.value,

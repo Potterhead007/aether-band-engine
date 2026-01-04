@@ -48,6 +48,7 @@ class TestBaseAgent:
     @pytest.fixture
     def mock_agent(self):
         """Create a mock agent for testing."""
+
         class MockInput(BaseModel):
             data: str
 
@@ -101,7 +102,7 @@ class TestCreativeDirectorAgent:
         profile.harmony = MagicMock(common_modes=[Mode.MINOR])
         profile.arrangement = MagicMock(
             typical_duration=MagicMock(min_seconds=180, max_seconds=240),
-            energy_curve_type="build_release"
+            energy_curve_type="build_release",
         )
         profile.production = MagicMock(era_reference="2020s")
         return profile
@@ -237,13 +238,15 @@ class TestArrangementAgent:
         with patch("aether.agents.arrangement.get_genre_manager") as mock_manager:
             mock_profile = MagicMock()
             mock_profile.arrangement = MagicMock(
-                typical_structures=[{
-                    "sections": [
-                        {"type": "intro", "length_bars": 4},
-                        {"type": "verse", "length_bars": 16},
-                        {"type": "chorus", "length_bars": 8},
-                    ]
-                }]
+                typical_structures=[
+                    {
+                        "sections": [
+                            {"type": "intro", "length_bars": 4},
+                            {"type": "verse", "length_bars": 16},
+                            {"type": "chorus", "length_bars": 8},
+                        ]
+                    }
+                ]
             )
             mock_profile.instrumentation = MagicMock(
                 core_instruments=["drums", "bass"],
@@ -324,7 +327,7 @@ class TestVocalAgent:
                 "sections": [
                     {"section_type": "verse"},
                     {"section_type": "chorus"},
-                ]
+                ],
             },
             melody_spec={"id": "melody-1"},
             genre_profile_id="pop",
@@ -366,7 +369,7 @@ class TestMixingAgent:
                     {"name": "kick", "category": "drums"},
                     {"name": "bass", "category": "bass"},
                     {"name": "lead_synth", "category": "synth"},
-                ]
+                ],
             },
             sound_design_spec={"id": "sound-1"},
             genre_profile_id="boom-bap",
@@ -467,7 +470,7 @@ class TestSoundDesignAgent:
                 "instruments": [
                     {"name": "kick", "category": "drums", "role": "foundation"},
                     {"name": "bass", "category": "bass", "role": "foundation"},
-                ]
+                ],
             },
             rhythm_spec={"id": str(uuid.uuid4())},
             genre_profile_id="synthwave",
@@ -505,7 +508,7 @@ class TestAgentIntegration:
             mock_profile.harmony = MagicMock(common_modes=[Mode.MINOR])
             mock_profile.arrangement = MagicMock(
                 typical_duration=MagicMock(min_seconds=180, max_seconds=240),
-                energy_curve_type="build_release"
+                energy_curve_type="build_release",
             )
             mock_profile.production = MagicMock(era_reference="2020s")
             mock_manager.return_value.get.return_value = mock_profile

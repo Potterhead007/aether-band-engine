@@ -15,9 +15,20 @@ from pydantic import BaseModel
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.knowledge import get_genre_manager
 from aether.schemas.arrangement import (
-    ArrangementSpec, SectionDefinition, Instrument, Transition, EnergyPoint
+    ArrangementSpec,
+    SectionDefinition,
+    Instrument,
+    Transition,
+    EnergyPoint,
 )
-from aether.schemas.rhythm import RhythmSpec, GrooveTemplate, Humanization, DrumPattern, DrumHit, SectionRhythm
+from aether.schemas.rhythm import (
+    RhythmSpec,
+    GrooveTemplate,
+    Humanization,
+    DrumPattern,
+    DrumHit,
+    SectionRhythm,
+)
 from aether.schemas.base import SectionType, EnergyLevel, Feel, TimeSignature
 from aether.storage import ArtifactType
 
@@ -117,22 +128,26 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
         # Essential instruments
         for name in profile.instrumentation.essential:
             category = self._categorize_instrument(name)
-            instruments.append(Instrument(
-                name=name.replace(" ", "_").lower(),
-                category=category,
-                role="rhythm" if category in ["drums", "bass"] else "lead",
-                is_essential=True,
-            ))
+            instruments.append(
+                Instrument(
+                    name=name.replace(" ", "_").lower(),
+                    category=category,
+                    role="rhythm" if category in ["drums", "bass"] else "lead",
+                    is_essential=True,
+                )
+            )
 
         # Common instruments (add some)
         for name in profile.instrumentation.common[:3]:
             category = self._categorize_instrument(name)
-            instruments.append(Instrument(
-                name=name.replace(" ", "_").lower(),
-                category=category,
-                role="texture",
-                is_essential=False,
-            ))
+            instruments.append(
+                Instrument(
+                    name=name.replace(" ", "_").lower(),
+                    category=category,
+                    role="texture",
+                    is_essential=False,
+                )
+            )
 
         return instruments
 
@@ -200,14 +215,16 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
             else:
                 section_instruments = essential_names + all_names[:1]
 
-            sections.append(SectionDefinition(
-                section_type=section_type,
-                label=f"{section_name.title()} {idx + 1}",
-                start_bar=current_bar,
-                length_bars=length,
-                energy_level=energy,
-                instruments=section_instruments,
-            ))
+            sections.append(
+                SectionDefinition(
+                    section_type=section_type,
+                    label=f"{section_name.title()} {idx + 1}",
+                    start_bar=current_bar,
+                    length_bars=length,
+                    energy_level=energy,
+                    instruments=section_instruments,
+                )
+            )
 
             current_bar += length
 
@@ -252,11 +269,13 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
         accumulated = 0
         for section in sections:
             position = (accumulated / total_bars) * 100 if total_bars > 0 else 0
-            curve.append(EnergyPoint(
-                position_percent=position,
-                energy_level=section.energy_level,
-                section_label=section.label,
-            ))
+            curve.append(
+                EnergyPoint(
+                    position_percent=position,
+                    energy_level=section.energy_level,
+                    section_label=section.label,
+                )
+            )
             accumulated += section.length_bars
 
         return curve
@@ -276,13 +295,15 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
             else:
                 technique = "fill"
 
-            transitions.append(Transition(
-                from_section=from_section.label,
-                to_section=to_section.label,
-                technique=technique,
-                duration_beats=4.0,
-                has_fill=True,
-            ))
+            transitions.append(
+                Transition(
+                    from_section=from_section.label,
+                    to_section=to_section.label,
+                    technique=technique,
+                    duration_beats=4.0,
+                    has_fill=True,
+                )
+            )
 
         return transitions
 
@@ -330,7 +351,9 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
             humanization=humanization,
             drum_patterns=patterns,
             section_rhythms=section_rhythms,
-            signature_pattern=profile.rhythm.signature_patterns[0] if profile.rhythm.signature_patterns else None,
+            signature_pattern=(
+                profile.rhythm.signature_patterns[0] if profile.rhythm.signature_patterns else None
+            ),
         )
 
     def _create_drum_pattern(self, profile, name: str) -> DrumPattern:

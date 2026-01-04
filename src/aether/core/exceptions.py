@@ -165,6 +165,7 @@ class AetherError(Exception):
 # Configuration Errors
 # =============================================================================
 
+
 class ConfigurationError(AetherError):
     """Configuration-related errors."""
 
@@ -212,6 +213,7 @@ class InvalidConfigError(ConfigurationError):
 # =============================================================================
 # Provider Errors
 # =============================================================================
+
 
 class ProviderError(AetherError):
     """Provider-related errors."""
@@ -285,7 +287,11 @@ class RateLimitError(LLMProviderError):
         super().__init__(
             message,
             recovery_hints=[
-                f"Wait {retry_after} seconds before retrying" if retry_after else "Wait before retrying",
+                (
+                    f"Wait {retry_after} seconds before retrying"
+                    if retry_after
+                    else "Wait before retrying"
+                ),
                 "Reduce request frequency",
                 "Consider upgrading API plan",
             ],
@@ -298,6 +304,7 @@ class RateLimitError(LLMProviderError):
 # =============================================================================
 # Pipeline Errors
 # =============================================================================
+
 
 class PipelineError(AetherError):
     """Pipeline execution errors."""
@@ -339,6 +346,7 @@ class PipelineAbortedError(PipelineError):
 # Agent Errors
 # =============================================================================
 
+
 class AgentError(AetherError):
     """Agent execution errors."""
 
@@ -379,6 +387,7 @@ class AgentTimeoutError(AgentError):
 # Validation Errors
 # =============================================================================
 
+
 class ValidationError(AetherError):
     """Data validation errors."""
 
@@ -415,6 +424,7 @@ class RangeValidationError(ValidationError):
 # =============================================================================
 # Audio Processing Errors
 # =============================================================================
+
 
 class AudioProcessingError(AetherError):
     """Audio processing errors."""
@@ -464,6 +474,7 @@ class MasteringError(AudioProcessingError):
 # MIDI Errors
 # =============================================================================
 
+
 class MIDIError(AetherError):
     """MIDI-related errors."""
 
@@ -487,6 +498,7 @@ class MIDIGenerationError(MIDIError):
 # Rendering Errors
 # =============================================================================
 
+
 class RenderingError(AetherError):
     """Rendering pipeline errors."""
 
@@ -503,6 +515,7 @@ class RenderingTimeoutError(RenderingError):
 # =============================================================================
 # QA Errors
 # =============================================================================
+
 
 class QAError(AetherError):
     """Quality assurance errors."""
@@ -533,6 +546,7 @@ class TechnicalQAError(QAError):
 # Storage Errors
 # =============================================================================
 
+
 class StorageError(AetherError):
     """Storage-related errors."""
 
@@ -555,6 +569,7 @@ class ArtifactCorruptedError(StorageError):
 # =============================================================================
 # Resilience Errors
 # =============================================================================
+
 
 class RetryExhaustedError(AetherError):
     """All retry attempts exhausted."""

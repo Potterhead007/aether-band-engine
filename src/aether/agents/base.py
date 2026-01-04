@@ -29,6 +29,7 @@ TOutput = TypeVar("TOutput", bound=BaseModel)
 @dataclass
 class AgentDecision:
     """Record of a decision made by an agent."""
+
     decision_id: str
     agent_id: str
     timestamp: datetime
@@ -246,9 +247,11 @@ class AgentRegistry:
     @classmethod
     def register(cls, agent_type: str):
         """Decorator to register an agent class."""
+
         def decorator(agent_cls: type):
             cls._agents[agent_type] = agent_cls
             return agent_cls
+
         return decorator
 
     @classmethod

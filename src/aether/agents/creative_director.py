@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class CreativeDirectorInput(BaseModel):
     """Input for Creative Director."""
+
     title: str
     genre_id: str
     creative_brief: str = Field(description="Text description of the song")
@@ -37,6 +38,7 @@ class CreativeDirectorInput(BaseModel):
 
 class CreativeDirectorOutput(BaseModel):
     """Output from Creative Director."""
+
     song_spec: Dict[str, Any]
     genre_profile_id: str
     creative_decisions: list
@@ -101,7 +103,9 @@ class CreativeDirectorAgent(BaseAgent[CreativeDirectorInput, CreativeDirectorOut
             input_summary=f"Requested: {input_data.key or 'auto'}",
             output_summary=f"Selected: {key}",
             reasoning=f"Genre common modes: {[m.value for m in profile.harmony.common_modes]}",
-            alternatives=[f"{NoteName.C.value} {m.value}" for m in profile.harmony.common_modes[:3]],
+            alternatives=[
+                f"{NoteName.C.value} {m.value}" for m in profile.harmony.common_modes[:3]
+            ],
             confidence=0.85,
         )
 
@@ -125,8 +129,10 @@ class CreativeDirectorAgent(BaseAgent[CreativeDirectorInput, CreativeDirectorOut
         # Determine duration
         duration = input_data.duration_seconds
         if not duration:
-            duration = (profile.arrangement.typical_duration.min_seconds +
-                       profile.arrangement.typical_duration.max_seconds) // 2
+            duration = (
+                profile.arrangement.typical_duration.min_seconds
+                + profile.arrangement.typical_duration.max_seconds
+            ) // 2
 
         # Create creative brief object
         brief = CreativeBrief(

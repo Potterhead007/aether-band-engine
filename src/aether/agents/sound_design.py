@@ -14,7 +14,10 @@ from pydantic import BaseModel
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.knowledge import get_genre_manager
 from aether.schemas.sound_design import (
-    SoundDesignSpec, SynthPatch, SampleSource, InstrumentAssignment
+    SoundDesignSpec,
+    SynthPatch,
+    SampleSource,
+    InstrumentAssignment,
 )
 from aether.storage import ArtifactType
 
@@ -77,35 +80,41 @@ class SoundDesignAgent(BaseAgent[SoundDesignInput, SoundDesignOutput]):
                 # Sample-based
                 sample = self._create_sample_source(inst_name, profile)
                 sample_sources.append(sample)
-                assignments.append(InstrumentAssignment(
-                    instrument_name=inst_name,
-                    source_type="sample",
-                    sample_name=sample.name,
-                    velocity_curve="linear",
-                    layer_count=1,
-                ))
+                assignments.append(
+                    InstrumentAssignment(
+                        instrument_name=inst_name,
+                        source_type="sample",
+                        sample_name=sample.name,
+                        velocity_curve="linear",
+                        layer_count=1,
+                    )
+                )
             elif category in ["synth", "keys", "bass"]:
                 # Synth-based
                 patch = self._create_synth_patch(inst_name, category, profile, mood)
                 synth_patches.append(patch)
-                assignments.append(InstrumentAssignment(
-                    instrument_name=inst_name,
-                    source_type="synth",
-                    patch_name=patch.name,
-                    velocity_curve="soft" if category == "keys" else "linear",
-                    layer_count=2 if category == "synth" else 1,
-                ))
+                assignments.append(
+                    InstrumentAssignment(
+                        instrument_name=inst_name,
+                        source_type="synth",
+                        patch_name=patch.name,
+                        velocity_curve="soft" if category == "keys" else "linear",
+                        layer_count=2 if category == "synth" else 1,
+                    )
+                )
             else:
                 # Default to sample
                 sample = self._create_sample_source(inst_name, profile)
                 sample_sources.append(sample)
-                assignments.append(InstrumentAssignment(
-                    instrument_name=inst_name,
-                    source_type="sample",
-                    sample_name=sample.name,
-                    velocity_curve="linear",
-                    layer_count=1,
-                ))
+                assignments.append(
+                    InstrumentAssignment(
+                        instrument_name=inst_name,
+                        source_type="sample",
+                        sample_name=sample.name,
+                        velocity_curve="linear",
+                        layer_count=1,
+                    )
+                )
 
         # Determine era-appropriate processing
         vintage_warmth, tape_sat, vinyl = self._determine_vintage_processing(profile)
@@ -139,9 +148,7 @@ class SoundDesignAgent(BaseAgent[SoundDesignInput, SoundDesignOutput]):
 
         return SoundDesignOutput(sound_design_spec=sound_design_spec.model_dump())
 
-    def _create_synth_patch(
-        self, name: str, category: str, profile, mood: str
-    ) -> SynthPatch:
+    def _create_synth_patch(self, name: str, category: str, profile, mood: str) -> SynthPatch:
         """Create a synth patch specification."""
         # Base parameters by category
         if category == "bass":

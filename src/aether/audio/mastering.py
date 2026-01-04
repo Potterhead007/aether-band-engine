@@ -57,20 +57,22 @@ logger = logging.getLogger(__name__)
 
 class DeliveryPlatform(str, Enum):
     """Target delivery platform with loudness specs."""
-    SPOTIFY = "spotify"           # -14 LUFS
-    APPLE_MUSIC = "apple_music"   # -16 LUFS (with sound check)
-    YOUTUBE = "youtube"           # -14 LUFS
-    AMAZON_MUSIC = "amazon_music" # -14 LUFS
-    TIDAL = "tidal"               # -14 LUFS
-    BROADCAST_EU = "broadcast_eu" # -23 LUFS (EBU R128)
-    BROADCAST_US = "broadcast_us" # -24 LKFS (ATSC A/85)
-    CLUB = "club"                 # -9 to -6 LUFS
-    CD = "cd"                     # -12 to -9 LUFS
+
+    SPOTIFY = "spotify"  # -14 LUFS
+    APPLE_MUSIC = "apple_music"  # -16 LUFS (with sound check)
+    YOUTUBE = "youtube"  # -14 LUFS
+    AMAZON_MUSIC = "amazon_music"  # -14 LUFS
+    TIDAL = "tidal"  # -14 LUFS
+    BROADCAST_EU = "broadcast_eu"  # -23 LUFS (EBU R128)
+    BROADCAST_US = "broadcast_us"  # -24 LKFS (ATSC A/85)
+    CLUB = "club"  # -9 to -6 LUFS
+    CD = "cd"  # -12 to -9 LUFS
 
 
 @dataclass
 class MasteringTarget:
     """Target specifications for mastering."""
+
     target_lufs: float = -14.0
     tolerance_lufs: float = 0.5
     true_peak_ceiling_dbtp: float = -1.0
@@ -101,6 +103,7 @@ class MasteringTarget:
 @dataclass
 class MultibandCompressorBand:
     """Settings for a single band of multiband compression."""
+
     name: str
     low_freq: float
     high_freq: float
@@ -159,14 +162,16 @@ class MultibandCompressor:
         """Initialize per-band compressors."""
         for band in self.band_configs:
             if band.enabled:
-                self.compressors.append(Compressor(
-                    sample_rate=self.sample_rate,
-                    threshold_db=band.threshold_db,
-                    ratio=band.ratio,
-                    attack_ms=band.attack_ms,
-                    release_ms=band.release_ms,
-                    makeup_gain_db=band.makeup_gain_db,
-                ))
+                self.compressors.append(
+                    Compressor(
+                        sample_rate=self.sample_rate,
+                        threshold_db=band.threshold_db,
+                        ratio=band.ratio,
+                        attack_ms=band.attack_ms,
+                        release_ms=band.release_ms,
+                        makeup_gain_db=band.makeup_gain_db,
+                    )
+                )
             else:
                 self.compressors.append(None)
 
@@ -182,7 +187,9 @@ class MultibandCompressor:
                 hp = BiquadFilter(FilterType.HIGHPASS, band_cfg.low_freq, self.sample_rate, q=0.707)
                 band_audio = hp.process_stereo(band_audio)
                 # Second pass for LR4
-                hp2 = BiquadFilter(FilterType.HIGHPASS, band_cfg.low_freq, self.sample_rate, q=0.707)
+                hp2 = BiquadFilter(
+                    FilterType.HIGHPASS, band_cfg.low_freq, self.sample_rate, q=0.707
+                )
                 band_audio = hp2.process_stereo(band_audio)
 
             # Apply lowpass (cut frequencies above this band)
@@ -190,7 +197,9 @@ class MultibandCompressor:
                 lp = BiquadFilter(FilterType.LOWPASS, band_cfg.high_freq, self.sample_rate, q=0.707)
                 band_audio = lp.process_stereo(band_audio)
                 # Second pass for LR4
-                lp2 = BiquadFilter(FilterType.LOWPASS, band_cfg.high_freq, self.sample_rate, q=0.707)
+                lp2 = BiquadFilter(
+                    FilterType.LOWPASS, band_cfg.high_freq, self.sample_rate, q=0.707
+                )
                 band_audio = lp2.process_stereo(band_audio)
 
             bands.append(band_audio)
@@ -343,7 +352,7 @@ class Ditherer:
         self.noise_shaping = noise_shaping
 
         # Quantization step
-        self.quant_step = 2.0 / (2 ** target_bits)
+        self.quant_step = 2.0 / (2**target_bits)
 
         # Noise shaping filter coefficients (F-weighted curve approximation)
         self.ns_coeffs = [0.5, -0.25, 0.125] if noise_shaping else []
@@ -388,6 +397,7 @@ class Ditherer:
 @dataclass
 class MasteringResult:
     """Result of mastering processing."""
+
     audio: StereoBuffer
     input_measurement: LoudnessMeasurement
     output_measurement: LoudnessMeasurement
@@ -465,16 +475,18 @@ class MasteringChain:
         """Configure multiband compression."""
         band_configs = []
         for band in bands:
-            band_configs.append(MultibandCompressorBand(
-                name=band.get("band_name", "band"),
-                low_freq=band.get("crossover_low_hz", 20),
-                high_freq=band.get("crossover_high_hz", 20000),
-                threshold_db=band.get("threshold_db", -20.0),
-                ratio=band.get("ratio", 2.0),
-                attack_ms=band.get("attack_ms", 20.0),
-                release_ms=band.get("release_ms", 200.0),
-                makeup_gain_db=band.get("gain_db", 0.0),
-            ))
+            band_configs.append(
+                MultibandCompressorBand(
+                    name=band.get("band_name", "band"),
+                    low_freq=band.get("crossover_low_hz", 20),
+                    high_freq=band.get("crossover_high_hz", 20000),
+                    threshold_db=band.get("threshold_db", -20.0),
+                    ratio=band.get("ratio", 2.0),
+                    attack_ms=band.get("attack_ms", 20.0),
+                    release_ms=band.get("release_ms", 200.0),
+                    makeup_gain_db=band.get("gain_db", 0.0),
+                )
+            )
 
         self.multiband = MultibandCompressor(self.sample_rate, band_configs)
 
@@ -573,18 +585,12 @@ class MasteringChain:
         # Stage 6: True peak limiting
         if self.limiter is not None:
             # Check if we need limiting
-            pre_peak = max(
-                np.max(np.abs(processed[0])),
-                np.max(np.abs(processed[1]))
-            )
+            pre_peak = max(np.max(np.abs(processed[0])), np.max(np.abs(processed[1])))
             pre_peak_db = linear_to_db(pre_peak)
 
             processed = self.limiter.process_stereo(processed)
 
-            post_peak = max(
-                np.max(np.abs(processed[0])),
-                np.max(np.abs(processed[1]))
-            )
+            post_peak = max(np.max(np.abs(processed[0])), np.max(np.abs(processed[1])))
             post_peak_db = linear_to_db(post_peak)
 
             peak_reduction = pre_peak_db - post_peak_db
@@ -660,18 +666,55 @@ def create_streaming_master(
     chain.set_target(MasteringTarget.for_platform(platform))
 
     # Configure standard multiband
-    chain.configure_multiband([
-        {"band_name": "low", "crossover_low_hz": 20, "crossover_high_hz": 120,
-         "threshold_db": -18.0, "ratio": 2.5, "attack_ms": 30.0, "release_ms": 300.0},
-        {"band_name": "low_mid", "crossover_low_hz": 120, "crossover_high_hz": 500,
-         "threshold_db": -20.0, "ratio": 2.0, "attack_ms": 25.0, "release_ms": 200.0},
-        {"band_name": "mid", "crossover_low_hz": 500, "crossover_high_hz": 2000,
-         "threshold_db": -22.0, "ratio": 1.8, "attack_ms": 20.0, "release_ms": 150.0},
-        {"band_name": "high_mid", "crossover_low_hz": 2000, "crossover_high_hz": 8000,
-         "threshold_db": -24.0, "ratio": 1.5, "attack_ms": 15.0, "release_ms": 100.0},
-        {"band_name": "high", "crossover_low_hz": 8000, "crossover_high_hz": 20000,
-         "threshold_db": -26.0, "ratio": 1.3, "attack_ms": 10.0, "release_ms": 80.0},
-    ])
+    chain.configure_multiband(
+        [
+            {
+                "band_name": "low",
+                "crossover_low_hz": 20,
+                "crossover_high_hz": 120,
+                "threshold_db": -18.0,
+                "ratio": 2.5,
+                "attack_ms": 30.0,
+                "release_ms": 300.0,
+            },
+            {
+                "band_name": "low_mid",
+                "crossover_low_hz": 120,
+                "crossover_high_hz": 500,
+                "threshold_db": -20.0,
+                "ratio": 2.0,
+                "attack_ms": 25.0,
+                "release_ms": 200.0,
+            },
+            {
+                "band_name": "mid",
+                "crossover_low_hz": 500,
+                "crossover_high_hz": 2000,
+                "threshold_db": -22.0,
+                "ratio": 1.8,
+                "attack_ms": 20.0,
+                "release_ms": 150.0,
+            },
+            {
+                "band_name": "high_mid",
+                "crossover_low_hz": 2000,
+                "crossover_high_hz": 8000,
+                "threshold_db": -24.0,
+                "ratio": 1.5,
+                "attack_ms": 15.0,
+                "release_ms": 100.0,
+            },
+            {
+                "band_name": "high",
+                "crossover_low_hz": 8000,
+                "crossover_high_hz": 20000,
+                "threshold_db": -26.0,
+                "ratio": 1.3,
+                "attack_ms": 10.0,
+                "release_ms": 80.0,
+            },
+        ]
+    )
 
     # Subtle stereo enhancement
     chain.configure_stereo(width=1.05, bass_mono_freq=120.0, side_high_boost_db=0.5)
@@ -698,94 +741,257 @@ def create_genre_master(
         MasteringResult with processed audio and analysis
     """
     chain = MasteringChain(sample_rate)
-    chain.set_target(MasteringTarget(
-        target_lufs=target_lufs,
-        true_peak_ceiling_dbtp=-1.0,
-    ))
+    chain.set_target(
+        MasteringTarget(
+            target_lufs=target_lufs,
+            true_peak_ceiling_dbtp=-1.0,
+        )
+    )
 
     genre_lower = genre_id.lower()
 
     # Genre-specific multiband settings
     if "hip-hop" in genre_lower or "boom-bap" in genre_lower:
         # Hip-hop: strong low end, controlled mids
-        chain.configure_multiband([
-            {"band_name": "sub", "crossover_low_hz": 20, "crossover_high_hz": 60,
-             "threshold_db": -15.0, "ratio": 3.0, "attack_ms": 40.0, "release_ms": 400.0},
-            {"band_name": "bass", "crossover_low_hz": 60, "crossover_high_hz": 200,
-             "threshold_db": -16.0, "ratio": 2.5, "attack_ms": 30.0, "release_ms": 300.0},
-            {"band_name": "low_mid", "crossover_low_hz": 200, "crossover_high_hz": 800,
-             "threshold_db": -20.0, "ratio": 2.0, "attack_ms": 25.0, "release_ms": 200.0},
-            {"band_name": "mid", "crossover_low_hz": 800, "crossover_high_hz": 4000,
-             "threshold_db": -22.0, "ratio": 1.8, "attack_ms": 20.0, "release_ms": 150.0},
-            {"band_name": "high", "crossover_low_hz": 4000, "crossover_high_hz": 20000,
-             "threshold_db": -24.0, "ratio": 1.5, "attack_ms": 15.0, "release_ms": 100.0},
-        ])
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 60,
+                    "threshold_db": -15.0,
+                    "ratio": 3.0,
+                    "attack_ms": 40.0,
+                    "release_ms": 400.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 60,
+                    "crossover_high_hz": 200,
+                    "threshold_db": -16.0,
+                    "ratio": 2.5,
+                    "attack_ms": 30.0,
+                    "release_ms": 300.0,
+                },
+                {
+                    "band_name": "low_mid",
+                    "crossover_low_hz": 200,
+                    "crossover_high_hz": 800,
+                    "threshold_db": -20.0,
+                    "ratio": 2.0,
+                    "attack_ms": 25.0,
+                    "release_ms": 200.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 800,
+                    "crossover_high_hz": 4000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.8,
+                    "attack_ms": 20.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 4000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -24.0,
+                    "ratio": 1.5,
+                    "attack_ms": 15.0,
+                    "release_ms": 100.0,
+                },
+            ]
+        )
         chain.configure_stereo(width=1.0, bass_mono_freq=150.0)
 
     elif "edm" in genre_lower or "electronic" in genre_lower:
         # EDM: punchy, wide, loud
-        chain.configure_multiband([
-            {"band_name": "sub", "crossover_low_hz": 20, "crossover_high_hz": 80,
-             "threshold_db": -12.0, "ratio": 4.0, "attack_ms": 20.0, "release_ms": 200.0},
-            {"band_name": "bass", "crossover_low_hz": 80, "crossover_high_hz": 300,
-             "threshold_db": -14.0, "ratio": 3.0, "attack_ms": 15.0, "release_ms": 150.0},
-            {"band_name": "mid", "crossover_low_hz": 300, "crossover_high_hz": 3000,
-             "threshold_db": -18.0, "ratio": 2.0, "attack_ms": 15.0, "release_ms": 100.0},
-            {"band_name": "high", "crossover_low_hz": 3000, "crossover_high_hz": 20000,
-             "threshold_db": -20.0, "ratio": 1.5, "attack_ms": 10.0, "release_ms": 80.0},
-        ])
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 80,
+                    "threshold_db": -12.0,
+                    "ratio": 4.0,
+                    "attack_ms": 20.0,
+                    "release_ms": 200.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 80,
+                    "crossover_high_hz": 300,
+                    "threshold_db": -14.0,
+                    "ratio": 3.0,
+                    "attack_ms": 15.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 300,
+                    "crossover_high_hz": 3000,
+                    "threshold_db": -18.0,
+                    "ratio": 2.0,
+                    "attack_ms": 15.0,
+                    "release_ms": 100.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 3000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -20.0,
+                    "ratio": 1.5,
+                    "attack_ms": 10.0,
+                    "release_ms": 80.0,
+                },
+            ]
+        )
         chain.configure_stereo(width=1.15, bass_mono_freq=120.0, side_high_boost_db=1.0)
         chain.configure_exciter(low_freq=500, high_freq=12000, drive=0.15, mix=0.08)
 
     elif "lo-fi" in genre_lower or "lofi" in genre_lower:
         # Lo-fi: warm, relaxed dynamics
-        chain.configure_multiband([
-            {"band_name": "low", "crossover_low_hz": 20, "crossover_high_hz": 200,
-             "threshold_db": -20.0, "ratio": 1.5, "attack_ms": 50.0, "release_ms": 500.0},
-            {"band_name": "mid", "crossover_low_hz": 200, "crossover_high_hz": 3000,
-             "threshold_db": -22.0, "ratio": 1.3, "attack_ms": 40.0, "release_ms": 400.0},
-            {"band_name": "high", "crossover_low_hz": 3000, "crossover_high_hz": 20000,
-             "threshold_db": -26.0, "ratio": 1.2, "attack_ms": 30.0, "release_ms": 300.0},
-        ])
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "low",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 200,
+                    "threshold_db": -20.0,
+                    "ratio": 1.5,
+                    "attack_ms": 50.0,
+                    "release_ms": 500.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 200,
+                    "crossover_high_hz": 3000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.3,
+                    "attack_ms": 40.0,
+                    "release_ms": 400.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 3000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -26.0,
+                    "ratio": 1.2,
+                    "attack_ms": 30.0,
+                    "release_ms": 300.0,
+                },
+            ]
+        )
         chain.configure_stereo(width=0.95, bass_mono_freq=100.0)
         # Lo-fi often has rolled off highs
-        chain.configure_eq([
-            {"band_type": "lowshelf", "frequency_hz": 200, "gain_db": 2.0, "q": 0.7},
-            {"band_type": "highshelf", "frequency_hz": 8000, "gain_db": -2.0, "q": 0.7},
-        ])
+        chain.configure_eq(
+            [
+                {"band_type": "lowshelf", "frequency_hz": 200, "gain_db": 2.0, "q": 0.7},
+                {"band_type": "highshelf", "frequency_hz": 8000, "gain_db": -2.0, "q": 0.7},
+            ]
+        )
 
     elif "synthwave" in genre_lower or "retrowave" in genre_lower:
         # Synthwave: bright, wide, punchy
-        chain.configure_multiband([
-            {"band_name": "sub", "crossover_low_hz": 20, "crossover_high_hz": 100,
-             "threshold_db": -16.0, "ratio": 3.0, "attack_ms": 25.0, "release_ms": 250.0},
-            {"band_name": "bass", "crossover_low_hz": 100, "crossover_high_hz": 400,
-             "threshold_db": -18.0, "ratio": 2.5, "attack_ms": 20.0, "release_ms": 200.0},
-            {"band_name": "mid", "crossover_low_hz": 400, "crossover_high_hz": 4000,
-             "threshold_db": -20.0, "ratio": 2.0, "attack_ms": 15.0, "release_ms": 150.0},
-            {"band_name": "high", "crossover_low_hz": 4000, "crossover_high_hz": 20000,
-             "threshold_db": -22.0, "ratio": 1.5, "attack_ms": 10.0, "release_ms": 100.0},
-        ])
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 100,
+                    "threshold_db": -16.0,
+                    "ratio": 3.0,
+                    "attack_ms": 25.0,
+                    "release_ms": 250.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 100,
+                    "crossover_high_hz": 400,
+                    "threshold_db": -18.0,
+                    "ratio": 2.5,
+                    "attack_ms": 20.0,
+                    "release_ms": 200.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 400,
+                    "crossover_high_hz": 4000,
+                    "threshold_db": -20.0,
+                    "ratio": 2.0,
+                    "attack_ms": 15.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 4000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.5,
+                    "attack_ms": 10.0,
+                    "release_ms": 100.0,
+                },
+            ]
+        )
         chain.configure_stereo(width=1.2, bass_mono_freq=100.0, side_high_boost_db=1.5)
         chain.configure_exciter(low_freq=400, high_freq=10000, drive=0.2, mix=0.1)
-        chain.configure_eq([
-            {"band_type": "highshelf", "frequency_hz": 10000, "gain_db": 1.5, "q": 0.7},
-        ])
+        chain.configure_eq(
+            [
+                {"band_type": "highshelf", "frequency_hz": 10000, "gain_db": 1.5, "q": 0.7},
+            ]
+        )
 
     else:
         # Default: balanced approach
-        chain.configure_multiband([
-            {"band_name": "low", "crossover_low_hz": 20, "crossover_high_hz": 120,
-             "threshold_db": -18.0, "ratio": 2.5, "attack_ms": 30.0, "release_ms": 300.0},
-            {"band_name": "low_mid", "crossover_low_hz": 120, "crossover_high_hz": 500,
-             "threshold_db": -20.0, "ratio": 2.0, "attack_ms": 25.0, "release_ms": 200.0},
-            {"band_name": "mid", "crossover_low_hz": 500, "crossover_high_hz": 2000,
-             "threshold_db": -22.0, "ratio": 1.8, "attack_ms": 20.0, "release_ms": 150.0},
-            {"band_name": "high_mid", "crossover_low_hz": 2000, "crossover_high_hz": 8000,
-             "threshold_db": -24.0, "ratio": 1.5, "attack_ms": 15.0, "release_ms": 100.0},
-            {"band_name": "high", "crossover_low_hz": 8000, "crossover_high_hz": 20000,
-             "threshold_db": -26.0, "ratio": 1.3, "attack_ms": 10.0, "release_ms": 80.0},
-        ])
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "low",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 120,
+                    "threshold_db": -18.0,
+                    "ratio": 2.5,
+                    "attack_ms": 30.0,
+                    "release_ms": 300.0,
+                },
+                {
+                    "band_name": "low_mid",
+                    "crossover_low_hz": 120,
+                    "crossover_high_hz": 500,
+                    "threshold_db": -20.0,
+                    "ratio": 2.0,
+                    "attack_ms": 25.0,
+                    "release_ms": 200.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 500,
+                    "crossover_high_hz": 2000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.8,
+                    "attack_ms": 20.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "high_mid",
+                    "crossover_low_hz": 2000,
+                    "crossover_high_hz": 8000,
+                    "threshold_db": -24.0,
+                    "ratio": 1.5,
+                    "attack_ms": 15.0,
+                    "release_ms": 100.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 8000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -26.0,
+                    "ratio": 1.3,
+                    "attack_ms": 10.0,
+                    "release_ms": 80.0,
+                },
+            ]
+        )
         chain.configure_stereo(width=1.05, bass_mono_freq=120.0, side_high_boost_db=0.5)
 
     return chain.process(audio)

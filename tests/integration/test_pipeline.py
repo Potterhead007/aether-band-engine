@@ -35,9 +35,7 @@ class TestPipelineIntegration:
         """Create mock audio provider."""
         mock = MagicMock()
         # Return stereo audio
-        mock.render_midi = AsyncMock(
-            return_value=np.random.randn(2, 48000 * 30).astype(np.float32)
-        )
+        mock.render_midi = AsyncMock(return_value=np.random.randn(2, 48000 * 30).astype(np.float32))
         mock.sample_rate = 48000
         return mock
 
@@ -97,13 +95,11 @@ class TestPipelineIntegration:
         }
 
         # Mock the internal methods
-        with patch.object(engine, '_generate_midi') as mock_midi:
-            with patch.object(engine, '_render_to_stems') as mock_stems:
-                with patch.object(engine, '_mix_stems') as mock_mix:
+        with patch.object(engine, "_generate_midi") as mock_midi:
+            with patch.object(engine, "_render_to_stems") as mock_stems:
+                with patch.object(engine, "_mix_stems") as mock_mix:
                     mock_midi.return_value = MagicMock()
-                    mock_stems.return_value = {
-                        "kick": np.random.randn(2, 48000 * 10)
-                    }
+                    mock_stems.return_value = {"kick": np.random.randn(2, 48000 * 10)}
                     mock_mix.return_value = np.random.randn(2, 48000 * 10)
 
                     result = await engine.render(pipeline_output)
@@ -138,7 +134,7 @@ class TestAgentPipelineIntegration:
 
         # Run composition with song spec
         comp_agent = CompositionAgent()
-        with patch.object(comp_agent, '_get_genre_profile') as mock_profile:
+        with patch.object(comp_agent, "_get_genre_profile") as mock_profile:
             mock_profile.return_value = MagicMock(
                 rhythm=MagicMock(
                     tempo_range=(120, 150),
@@ -179,7 +175,7 @@ class TestAgentPipelineIntegration:
 
         # Composition
         comp_agent = CompositionAgent()
-        with patch.object(comp_agent, '_get_genre_profile') as mock:
+        with patch.object(comp_agent, "_get_genre_profile") as mock:
             mock.return_value = MagicMock(
                 rhythm=MagicMock(tempo_range=(60, 80), time_signatures=["4/4"]),
                 harmony=MagicMock(common_keys=["C", "Am"], common_modes=["major", "minor"]),
@@ -191,16 +187,18 @@ class TestAgentPipelineIntegration:
 
         # Arrangement
         arr_agent = ArrangementAgent()
-        with patch.object(arr_agent, '_get_genre_profile') as mock:
+        with patch.object(arr_agent, "_get_genre_profile") as mock:
             mock.return_value = MagicMock(
                 arrangement=MagicMock(
-                    typical_structures=[{
-                        "sections": [
-                            {"type": "intro", "length_bars": 4},
-                            {"type": "verse", "length_bars": 16},
-                            {"type": "chorus", "length_bars": 8},
-                        ]
-                    }]
+                    typical_structures=[
+                        {
+                            "sections": [
+                                {"type": "intro", "length_bars": 4},
+                                {"type": "verse", "length_bars": 16},
+                                {"type": "chorus", "length_bars": 8},
+                            ]
+                        }
+                    ]
                 ),
                 instrumentation=MagicMock(
                     core_instruments=["piano", "strings"],
@@ -329,10 +327,12 @@ class TestQAIntegration:
         t = np.linspace(0, duration, samples)
 
         # Create stereo audio with reasonable levels
-        audio = np.stack([
-            np.sin(2 * np.pi * 440 * t) * 0.5,
-            np.sin(2 * np.pi * 440 * t) * 0.5,
-        ])
+        audio = np.stack(
+            [
+                np.sin(2 * np.pi * 440 * t) * 0.5,
+                np.sin(2 * np.pi * 440 * t) * 0.5,
+            ]
+        )
 
         result = validator.validate(audio, sample_rate)
 
@@ -475,6 +475,7 @@ class TestResilienceIntegration:
 
         # First call: retry exhausted
         from aether.core.exceptions import RetryExhaustedError
+
         with pytest.raises(RetryExhaustedError):
             await flaky_service()
 

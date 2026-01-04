@@ -20,9 +20,7 @@ class Instrument(AetherBaseModel):
     """An instrument in the arrangement."""
 
     name: str = Field(description="Instrument name")
-    category: str = Field(
-        description="drums, bass, keys, synth, guitar, strings, brass, vocal, fx"
-    )
+    category: str = Field(description="drums, bass, keys, synth, guitar, strings, brass, vocal, fx")
     role: str = Field(description="lead, rhythm, pad, texture, accent")
     midi_program: Optional[int] = Field(default=None, ge=0, le=127)
     is_essential: bool = Field(default=False)
@@ -39,9 +37,7 @@ class SectionDefinition(AetherBaseModel):
     instruments: list[str] = Field(
         min_length=1, description="Instrument names active in this section"
     )
-    dynamics: str = Field(
-        default="mf", description="Dynamic marking (pp, p, mp, mf, f, ff)"
-    )
+    dynamics: str = Field(default="mf", description="Dynamic marking (pp, p, mp, mf, f, ff)")
 
 
 class Transition(AetherBaseModel):
@@ -49,9 +45,7 @@ class Transition(AetherBaseModel):
 
     from_section: str = Field(description="Label of source section")
     to_section: str = Field(description="Label of target section")
-    technique: str = Field(
-        description="fill, riser, drop, filter_sweep, silence, crash, reverse"
-    )
+    technique: str = Field(description="fill, riser, drop, filter_sweep, silence, crash, reverse")
     duration_beats: float = Field(ge=0.0, default=4.0)
     has_fill: bool = Field(default=False)
 
@@ -113,7 +107,12 @@ class ArrangementSpec(IdentifiableModel):
                 "song_id": "example-song-id",
                 "instruments": [
                     {"name": "kick", "category": "drums", "role": "rhythm", "is_essential": True},
-                    {"name": "bass_synth", "category": "synth", "role": "rhythm", "is_essential": True},
+                    {
+                        "name": "bass_synth",
+                        "category": "synth",
+                        "role": "rhythm",
+                        "is_essential": True,
+                    },
                     {"name": "lead_synth", "category": "synth", "role": "lead"},
                     {"name": "pad", "category": "synth", "role": "pad"},
                 ],

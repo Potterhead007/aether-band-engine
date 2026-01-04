@@ -15,8 +15,11 @@ from pydantic import BaseModel
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.knowledge import get_genre_manager, contour_to_hash
 from aether.schemas.qa import (
-    QAReport, OriginalityCheck, TechnicalCheck,
-    GenreAuthenticityResult, GenreRubricScore
+    QAReport,
+    OriginalityCheck,
+    TechnicalCheck,
+    GenreAuthenticityResult,
+    GenreRubricScore,
 )
 from aether.storage import ArtifactType
 
@@ -105,7 +108,9 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
         if not technical_passed:
             rejection_reasons.append("Technical specs out of tolerance")
         if not genre_result.passed:
-            warnings.append(f"Genre authenticity score below threshold: {genre_result.total_score:.2f}")
+            warnings.append(
+                f"Genre authenticity score below threshold: {genre_result.total_score:.2f}"
+            )
 
         qa_report = QAReport(
             song_id=str(song_spec["id"]),
@@ -204,28 +209,32 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
         tolerance = loudness.get("tolerance", 0.5)
         measured = master_spec.get("measured_lufs", target_lufs)  # Placeholder
 
-        checks.append(TechnicalCheck(
-            check_name="integrated_loudness",
-            measured_value=measured,
-            target_value=target_lufs,
-            tolerance=tolerance,
-            passed=abs(measured - target_lufs) <= tolerance,
-            unit="LUFS",
-        ))
+        checks.append(
+            TechnicalCheck(
+                check_name="integrated_loudness",
+                measured_value=measured,
+                target_value=target_lufs,
+                tolerance=tolerance,
+                passed=abs(measured - target_lufs) <= tolerance,
+                unit="LUFS",
+            )
+        )
 
         # True peak check
         true_peak = master_spec.get("true_peak", {})
         ceiling = true_peak.get("ceiling_dbtp", -1.0)
         measured_peak = master_spec.get("measured_true_peak", ceiling)
 
-        checks.append(TechnicalCheck(
-            check_name="true_peak",
-            measured_value=measured_peak,
-            target_value=ceiling,
-            tolerance=0.0,
-            passed=measured_peak <= ceiling,
-            unit="dBTP",
-        ))
+        checks.append(
+            TechnicalCheck(
+                check_name="true_peak",
+                measured_value=measured_peak,
+                target_value=ceiling,
+                tolerance=0.0,
+                passed=measured_peak <= ceiling,
+                unit="dBTP",
+            )
+        )
 
         # Dynamic range check
         dr = master_spec.get("dynamic_range", {})
@@ -233,14 +242,16 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
         min_dr = dr.get("minimum_lu", 6.0)
         measured_dr = master_spec.get("measured_dynamic_range", target_dr)
 
-        checks.append(TechnicalCheck(
-            check_name="dynamic_range",
-            measured_value=measured_dr,
-            target_value=target_dr,
-            tolerance=2.0,
-            passed=measured_dr >= min_dr,
-            unit="LU",
-        ))
+        checks.append(
+            TechnicalCheck(
+                check_name="dynamic_range",
+                measured_value=measured_dr,
+                target_value=target_dr,
+                tolerance=2.0,
+                passed=measured_dr >= min_dr,
+                unit="LU",
+            )
+        )
 
         return checks
 
@@ -261,13 +272,15 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
                 dimension, song_spec, harmony_spec, melody_spec, profile
             )
             weighted = score * dimension.weight
-            dimension_scores.append(GenreRubricScore(
-                dimension_name=dimension.dimension_name,
-                weight=dimension.weight,
-                score=score,
-                weighted_score=weighted,
-                feedback=self._generate_feedback(dimension.dimension_name, score),
-            ))
+            dimension_scores.append(
+                GenreRubricScore(
+                    dimension_name=dimension.dimension_name,
+                    weight=dimension.weight,
+                    score=score,
+                    weighted_score=weighted,
+                    feedback=self._generate_feedback(dimension.dimension_name, score),
+                )
+            )
 
         total_score = sum(d.weighted_score for d in dimension_scores)
 

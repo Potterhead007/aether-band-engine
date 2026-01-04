@@ -26,32 +26,16 @@ class VoicePersona(AetherBaseModel):
     """
 
     # Fundamental characteristics
-    gender_presentation: str = Field(
-        description="masculine, feminine, androgynous"
-    )
-    age_range: str = Field(
-        description="young, adult, mature"
-    )
-    vocal_weight: str = Field(
-        description="light, medium, heavy"
-    )
+    gender_presentation: str = Field(description="masculine, feminine, androgynous")
+    age_range: str = Field(description="young, adult, mature")
+    vocal_weight: str = Field(description="light, medium, heavy")
 
     # Timbral qualities
-    brightness: float = Field(
-        ge=0.0, le=1.0, default=0.5, description="Dark to bright spectrum"
-    )
-    breathiness: float = Field(
-        ge=0.0, le=1.0, default=0.2, description="Amount of air in voice"
-    )
-    nasality: float = Field(
-        ge=0.0, le=1.0, default=0.3, description="Nasal resonance"
-    )
-    vibrato_depth: float = Field(
-        ge=0.0, le=1.0, default=0.3, description="Vibrato intensity"
-    )
-    vibrato_rate: float = Field(
-        ge=3.0, le=8.0, default=5.5, description="Vibrato frequency in Hz"
-    )
+    brightness: float = Field(ge=0.0, le=1.0, default=0.5, description="Dark to bright spectrum")
+    breathiness: float = Field(ge=0.0, le=1.0, default=0.2, description="Amount of air in voice")
+    nasality: float = Field(ge=0.0, le=1.0, default=0.3, description="Nasal resonance")
+    vibrato_depth: float = Field(ge=0.0, le=1.0, default=0.3, description="Vibrato intensity")
+    vibrato_rate: float = Field(ge=3.0, le=8.0, default=5.5, description="Vibrato frequency in Hz")
 
     # Range
     lowest_note: NoteName
@@ -75,18 +59,10 @@ class VocalDouble(AetherBaseModel):
     """Vocal double/layer specification."""
 
     name: str = Field(description="e.g., 'main_double', 'whisper_layer'")
-    offset_cents: int = Field(
-        ge=-50, le=50, default=0, description="Pitch offset for thickening"
-    )
-    delay_ms: float = Field(
-        ge=0.0, le=50.0, default=15.0, description="Timing offset"
-    )
-    level_db: float = Field(
-        ge=-20.0, le=0.0, default=-6.0, description="Relative level"
-    )
-    pan: float = Field(
-        ge=-1.0, le=1.0, default=0.0, description="-1=left, 0=center, 1=right"
-    )
+    offset_cents: int = Field(ge=-50, le=50, default=0, description="Pitch offset for thickening")
+    delay_ms: float = Field(ge=0.0, le=50.0, default=15.0, description="Timing offset")
+    level_db: float = Field(ge=-20.0, le=0.0, default=-6.0, description="Relative level")
+    pan: float = Field(ge=-1.0, le=1.0, default=0.0, description="-1=left, 0=center, 1=right")
 
 
 class VocalHarmony(AetherBaseModel):
@@ -144,20 +120,14 @@ class VocalSpec(IdentifiableModel):
     delivery_style: str = Field(
         default="sung", description="sung, rapped, spoken, whispered, belted"
     )
-    articulation: str = Field(
-        default="clear", description="clear, lazy, staccato, legato"
-    )
+    articulation: str = Field(default="clear", description="clear, lazy, staccato, legato")
 
     # Processing hints
     autotune_amount: float = Field(
         ge=0.0, le=1.0, default=0.3, description="0=natural, 1=hard tuned"
     )
-    reverb_send: float = Field(
-        ge=0.0, le=1.0, default=0.3, description="Reverb amount"
-    )
-    delay_send: float = Field(
-        ge=0.0, le=1.0, default=0.2, description="Delay amount"
-    )
+    reverb_send: float = Field(ge=0.0, le=1.0, default=0.3, description="Reverb amount")
+    delay_send: float = Field(ge=0.0, le=1.0, default=0.2, description="Delay amount")
 
     class Config:
         json_schema_extra = {

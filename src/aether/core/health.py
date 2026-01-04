@@ -18,6 +18,7 @@ import time
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     psutil = None
@@ -145,6 +146,7 @@ class HealthCheck:
         - tuple[bool, str]: (status, message)
         - tuple[bool, str, dict]: (status, message, details)
         """
+
         def decorator(func: F) -> F:
             @functools.wraps(func)
             async def wrapper() -> ComponentHealth:
@@ -242,11 +244,13 @@ class HealthCheck:
             components = []
             for result in results:
                 if isinstance(result, Exception):
-                    components.append(ComponentHealth(
-                        name="unknown",
-                        status=HealthStatus.UNHEALTHY,
-                        error=str(result),
-                    ))
+                    components.append(
+                        ComponentHealth(
+                            name="unknown",
+                            status=HealthStatus.UNHEALTHY,
+                            error=str(result),
+                        )
+                    )
                 else:
                     components.append(result)
         else:
@@ -318,25 +322,25 @@ class HealthCheck:
             disk = psutil.disk_usage("/")
             cpu_percent = psutil.cpu_percent(interval=0.1)
 
-            base_info.update({
-                "cpu_percent": cpu_percent,
-                "memory": {
-                    "total_gb": round(memory.total / (1024**3), 2),
-                    "available_gb": round(memory.available / (1024**3), 2),
-                    "percent_used": memory.percent,
-                },
-                "disk": {
-                    "total_gb": round(disk.total / (1024**3), 2),
-                    "free_gb": round(disk.free / (1024**3), 2),
-                    "percent_used": round((disk.used / disk.total) * 100, 1),
-                },
-                "process": {
-                    "pid": os.getpid(),
-                    "memory_mb": round(
-                        psutil.Process().memory_info().rss / (1024**2), 2
-                    ),
-                },
-            })
+            base_info.update(
+                {
+                    "cpu_percent": cpu_percent,
+                    "memory": {
+                        "total_gb": round(memory.total / (1024**3), 2),
+                        "available_gb": round(memory.available / (1024**3), 2),
+                        "percent_used": memory.percent,
+                    },
+                    "disk": {
+                        "total_gb": round(disk.total / (1024**3), 2),
+                        "free_gb": round(disk.free / (1024**3), 2),
+                        "percent_used": round((disk.used / disk.total) * 100, 1),
+                    },
+                    "process": {
+                        "pid": os.getpid(),
+                        "memory_mb": round(psutil.Process().memory_info().rss / (1024**2), 2),
+                    },
+                }
+            )
             return base_info
         except Exception as e:
             logger.warning(f"Failed to get system info: {e}")
@@ -378,6 +382,7 @@ def health_check(
 # Built-in Health Checks
 # =============================================================================
 
+
 def register_default_checks(health: Optional[HealthCheck] = None) -> None:
     """Register default health checks."""
     if health is None:
@@ -409,15 +414,23 @@ def register_default_checks(health: Optional[HealthCheck] = None) -> None:
                 issues.append(f"Disk usage high: {disk_percent:.1f}%")
 
             if issues:
-                return False, "; ".join(issues), {
+                return (
+                    False,
+                    "; ".join(issues),
+                    {
+                        "memory_percent": memory.percent,
+                        "disk_percent": round(disk_percent, 1),
+                    },
+                )
+
+            return (
+                True,
+                "Resources OK",
+                {
                     "memory_percent": memory.percent,
                     "disk_percent": round(disk_percent, 1),
-                }
-
-            return True, "Resources OK", {
-                "memory_percent": memory.percent,
-                "disk_percent": round(disk_percent, 1),
-            }
+                },
+            )
 
         except Exception as e:
             return False, f"Failed to check resources: {e}", {}
@@ -426,6 +439,7 @@ def register_default_checks(health: Optional[HealthCheck] = None) -> None:
 # =============================================================================
 # Liveness and Readiness Probes
 # =============================================================================
+
 
 class ProbeStatus(Enum):
     """Kubernetes-style probe status."""

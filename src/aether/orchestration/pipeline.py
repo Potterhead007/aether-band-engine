@@ -207,7 +207,9 @@ class PipelineAgentExecutor(AgentExecutor):
         """Update context with agent output."""
         if agent_type == "creative_director":
             context["song_spec"] = output.get("song_spec", {})
-            context["genre_profile_id"] = output.get("genre_profile_id", context.get("genre_profile_id"))
+            context["genre_profile_id"] = output.get(
+                "genre_profile_id", context.get("genre_profile_id")
+            )
 
         elif agent_type == "composition":
             context["harmony_spec"] = output.get("harmony_spec", {})
@@ -333,6 +335,7 @@ class MusicPipeline:
 
         # Register agent executor for all agent types
         from aether.agents import get_pipeline_agents
+
         for agent_type in get_pipeline_agents():
             workflow.register_agent(agent_type, self.executor)
 

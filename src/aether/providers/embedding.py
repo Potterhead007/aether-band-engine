@@ -71,7 +71,7 @@ class EmbeddingCache:
         """Cache embedding result."""
         if len(self._cache) >= self.max_size:
             # Simple eviction: remove oldest 10%
-            keys = list(self._cache.keys())[:int(self.max_size * 0.1)]
+            keys = list(self._cache.keys())[: int(self.max_size * 0.1)]
             for key in keys:
                 del self._cache[key]
 
@@ -135,6 +135,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
         """Initialize the sentence transformer model."""
         try:
             from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(self.model_name)
             self._status = ProviderStatus.AVAILABLE
             logger.info(f"SentenceTransformer initialized with model: {self.model_name}")
@@ -313,6 +314,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         """Initialize the OpenAI client."""
         try:
             import openai
+
             self._client = openai.AsyncOpenAI(api_key=self.api_key)
             self._status = ProviderStatus.AVAILABLE
             logger.info(f"OpenAI Embedding provider initialized with model: {self.model}")
@@ -557,12 +559,14 @@ class AudioEmbeddingProvider:
         mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
 
         # Extract statistics as embedding
-        embedding = np.concatenate([
-            np.mean(mel_spec_db, axis=1),  # Mean per band
-            np.std(mel_spec_db, axis=1),   # Std per band
-            np.max(mel_spec_db, axis=1),   # Max per band
-            np.min(mel_spec_db, axis=1),   # Min per band
-        ])
+        embedding = np.concatenate(
+            [
+                np.mean(mel_spec_db, axis=1),  # Mean per band
+                np.std(mel_spec_db, axis=1),  # Std per band
+                np.max(mel_spec_db, axis=1),  # Max per band
+                np.min(mel_spec_db, axis=1),  # Min per band
+            ]
+        )
 
         # Normalize
         embedding = embedding / (np.linalg.norm(embedding) + 1e-10)
@@ -585,27 +589,28 @@ class AudioEmbeddingProvider:
         features = []
         for i in range(min(n_frames, 100)):  # Limit frames
             start = i * hop_length
-            frame = audio[start:start + n_fft]
+            frame = audio[start : start + n_fft]
             spectrum = np.abs(np.fft.rfft(frame * np.hanning(len(frame))))
 
             # Band energies
             n_bands = 32
             band_size = len(spectrum) // n_bands
             band_energies = [
-                np.sum(spectrum[j * band_size:(j + 1) * band_size] ** 2)
-                for j in range(n_bands)
+                np.sum(spectrum[j * band_size : (j + 1) * band_size] ** 2) for j in range(n_bands)
             ]
             features.append(band_energies)
 
         features = np.array(features)
 
         # Statistics
-        embedding = np.concatenate([
-            np.mean(features, axis=0),
-            np.std(features, axis=0),
-            np.max(features, axis=0),
-            np.min(features, axis=0),
-        ])
+        embedding = np.concatenate(
+            [
+                np.mean(features, axis=0),
+                np.std(features, axis=0),
+                np.max(features, axis=0),
+                np.min(features, axis=0),
+            ]
+        )
 
         # Normalize
         embedding = embedding / (np.linalg.norm(embedding) + 1e-10)
@@ -659,8 +664,9 @@ def create_embedding_provider(
 
     provider_class = providers.get(provider_type.lower())
     if not provider_class:
-        raise ValueError(f"Unknown provider type: {provider_type}. "
-                        f"Available: {list(providers.keys())}")
+        raise ValueError(
+            f"Unknown provider type: {provider_type}. " f"Available: {list(providers.keys())}"
+        )
 
     return provider_class(**kwargs)
 

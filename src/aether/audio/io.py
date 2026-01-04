@@ -38,12 +38,13 @@ logger = logging.getLogger(__name__)
 
 class AudioFormat(str, Enum):
     """Supported audio formats."""
-    WAV_16_44 = "wav_16_44"    # CD quality
-    WAV_16_48 = "wav_16_48"    # Video standard
-    WAV_24_44 = "wav_24_44"    # High-res
-    WAV_24_48 = "wav_24_48"    # Professional standard
-    WAV_24_96 = "wav_24_96"    # Hi-res
-    WAV_32_48 = "wav_32_48"    # Float32
+
+    WAV_16_44 = "wav_16_44"  # CD quality
+    WAV_16_48 = "wav_16_48"  # Video standard
+    WAV_24_44 = "wav_24_44"  # High-res
+    WAV_24_48 = "wav_24_48"  # Professional standard
+    WAV_24_96 = "wav_24_96"  # Hi-res
+    WAV_32_48 = "wav_32_48"  # Float32
     FLAC_16_44 = "flac_16_44"
     FLAC_24_48 = "flac_24_48"
     FLAC_24_96 = "flac_24_96"
@@ -56,6 +57,7 @@ class AudioFormat(str, Enum):
 @dataclass
 class AudioFormatSpec:
     """Specification for an audio format."""
+
     extension: str
     sample_rate: int
     bit_depth: int
@@ -87,6 +89,7 @@ class AudioFormatSpec:
 @dataclass
 class AudioMetadata:
     """Audio file metadata."""
+
     title: Optional[str] = None
     artist: Optional[str] = None
     album: Optional[str] = None
@@ -101,6 +104,7 @@ class AudioMetadata:
 @dataclass
 class AudioFile:
     """Loaded audio file with data and metadata."""
+
     data: StereoBuffer  # Shape: (2, samples)
     sample_rate: int
     bit_depth: int
@@ -145,7 +149,9 @@ class SampleRateConverter:
         for ch in range(2):
             output[ch] = np.interp(x_dst, x_src, audio[ch])
 
-        logger.debug(f"Resampled {src_rate}Hz -> {dst_rate}Hz ({src_samples} -> {dst_samples} samples)")
+        logger.debug(
+            f"Resampled {src_rate}Hz -> {dst_rate}Hz ({src_samples} -> {dst_samples} samples)"
+        )
         return output
 
 
@@ -174,8 +180,10 @@ class BitDepthConverter:
         # Bit reduction with dithering
         if dst_bits < src_bits and dither:
             # TPDF dither
-            quant_step = 2.0 / (2 ** dst_bits)
-            dither_noise = (np.random.random(audio.shape) - np.random.random(audio.shape)) * quant_step
+            quant_step = 2.0 / (2**dst_bits)
+            dither_noise = (
+                np.random.random(audio.shape) - np.random.random(audio.shape)
+            ) * quant_step
             output = np.round((audio + dither_noise) / quant_step) * quant_step
 
         return output
@@ -276,7 +284,7 @@ def read_wav(path: Union[str, Path]) -> AudioFile:
         samples = []
         for i in range(0, len(raw_data), 3):
             # Little-endian 24-bit to int32
-            b = raw_data[i:i+3]
+            b = raw_data[i : i + 3]
             val = struct.unpack("<i", b + (b"\xff" if b[2] & 0x80 else b"\x00"))[0]
             samples.append(val / 8388607.0)
         samples = np.array(samples)
@@ -360,6 +368,7 @@ def write_audio(
         # Fall back to WAV if not available
         try:
             import soundfile as sf
+
             # Transpose for soundfile (samples, channels)
             audio_t = audio.T
             sf.write(
@@ -392,6 +401,7 @@ def write_audio(
     elif format_spec.extension == "aiff":
         try:
             import soundfile as sf
+
             audio_t = audio.T
             sf.write(
                 str(output_path),
@@ -435,6 +445,7 @@ def read_audio(path: Union[str, Path]) -> AudioFile:
     elif ext in [".flac", ".aiff", ".aif"]:
         try:
             import soundfile as sf
+
             data, sample_rate = sf.read(str(path))
 
             # Ensure stereo

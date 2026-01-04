@@ -14,7 +14,12 @@ from pydantic import BaseModel
 
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.schemas.vocal import (
-    VocalSpec, VoicePersona, VocalDouble, VocalHarmony, AdLib, EmotionMarker
+    VocalSpec,
+    VoicePersona,
+    VocalDouble,
+    VocalHarmony,
+    AdLib,
+    EmotionMarker,
 )
 from aether.schemas.base import NoteName, SectionType
 from aether.storage import ArtifactType
@@ -180,14 +185,14 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
         ad_libs = []
 
         if mood in ["energetic", "aggressive", "happy"]:
-            ad_libs.extend([
-                AdLib(type="yeah", placement="End of chorus", energy=0.8),
-                AdLib(type="hey", placement="Pre-chorus buildup", energy=0.7),
-            ])
-        elif mood in ["calm", "ethereal"]:
-            ad_libs.append(
-                AdLib(type="oh", placement="End of verse", energy=0.4)
+            ad_libs.extend(
+                [
+                    AdLib(type="yeah", placement="End of chorus", energy=0.8),
+                    AdLib(type="hey", placement="Pre-chorus buildup", energy=0.7),
+                ]
             )
+        elif mood in ["calm", "ethereal"]:
+            ad_libs.append(AdLib(type="oh", placement="End of verse", energy=0.4))
 
         return ad_libs
 
@@ -200,23 +205,29 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
             section_type = SectionType(section["section_type"])
 
             if section_type == SectionType.VERSE:
-                markers.append(EmotionMarker(
-                    section=section_type,
-                    emotion="contemplative",
-                    intensity=0.5,
-                ))
+                markers.append(
+                    EmotionMarker(
+                        section=section_type,
+                        emotion="contemplative",
+                        intensity=0.5,
+                    )
+                )
             elif section_type == SectionType.CHORUS:
-                markers.append(EmotionMarker(
-                    section=section_type,
-                    emotion="powerful",
-                    intensity=0.85,
-                ))
+                markers.append(
+                    EmotionMarker(
+                        section=section_type,
+                        emotion="powerful",
+                        intensity=0.85,
+                    )
+                )
             elif section_type == SectionType.BRIDGE:
-                markers.append(EmotionMarker(
-                    section=section_type,
-                    emotion="vulnerable",
-                    intensity=0.6,
-                ))
+                markers.append(
+                    EmotionMarker(
+                        section=section_type,
+                        emotion="vulnerable",
+                        intensity=0.6,
+                    )
+                )
 
         return markers
 

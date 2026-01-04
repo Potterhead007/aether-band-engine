@@ -67,27 +67,26 @@ class TestMockLLMProvider:
     @pytest.mark.asyncio
     async def test_complete_simple(self, provider):
         """Test simple completion."""
-        response = await provider.complete([
-            LLMMessage(role="user", content="Hello")
-        ])
+        response = await provider.complete([LLMMessage(role="user", content="Hello")])
         assert response.content is not None
         assert len(response.content) > 0
 
     @pytest.mark.asyncio
     async def test_complete_with_system(self, provider):
         """Test completion with system message."""
-        response = await provider.complete([
-            LLMMessage(role="system", content="You are a helpful assistant."),
-            LLMMessage(role="user", content="Write a haiku")
-        ])
+        response = await provider.complete(
+            [
+                LLMMessage(role="system", content="You are a helpful assistant."),
+                LLMMessage(role="user", content="Write a haiku"),
+            ]
+        )
         assert response.content is not None
 
     @pytest.mark.asyncio
     async def test_complete_json_mode(self, provider):
         """Test JSON mode completion."""
         response = await provider.complete(
-            [LLMMessage(role="user", content="Return a JSON object")],
-            json_mode=True
+            [LLMMessage(role="user", content="Return a JSON object")], json_mode=True
         )
         assert response.content is not None
 
@@ -101,7 +100,7 @@ class TestCreativePrompts:
             genre="boom-bap",
             mood="introspective",
             theme="urban struggle",
-            structure=["verse", "chorus", "verse"]
+            structure=["verse", "chorus", "verse"],
         )
         assert len(messages) >= 2
         assert messages[0].role == "system"
@@ -110,9 +109,7 @@ class TestCreativePrompts:
     def test_concept_album_prompt(self):
         """Test concept album prompt structure."""
         messages = CreativePrompts.concept_album(
-            genre="synthwave",
-            concept="neon nights",
-            track_count=8
+            genre="synthwave", concept="neon nights", track_count=8
         )
         assert len(messages) >= 2
 
@@ -152,22 +149,10 @@ class TestAlgorithmicMIDIProvider:
     async def test_generate_from_spec(self, provider):
         """Test MIDI generation from spec."""
         midi = await provider.generate_from_spec(
-            harmony_spec={
-                "progression": ["Cm", "Ab", "Eb", "Bb"],
-                "key": "C",
-                "mode": "minor"
-            },
-            melody_spec={
-                "contour": "arch",
-                "range_octaves": 1.5
-            },
-            rhythm_spec={
-                "bpm": 90,
-                "time_signature": (4, 4)
-            },
-            arrangement_spec={
-                "sections": ["verse"]
-            },
+            harmony_spec={"progression": ["Cm", "Ab", "Eb", "Bb"], "key": "C", "mode": "minor"},
+            melody_spec={"contour": "arch", "range_octaves": 1.5},
+            rhythm_spec={"bpm": 90, "time_signature": (4, 4)},
+            arrangement_spec={"sections": ["verse"]},
         )
 
         assert isinstance(midi, MIDIFile)
@@ -246,11 +231,11 @@ class TestSynthAudioProvider:
                         MIDINote(pitch=60, velocity=100, start_time=0.0, duration=0.5),
                         MIDINote(pitch=64, velocity=100, start_time=0.5, duration=0.5),
                         MIDINote(pitch=67, velocity=100, start_time=1.0, duration=0.5),
-                    ]
+                    ],
                 )
             ],
             tempo_bpm=120.0,
-            time_signature=(4, 4)
+            time_signature=(4, 4),
         )
 
     @pytest.mark.asyncio
@@ -261,12 +246,14 @@ class TestSynthAudioProvider:
         # Provider should be ready - test with simple MIDI
         midi = MIDIFile(
             tracks=[
-                MIDITrack(name="Test", channel=0, notes=[
-                    MIDINote(pitch=60, velocity=100, start_time=0.0, duration=0.5)
-                ])
+                MIDITrack(
+                    name="Test",
+                    channel=0,
+                    notes=[MIDINote(pitch=60, velocity=100, start_time=0.0, duration=0.5)],
+                )
             ],
             tempo_bpm=120.0,
-            time_signature=(4, 4)
+            time_signature=(4, 4),
         )
         audio = await provider.render_midi(midi)
         assert audio is not None
@@ -290,16 +277,8 @@ class TestSynthAudioProvider:
         duration = 1.0
         samples = int(sr * duration)
 
-        buffer1 = AudioBuffer(
-            data=np.random.randn(2, samples) * 0.1,
-            sample_rate=sr,
-            channels=2
-        )
-        buffer2 = AudioBuffer(
-            data=np.random.randn(2, samples) * 0.1,
-            sample_rate=sr,
-            channels=2
-        )
+        buffer1 = AudioBuffer(data=np.random.randn(2, samples) * 0.1, sample_rate=sr, channels=2)
+        buffer2 = AudioBuffer(data=np.random.randn(2, samples) * 0.1, sample_rate=sr, channels=2)
 
         stems = [
             AudioStem(name="lead", buffer=buffer1, category="synth"),
@@ -363,10 +342,7 @@ class TestMockEmbeddingProvider:
         r1 = await provider.embed_text("cat")
         r2 = await provider.embed_text("dog")
 
-        sim = await provider.similarity(
-            np.array(r1.embedding),
-            np.array(r2.embedding)
-        )
+        sim = await provider.similarity(np.array(r1.embedding), np.array(r2.embedding))
 
         assert -1 <= sim <= 1
 
@@ -418,9 +394,9 @@ class TestFullPipeline:
         llm = MockLLMProvider()
         await llm.initialize()
 
-        response = await llm.complete([
-            LLMMessage(role="user", content="Generate a song concept for boom-bap")
-        ])
+        response = await llm.complete(
+            [LLMMessage(role="user", content="Generate a song concept for boom-bap")]
+        )
         assert response.content is not None
         await llm.shutdown()
 
@@ -461,16 +437,12 @@ class TestFullPipeline:
         await provider.initialize()
 
         # Should work with various inputs
-        response = await provider.complete([
-            LLMMessage(role="user", content="")  # Empty content
-        ])
+        response = await provider.complete([LLMMessage(role="user", content="")])  # Empty content
         assert response is not None
 
         # Should handle multiple calls
         for i in range(3):
-            response = await provider.complete([
-                LLMMessage(role="user", content=f"Test {i}")
-            ])
+            response = await provider.complete([LLMMessage(role="user", content=f"Test {i}")])
             assert response.content is not None
 
         await provider.shutdown()

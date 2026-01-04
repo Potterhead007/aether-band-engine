@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
 # Centralized Retry Helper (uses core resilience patterns)
 # ============================================================================
 
+
 async def _execute_with_retry(
     operation: Callable[[], Any],
     policy: RetryPolicy,
@@ -98,7 +99,9 @@ async def _execute_with_retry(
             )
             await asyncio.sleep(delay)
 
-    raise RuntimeError(f"All {policy.max_attempts} retry attempts for {operation_name} failed: {last_error}")
+    raise RuntimeError(
+        f"All {policy.max_attempts} retry attempts for {operation_name} failed: {last_error}"
+    )
 
 
 # ============================================================================
@@ -109,6 +112,7 @@ async def _execute_with_retry(
 @dataclass
 class RateLimitConfig:
     """Rate limiting configuration."""
+
     requests_per_minute: int = 60
     tokens_per_minute: int = 100000
     max_retries: int = 3
@@ -225,6 +229,7 @@ class ClaudeLLMProvider(LLMProvider):
         """Initialize the Anthropic client."""
         try:
             import anthropic
+
             self._client = anthropic.AsyncAnthropic(api_key=self.api_key)
             self._status = ProviderStatus.AVAILABLE
             logger.info(f"Claude provider initialized with model: {self.model}")
@@ -283,10 +288,12 @@ class ClaudeLLMProvider(LLMProvider):
             if msg.role == "system":
                 system_message = msg.content
             else:
-                api_messages.append({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
+                api_messages.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                    }
+                )
 
         # Build API kwargs
         kwargs = {
@@ -442,6 +449,7 @@ class OpenAILLMProvider(LLMProvider):
         """Initialize the OpenAI client."""
         try:
             import openai
+
             self._client = openai.AsyncOpenAI(api_key=self.api_key)
             self._status = ProviderStatus.AVAILABLE
             logger.info(f"OpenAI provider initialized with model: {self.model}")
@@ -530,7 +538,7 @@ class OpenAILLMProvider(LLMProvider):
             except Exception as e:
                 last_error = e
                 delay = min(
-                    self.rate_limiter.config.base_delay * (2 ** attempt),
+                    self.rate_limiter.config.base_delay * (2**attempt),
                     self.rate_limiter.config.max_delay,
                 )
                 logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s")
@@ -697,7 +705,7 @@ class CreativePrompts:
                 content=f"""You are a professional songwriter specializing in {genre} music.
 Your lyrics are original, emotionally resonant, and authentic to the genre.
 Never copy existing lyrics. Create entirely new content.
-Use vivid imagery, metaphors, and genre-appropriate vocabulary."""
+Use vivid imagery, metaphors, and genre-appropriate vocabulary.""",
             ),
             LLMMessage(
                 role="user",
@@ -714,7 +722,7 @@ Requirements:
 - Use rhyme schemes appropriate for {genre}
 - Include vivid imagery and emotional depth
 
-Write the complete lyrics:"""
+Write the complete lyrics:""",
             ),
         ]
 
@@ -730,7 +738,7 @@ Write the complete lyrics:"""
                 role="system",
                 content="""You are a music producer and creative director.
 Generate detailed creative briefs for music production.
-Be specific about sonic elements, production techniques, and artistic direction."""
+Be specific about sonic elements, production techniques, and artistic direction.""",
             ),
             LLMMessage(
                 role="user",
@@ -746,7 +754,7 @@ Include:
 4. Arrangement suggestions (dynamics, structure)
 5. Emotional journey (how the track should feel)
 
-Generate the creative brief:"""
+Generate the creative brief:""",
             ),
         ]
 
@@ -762,7 +770,7 @@ Generate the creative brief:"""
                 role="system",
                 content="""You are a visionary music artist planning a concept album.
 Create cohesive album concepts with interconnected tracks.
-Each track should contribute to the overall narrative."""
+Each track should contribute to the overall narrative.""",
             ),
             LLMMessage(
                 role="user",
@@ -778,7 +786,7 @@ For each track, provide:
 4. Key sonic elements
 5. Role in the album narrative
 
-Create the album concept:"""
+Create the album concept:""",
             ),
         ]
 
@@ -812,8 +820,9 @@ def create_llm_provider(
 
     provider_class = providers.get(provider_type.lower())
     if not provider_class:
-        raise ValueError(f"Unknown provider type: {provider_type}. "
-                        f"Available: {list(providers.keys())}")
+        raise ValueError(
+            f"Unknown provider type: {provider_type}. " f"Available: {list(providers.keys())}"
+        )
 
     return provider_class(**kwargs)
 

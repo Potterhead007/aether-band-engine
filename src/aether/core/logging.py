@@ -30,26 +30,44 @@ from typing import Any, Callable, Dict, FrozenSet, List, Optional, TypeVar, Unio
 # ============================================================================
 
 # Fields that should be redacted in logs (case-insensitive matching)
-REDACTED_FIELD_NAMES: FrozenSet[str] = frozenset({
-    'api_key', 'apikey', 'api-key',
-    'password', 'passwd', 'pwd',
-    'secret', 'secret_key', 'secretkey',
-    'token', 'access_token', 'refresh_token', 'auth_token',
-    'authorization', 'auth',
-    'credential', 'credentials',
-    'private_key', 'privatekey',
-    'api_secret', 'client_secret',
-    'bearer', 'jwt',
-    'anthropic_api_key', 'openai_api_key',
-    'llm_api_key', 'embedding_api_key',
-})
+REDACTED_FIELD_NAMES: FrozenSet[str] = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "api-key",
+        "password",
+        "passwd",
+        "pwd",
+        "secret",
+        "secret_key",
+        "secretkey",
+        "token",
+        "access_token",
+        "refresh_token",
+        "auth_token",
+        "authorization",
+        "auth",
+        "credential",
+        "credentials",
+        "private_key",
+        "privatekey",
+        "api_secret",
+        "client_secret",
+        "bearer",
+        "jwt",
+        "anthropic_api_key",
+        "openai_api_key",
+        "llm_api_key",
+        "embedding_api_key",
+    }
+)
 
 # Patterns that indicate sensitive values (for catching secrets in strings)
 _SENSITIVE_VALUE_PATTERNS = [
-    re.compile(r'sk-[a-zA-Z0-9]{20,}'),       # OpenAI API keys
-    re.compile(r'sk-ant-[a-zA-Z0-9]{20,}'),   # Anthropic API keys
-    re.compile(r'Bearer\s+[a-zA-Z0-9\-_.]+'),  # Bearer tokens
-    re.compile(r'[a-zA-Z0-9]{32,}'),          # Generic long API keys (only in values)
+    re.compile(r"sk-[a-zA-Z0-9]{20,}"),  # OpenAI API keys
+    re.compile(r"sk-ant-[a-zA-Z0-9]{20,}"),  # Anthropic API keys
+    re.compile(r"Bearer\s+[a-zA-Z0-9\-_.]+"),  # Bearer tokens
+    re.compile(r"[a-zA-Z0-9]{32,}"),  # Generic long API keys (only in values)
 ]
 
 REDACTED_PLACEHOLDER = "***REDACTED***"
@@ -90,8 +108,11 @@ def _redact_dict(data: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
             redacted[key] = _redact_dict(value, depth + 1)
         elif isinstance(value, list):
             redacted[key] = [
-                _redact_dict(item, depth + 1) if isinstance(item, dict)
-                else (REDACTED_PLACEHOLDER if _is_sensitive_field(str(item)) else item)
+                (
+                    _redact_dict(item, depth + 1)
+                    if isinstance(item, dict)
+                    else (REDACTED_PLACEHOLDER if _is_sensitive_field(str(item)) else item)
+                )
                 for item in value
             ]
         elif isinstance(value, str):
@@ -240,11 +261,28 @@ class StructuredFormatter(logging.Formatter):
         extra_fields = {}
         for key, value in record.__dict__.items():
             if key not in (
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "pathname", "process", "processName", "relativeCreated",
-                "stack_info", "exc_info", "exc_text", "thread", "threadName",
-                "message", "taskName",
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "stack_info",
+                "exc_info",
+                "exc_text",
+                "thread",
+                "threadName",
+                "message",
+                "taskName",
             ):
                 # Check if field name is sensitive
                 if self.redact_sensitive and _is_sensitive_field(key):
@@ -280,10 +318,10 @@ class HumanFormatter(logging.Formatter):
     """
 
     COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
@@ -530,6 +568,7 @@ def log_operation(
         async def generate_track(...):
             ...
     """
+
     def decorator(func: F) -> F:
         op_name = operation or func.__name__
         comp = component or func.__module__.split(".")[-1]
@@ -556,7 +595,9 @@ def log_operation(
                     if log_result and result is not None:
                         result_extra["result"] = str(result)[:200]
 
-                    logger.operation_end(op_name, success=True, duration_ms=duration_ms, **result_extra)
+                    logger.operation_end(
+                        op_name, success=True, duration_ms=duration_ms, **result_extra
+                    )
                     return result
 
                 except Exception as e:
@@ -592,7 +633,9 @@ def log_operation(
                     if log_result and result is not None:
                         result_extra["result"] = str(result)[:200]
 
-                    logger.operation_end(op_name, success=True, duration_ms=duration_ms, **result_extra)
+                    logger.operation_end(
+                        op_name, success=True, duration_ms=duration_ms, **result_extra
+                    )
                     return result
 
                 except Exception as e:
@@ -607,6 +650,7 @@ def log_operation(
                     raise
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore
         return sync_wrapper  # type: ignore
@@ -630,6 +674,7 @@ def log_performance(
         def expensive_operation():
             ...
     """
+
     def decorator(func: F) -> F:
         metric_name = name or f"{func.__module__}.{func.__name__}.duration_ms"
 
@@ -656,6 +701,7 @@ def log_performance(
                     logger.metric(metric_name, duration_ms, "ms")
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore
         return sync_wrapper  # type: ignore
@@ -666,6 +712,7 @@ def log_performance(
 # =============================================================================
 # Initialization
 # =============================================================================
+
 
 def _ensure_configured():
     """Ensure logging is configured with defaults."""

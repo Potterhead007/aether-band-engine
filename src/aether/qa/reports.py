@@ -39,9 +39,9 @@ class Severity(Enum):
     """Issue severity levels."""
 
     CRITICAL = "critical"  # Fails release, must fix
-    MAJOR = "major"        # Significant issue, should fix
-    MINOR = "minor"        # Small issue, consider fixing
-    INFO = "info"          # Informational, no action required
+    MAJOR = "major"  # Significant issue, should fix
+    MINOR = "minor"  # Small issue, consider fixing
+    INFO = "info"  # Informational, no action required
 
 
 class QACategory(Enum):
@@ -244,11 +244,17 @@ class QAReport:
                 "genre_id": self.genre_id,
                 "generated_at": self.generated_at.isoformat(),
             },
-            "executive_summary": self.executive_summary.to_dict() if self.executive_summary else None,
+            "executive_summary": (
+                self.executive_summary.to_dict() if self.executive_summary else None
+            ),
             "categories": {
                 "technical": self.technical_report.to_dict() if self.technical_report else None,
-                "originality": self.originality_report.to_dict() if self.originality_report else None,
-                "authenticity": self.authenticity_report.to_dict() if self.authenticity_report else None,
+                "originality": (
+                    self.originality_report.to_dict() if self.originality_report else None
+                ),
+                "authenticity": (
+                    self.authenticity_report.to_dict() if self.authenticity_report else None
+                ),
             },
             "overall": {
                 "passed": self.overall_passed,
@@ -560,29 +566,33 @@ class QAReportGenerator:
                 }
                 severity = severity_map.get(check.severity.value, Severity.INFO)
 
-                metrics.append(MetricResult(
-                    name=check.check_type.value.replace("_", " ").title(),
-                    value=check.measured_value,
-                    unit=check.unit,
-                    target=check.target_value,
-                    tolerance=check.tolerance,
-                    passed=check.passed,
-                    severity=severity if not check.passed else Severity.INFO,
-                ))
+                metrics.append(
+                    MetricResult(
+                        name=check.check_type.value.replace("_", " ").title(),
+                        value=check.measured_value,
+                        unit=check.unit,
+                        target=check.target_value,
+                        tolerance=check.tolerance,
+                        passed=check.passed,
+                        severity=severity if not check.passed else Severity.INFO,
+                    )
+                )
 
                 # Add issue for failed checks
                 if not check.passed:
-                    issues.append(QAIssue(
-                        category=QACategory.TECHNICAL,
-                        severity=severity,
-                        title=check.check_type.value.replace("_", " ").title(),
-                        description=check.details,
-                        suggestion=check.recommendation or "",
-                        metric_name=check.check_type.value,
-                        actual_value=check.measured_value,
-                        expected_value=check.target_value,
-                        threshold=check.tolerance,
-                    ))
+                    issues.append(
+                        QAIssue(
+                            category=QACategory.TECHNICAL,
+                            severity=severity,
+                            title=check.check_type.value.replace("_", " ").title(),
+                            description=check.details,
+                            suggestion=check.recommendation or "",
+                            metric_name=check.check_type.value,
+                            actual_value=check.measured_value,
+                            expected_value=check.target_value,
+                            threshold=check.tolerance,
+                        )
+                    )
 
         # TechnicalReport uses all_critical_passed and all_passed
         if hasattr(result, "all_critical_passed"):
@@ -593,7 +603,11 @@ class QAReportGenerator:
             score = passed_checks / total_checks
         else:
             passed = result.passed if hasattr(result, "passed") else True
-            score = result.overall_score if hasattr(result, "overall_score") else (1.0 if passed else 0.5)
+            score = (
+                result.overall_score
+                if hasattr(result, "overall_score")
+                else (1.0 if passed else 0.5)
+            )
 
         return CategoryReport(
             category=QACategory.TECHNICAL,
@@ -613,98 +627,124 @@ class QAReportGenerator:
             for r in result:
                 if hasattr(r, "check_type") and hasattr(r, "score"):
                     check_name = r.check_type.value.replace("_", " ").title()
-                    target = 0.85 if "melody" in r.check_type.value else 0.97 if "lyric" in r.check_type.value else 0.80
+                    target = (
+                        0.85
+                        if "melody" in r.check_type.value
+                        else 0.97 if "lyric" in r.check_type.value else 0.80
+                    )
 
-                    metrics.append(MetricResult(
-                        name=check_name,
-                        value=r.score,
-                        target=target,
-                        passed=r.passed,
-                        severity=Severity.CRITICAL if not r.passed else Severity.INFO,
-                    ))
+                    metrics.append(
+                        MetricResult(
+                            name=check_name,
+                            value=r.score,
+                            target=target,
+                            passed=r.passed,
+                            severity=Severity.CRITICAL if not r.passed else Severity.INFO,
+                        )
+                    )
 
                     if not r.passed:
-                        issues.append(QAIssue(
-                            category=QACategory.ORIGINALITY,
-                            severity=Severity.CRITICAL,
-                            title=f"{check_name} Issue",
-                            description=r.details if r.details else f"{check_name} check failed",
-                            suggestion=f"Review and modify {check_name.lower()} content",
-                        ))
+                        issues.append(
+                            QAIssue(
+                                category=QACategory.ORIGINALITY,
+                                severity=Severity.CRITICAL,
+                                title=f"{check_name} Issue",
+                                description=(
+                                    r.details if r.details else f"{check_name} check failed"
+                                ),
+                                suggestion=f"Review and modify {check_name.lower()} content",
+                            )
+                        )
 
         # Handle single OriginalityResult (legacy support)
         elif hasattr(result, "overall_score"):
-            metrics.append(MetricResult(
-                name="Overall Originality",
-                value=result.overall_score,
-                target=0.85,
-                passed=result.overall_score >= 0.85,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Overall Originality",
+                    value=result.overall_score,
+                    target=0.85,
+                    passed=result.overall_score >= 0.85,
+                )
+            )
 
         if hasattr(result, "melody_originality"):
             passed = result.melody_originality >= 0.85
-            metrics.append(MetricResult(
-                name="Melody Originality",
-                value=result.melody_originality,
-                target=0.85,
-                passed=passed,
-                severity=Severity.CRITICAL if not passed else Severity.INFO,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Melody Originality",
+                    value=result.melody_originality,
+                    target=0.85,
+                    passed=passed,
+                    severity=Severity.CRITICAL if not passed else Severity.INFO,
+                )
+            )
 
             if not passed:
-                issues.append(QAIssue(
-                    category=QACategory.ORIGINALITY,
-                    severity=Severity.CRITICAL,
-                    title="Melody Similarity Detected",
-                    description="Melody shows high similarity to existing works",
-                    suggestion="Modify melodic intervals or contour for uniqueness",
-                ))
+                issues.append(
+                    QAIssue(
+                        category=QACategory.ORIGINALITY,
+                        severity=Severity.CRITICAL,
+                        title="Melody Similarity Detected",
+                        description="Melody shows high similarity to existing works",
+                        suggestion="Modify melodic intervals or contour for uniqueness",
+                    )
+                )
 
         if hasattr(result, "lyric_originality"):
             passed = result.lyric_originality >= 0.97  # N-gram threshold
-            metrics.append(MetricResult(
-                name="Lyric Originality",
-                value=result.lyric_originality,
-                target=0.97,
-                passed=passed,
-                severity=Severity.CRITICAL if not passed else Severity.INFO,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Lyric Originality",
+                    value=result.lyric_originality,
+                    target=0.97,
+                    passed=passed,
+                    severity=Severity.CRITICAL if not passed else Severity.INFO,
+                )
+            )
 
             if not passed:
-                issues.append(QAIssue(
-                    category=QACategory.ORIGINALITY,
-                    severity=Severity.CRITICAL,
-                    title="Lyric Overlap Detected",
-                    description="Lyrics show significant n-gram overlap with references",
-                    suggestion="Rewrite flagged phrases for originality",
-                ))
+                issues.append(
+                    QAIssue(
+                        category=QACategory.ORIGINALITY,
+                        severity=Severity.CRITICAL,
+                        title="Lyric Overlap Detected",
+                        description="Lyrics show significant n-gram overlap with references",
+                        suggestion="Rewrite flagged phrases for originality",
+                    )
+                )
 
         if hasattr(result, "harmony_originality"):
-            metrics.append(MetricResult(
-                name="Harmony Originality",
-                value=result.harmony_originality,
-                target=0.80,
-                passed=result.harmony_originality >= 0.80,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Harmony Originality",
+                    value=result.harmony_originality,
+                    target=0.80,
+                    passed=result.harmony_originality >= 0.80,
+                )
+            )
 
         if hasattr(result, "audio_similarity"):
             passed = result.audio_similarity <= 0.15
-            metrics.append(MetricResult(
-                name="Audio Similarity",
-                value=result.audio_similarity,
-                target=0.15,
-                passed=passed,
-                severity=Severity.CRITICAL if not passed else Severity.INFO,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Audio Similarity",
+                    value=result.audio_similarity,
+                    target=0.15,
+                    passed=passed,
+                    severity=Severity.CRITICAL if not passed else Severity.INFO,
+                )
+            )
 
             if not passed:
-                issues.append(QAIssue(
-                    category=QACategory.ORIGINALITY,
-                    severity=Severity.CRITICAL,
-                    title="Audio Similarity Detected",
-                    description="Audio embedding shows high similarity to reference",
-                    suggestion="Modify production elements or arrangement",
-                ))
+                issues.append(
+                    QAIssue(
+                        category=QACategory.ORIGINALITY,
+                        severity=Severity.CRITICAL,
+                        title="Audio Similarity Detected",
+                        description="Audio embedding shows high similarity to reference",
+                        suggestion="Modify production elements or arrangement",
+                    )
+                )
 
         # Calculate pass/score for list results
         if isinstance(result, list) and result:
@@ -713,7 +753,11 @@ class QAReportGenerator:
             score = total_score / len(result)
         else:
             passed = result.passed if hasattr(result, "passed") else True
-            score = result.overall_score if hasattr(result, "overall_score") else (1.0 if passed else 0.5)
+            score = (
+                result.overall_score
+                if hasattr(result, "overall_score")
+                else (1.0 if passed else 0.5)
+            )
 
         return CategoryReport(
             category=QACategory.ORIGINALITY,
@@ -731,34 +775,40 @@ class QAReportGenerator:
 
         # Handle AuthenticityResult
         if hasattr(result, "overall_score"):
-            metrics.append(MetricResult(
-                name="Overall Authenticity",
-                value=result.overall_score,
-                target=0.80,
-                passed=result.overall_score >= 0.80,
-            ))
+            metrics.append(
+                MetricResult(
+                    name="Overall Authenticity",
+                    value=result.overall_score,
+                    target=0.80,
+                    passed=result.overall_score >= 0.80,
+                )
+            )
 
         # Dimension scores
         if hasattr(result, "dimension_scores"):
             for ds in result.dimension_scores:
                 passed = ds.raw_score >= 3.0
-                metrics.append(MetricResult(
-                    name=ds.dimension_name,
-                    value=ds.raw_score / 5.0,  # Normalize to 0-1
-                    target=0.6,  # 3/5
-                    passed=passed,
-                    severity=Severity.MAJOR if not passed else Severity.INFO,
-                ))
+                metrics.append(
+                    MetricResult(
+                        name=ds.dimension_name,
+                        value=ds.raw_score / 5.0,  # Normalize to 0-1
+                        target=0.6,  # 3/5
+                        passed=passed,
+                        severity=Severity.MAJOR if not passed else Severity.INFO,
+                    )
+                )
 
                 if not passed:
                     for suggestion in ds.improvement_suggestions[:1]:
-                        issues.append(QAIssue(
-                            category=QACategory.AUTHENTICITY,
-                            severity=Severity.MAJOR,
-                            title=f"{ds.dimension_name} Below Standard",
-                            description=f"Score: {ds.raw_score:.1f}/5",
-                            suggestion=suggestion,
-                        ))
+                        issues.append(
+                            QAIssue(
+                                category=QACategory.AUTHENTICITY,
+                                severity=Severity.MAJOR,
+                                title=f"{ds.dimension_name} Below Standard",
+                                description=f"Score: {ds.raw_score:.1f}/5",
+                                suggestion=suggestion,
+                            )
+                        )
 
         # Strengths and weaknesses
         if hasattr(result, "top_strengths") and result.top_strengths:
@@ -768,7 +818,9 @@ class QAReportGenerator:
             notes.append(f"Weaknesses: {', '.join(result.top_weaknesses[:3])}")
 
         passed = result.passed if hasattr(result, "passed") else True
-        score = result.overall_score if hasattr(result, "overall_score") else (1.0 if passed else 0.5)
+        score = (
+            result.overall_score if hasattr(result, "overall_score") else (1.0 if passed else 0.5)
+        )
 
         return CategoryReport(
             category=QACategory.AUTHENTICITY,
@@ -803,7 +855,12 @@ class QAReportGenerator:
         top_issues = []
         sorted_issues = sorted(
             report.all_issues,
-            key=lambda i: {Severity.CRITICAL: 0, Severity.MAJOR: 1, Severity.MINOR: 2, Severity.INFO: 3}[i.severity]
+            key=lambda i: {
+                Severity.CRITICAL: 0,
+                Severity.MAJOR: 1,
+                Severity.MINOR: 2,
+                Severity.INFO: 3,
+            }[i.severity],
         )
         for issue in sorted_issues[:5]:
             top_issues.append(f"[{issue.severity.value.upper()}] {issue.title}")
@@ -814,7 +871,9 @@ class QAReportGenerator:
         elif status == PassFailStatus.WARNING:
             recommendation = "Track is acceptable but has room for improvement. Review major issues before release."
         else:
-            recommendation = "Track requires fixes before release. Address critical issues immediately."
+            recommendation = (
+                "Track requires fixes before release. Address critical issues immediately."
+            )
 
         return ExecutiveSummary(
             status=status,
@@ -834,11 +893,15 @@ class QAReportGenerator:
         improvements = []
 
         # Sort issues by severity and category importance
-        severity_order = {Severity.CRITICAL: 0, Severity.MAJOR: 1, Severity.MINOR: 2, Severity.INFO: 3}
+        severity_order = {
+            Severity.CRITICAL: 0,
+            Severity.MAJOR: 1,
+            Severity.MINOR: 2,
+            Severity.INFO: 3,
+        }
 
         sorted_issues = sorted(
-            [i for i in report.all_issues if i.suggestion],
-            key=lambda i: severity_order[i.severity]
+            [i for i in report.all_issues if i.suggestion], key=lambda i: severity_order[i.severity]
         )
 
         for issue in sorted_issues:

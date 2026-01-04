@@ -13,9 +13,7 @@ from pydantic import BaseModel
 
 from aether.agents.base import BaseAgent, AgentRegistry
 from aether.knowledge import get_genre_manager
-from aether.schemas.master import (
-    MasterSpec, TonalTarget, MultibandSettings, LimiterSettings
-)
+from aether.schemas.master import MasterSpec, TonalTarget, MultibandSettings, LimiterSettings
 from aether.schemas.base import LoudnessTarget, TruePeakTarget, DynamicRangeTarget
 from aether.storage import ArtifactType
 
@@ -116,7 +114,7 @@ class MasteringAgent(BaseAgent[MasteringInput, MasteringOutput]):
     def _determine_loudness_target(self, profile) -> LoudnessTarget:
         """Determine loudness target from genre profile."""
         # Use profile target or default to streaming standard
-        target = getattr(profile.production, 'target_lufs', -14.0)
+        target = getattr(profile.production, "target_lufs", -14.0)
         if target is None:
             target = -14.0
 
@@ -125,9 +123,7 @@ class MasteringAgent(BaseAgent[MasteringInput, MasteringOutput]):
             tolerance=0.5,
         )
 
-    def _determine_dynamic_range(
-        self, profile, mood: str
-    ) -> DynamicRangeTarget:
+    def _determine_dynamic_range(self, profile, mood: str) -> DynamicRangeTarget:
         """Determine dynamic range target."""
         # Genre and mood affect dynamic range
         base_dr = 8.0

@@ -34,9 +34,7 @@ class LyricSection(AetherBaseModel):
     section_type: SectionType
     section_label: str = Field(description="e.g., 'Verse 1', 'Chorus'")
     lines: list[LyricLine] = Field(min_length=1)
-    rhyme_scheme: str = Field(
-        default="AABB", description="Rhyme scheme pattern"
-    )
+    rhyme_scheme: str = Field(default="AABB", description="Rhyme scheme pattern")
     theme_keywords: list[str] = Field(
         default_factory=list, description="Key thematic words in this section"
     )
@@ -84,9 +82,7 @@ class LyricSpec(IdentifiableModel):
         default="conversational",
         description="academic, literary, conversational, slang, poetic",
     )
-    banned_words: list[str] = Field(
-        default_factory=list, description="Words to avoid"
-    )
+    banned_words: list[str] = Field(default_factory=list, description="Words to avoid")
 
     # Originality
     ngram_overlap_score: Optional[float] = Field(
@@ -115,8 +111,16 @@ class LyricSpec(IdentifiableModel):
                         "section_type": "verse",
                         "section_label": "Verse 1",
                         "lines": [
-                            {"text": "Walking through the shadows", "syllable_count": 6, "rhyme_tag": "A"},
-                            {"text": "Searching for the light", "syllable_count": 5, "rhyme_tag": "B"},
+                            {
+                                "text": "Walking through the shadows",
+                                "syllable_count": 6,
+                                "rhyme_tag": "A",
+                            },
+                            {
+                                "text": "Searching for the light",
+                                "syllable_count": 5,
+                                "rhyme_tag": "B",
+                            },
                         ],
                         "rhyme_scheme": "ABAB",
                     }
