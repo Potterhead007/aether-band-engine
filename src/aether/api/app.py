@@ -271,6 +271,8 @@ def create_app(
             "/redoc",
             "/openapi.json",
             "/v1/genres",  # Public reference data
+            "/v1/generate",  # Allow demo generation without auth
+            "/v1/render",  # Allow demo rendering without auth
         ]
         app.add_middleware(
             AuthMiddleware,
