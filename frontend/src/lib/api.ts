@@ -1,21 +1,47 @@
-// AETHER API Client
-// Institutional-grade with HTTPS enforcement, timeouts, and request correlation
+/**
+ * AETHER API Client
+ *
+ * Production-grade API client with:
+ * - Request timeouts with AbortController
+ * - Automatic retry with exponential backoff
+ * - Request ID correlation for distributed tracing
+ * - Comprehensive error handling
+ * - TypeScript strict mode compliance
+ */
 
-const API_URL = (() => {
+// =============================================================================
+// Configuration
+// =============================================================================
+
+const API_BASE_URL = ((): string => {
   const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-  // Enforce HTTPS in production
+  const trimmed = url.trim()
+
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
-    if (!url.startsWith('https://')) {
-      console.error('SECURITY: Production API URL must use HTTPS')
+    if (!trimmed.startsWith('https://')) {
+      console.error('[AETHER] SECURITY WARNING: Production API URL should use HTTPS')
     }
   }
-  return url.trim() // Remove any trailing whitespace/newlines
+
+  return trimmed
 })()
 
-// Default timeouts (ms)
-const DEFAULT_TIMEOUT = 30000 // 30 seconds for normal requests
-const GENERATION_TIMEOUT = 300000 // 5 minutes for generation
-const RENDER_TIMEOUT = 600000 // 10 minutes for rendering
+const CONFIG = {
+  timeouts: {
+    default: 30_000,      // 30 seconds
+    generation: 300_000,  // 5 minutes
+    render: 600_000,      // 10 minutes
+  },
+  retry: {
+    maxAttempts: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 10_000,
+  },
+} as const
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface GenerateRequest {
   title: string
@@ -66,140 +92,270 @@ export interface Genre {
   aliases: string[]
 }
 
-/**
- * Generate a unique request ID for distributed tracing
- */
+export interface ApiErrorDetails {
+  type?: string
+  title?: string
+  status?: number
+  detail?: string
+  instance?: string
+  request_id?: string
+}
+
+// =============================================================================
+// Error Classes
+// =============================================================================
+
+export class ApiError extends Error {
+  public readonly status: number
+  public readonly requestId: string
+  public readonly details: ApiErrorDetails
+
+  constructor(message: string, status: number, requestId: string, details: ApiErrorDetails = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.requestId = requestId
+    this.details = details
+    Object.setPrototypeOf(this, ApiError.prototype)
+  }
+
+  get isRetryable(): boolean {
+    return this.status >= 500 || this.status === 429
+  }
+}
+
+export class TimeoutError extends Error {
+  public readonly requestId: string
+
+  constructor(requestId: string, timeoutMs: number) {
+    super(`Request timed out after ${timeoutMs}ms`)
+    this.name = 'TimeoutError'
+    this.requestId = requestId
+    Object.setPrototypeOf(this, TimeoutError.prototype)
+  }
+}
+
+export class NetworkError extends Error {
+  public readonly requestId: string
+  public readonly cause?: Error
+
+  constructor(requestId: string, cause?: Error) {
+    super(cause?.message || 'Network request failed')
+    this.name = 'NetworkError'
+    this.requestId = requestId
+    this.cause = cause
+    Object.setPrototypeOf(this, NetworkError.prototype)
+  }
+}
+
+// =============================================================================
+// Utilities
+// =============================================================================
+
 function generateRequestId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID()
   }
-  // Fallback for older environments
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-/**
- * Create headers with request ID for tracing
- */
-function createHeaders(requestId: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function calculateBackoff(attempt: number): number {
+  const delay = CONFIG.retry.baseDelayMs * Math.pow(2, attempt)
+  const jitter = Math.random() * 0.3 * delay
+  return Math.min(delay + jitter, CONFIG.retry.maxDelayMs)
+}
+
+// =============================================================================
+// HTTP Client
+// =============================================================================
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  body?: unknown
+  timeout?: number
+  retry?: boolean
+}
+
+async function request<T>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const {
+    method = 'GET',
+    body,
+    timeout = CONFIG.timeouts.default,
+    retry = true,
+  } = options
+
+  const requestId = generateRequestId()
+  const url = `${API_BASE_URL}${endpoint}`
+
+  const headers: Record<string, string> = {
     'X-Request-ID': requestId,
   }
+
+  if (body) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const fetchOptions: RequestInit = {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  }
+
+  let lastError: Error | null = null
+  const maxAttempts = retry ? CONFIG.retry.maxAttempts : 1
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+    try {
+      if (attempt > 0) {
+        const backoff = calculateBackoff(attempt - 1)
+        console.debug(`[AETHER] Retry attempt ${attempt + 1}/${maxAttempts} after ${backoff}ms`)
+        await sleep(backoff)
+      }
+
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorDetails = await parseErrorResponse(response)
+        const error = new ApiError(
+          errorDetails.detail || errorDetails.title || `HTTP ${response.status}`,
+          response.status,
+          requestId,
+          errorDetails
+        )
+
+        if (error.isRetryable && attempt < maxAttempts - 1) {
+          lastError = error
+          continue
+        }
+
+        throw error
+      }
+
+      const data = await response.json()
+      return data as T
+
+    } catch (err) {
+      clearTimeout(timeoutId)
+
+      if (err instanceof ApiError) {
+        throw err
+      }
+
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          throw new TimeoutError(requestId, timeout)
+        }
+
+        lastError = new NetworkError(requestId, err)
+
+        if (attempt < maxAttempts - 1) {
+          continue
+        }
+      }
+
+      throw lastError || new NetworkError(requestId)
+    }
+  }
+
+  throw lastError || new NetworkError(requestId)
 }
 
-/**
- * Create a fetch request with timeout
- */
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<Response> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
+async function parseErrorResponse(response: Response): Promise<ApiErrorDetails> {
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    })
-    return response
-  } finally {
-    clearTimeout(timeoutId)
+    const text = await response.text()
+    if (!text) {
+      return { status: response.status, title: response.statusText }
+    }
+
+    const json = JSON.parse(text)
+    return {
+      type: json.type,
+      title: json.title || json.error,
+      status: json.status || response.status,
+      detail: json.detail || json.message,
+      instance: json.instance,
+      request_id: json.request_id,
+    }
+  } catch {
+    return { status: response.status, title: response.statusText }
   }
 }
 
-class AetherAPI {
-  private baseUrl: string
+// =============================================================================
+// API Methods
+// =============================================================================
 
-  constructor(baseUrl: string = API_URL) {
-    this.baseUrl = baseUrl
-  }
-
+export const aetherApi = {
+  /**
+   * Health check endpoint
+   */
   async health(): Promise<HealthResponse> {
-    const requestId = generateRequestId()
-    const response = await fetchWithTimeout(
-      `${this.baseUrl}/health`,
-      { headers: { 'X-Request-ID': requestId } },
-      DEFAULT_TIMEOUT
-    )
-    if (!response.ok) throw new Error('Health check failed')
-    return response.json()
-  }
+    return request<HealthResponse>('/health')
+  },
 
+  /**
+   * List available genres
+   */
   async listGenres(): Promise<{ genres: Genre[] }> {
-    const requestId = generateRequestId()
-    const response = await fetchWithTimeout(
-      `${this.baseUrl}/v1/genres`,
-      { headers: { 'X-Request-ID': requestId } },
-      DEFAULT_TIMEOUT
-    )
-    if (!response.ok) throw new Error('Failed to fetch genres')
-    return response.json()
-  }
+    return request<{ genres: Genre[] }>('/v1/genres')
+  },
 
-  async generate(request: GenerateRequest): Promise<GenerateResponse> {
-    const requestId = generateRequestId()
-    console.debug(`[AETHER] Generate request ${requestId}:`, request.title)
+  /**
+   * Generate a new music track
+   */
+  async generate(params: GenerateRequest): Promise<GenerateResponse> {
+    console.info(`[AETHER] Starting generation: "${params.title}"`)
 
-    const response = await fetchWithTimeout(
-      `${this.baseUrl}/v1/generate`,
-      {
-        method: 'POST',
-        headers: createHeaders(requestId),
-        body: JSON.stringify(request),
-      },
-      GENERATION_TIMEOUT
-    )
+    const result = await request<GenerateResponse>('/v1/generate', {
+      method: 'POST',
+      body: params,
+      timeout: CONFIG.timeouts.generation,
+      retry: false, // Don't retry generation to avoid duplicates
+    })
 
-    if (!response.ok) {
-      const text = await response.text()
-      let detail = 'Generation failed'
-      try {
-        const error = JSON.parse(text)
-        detail = error.detail || error.error || detail
-      } catch {
-        if (text) detail = text
-      }
-      console.error(`[AETHER] Generate failed ${requestId}:`, detail)
-      throw new Error(detail)
-    }
+    console.info(`[AETHER] Generation complete: ${result.job_id}`)
+    return result
+  },
 
-    console.debug(`[AETHER] Generate success ${requestId}`)
-    return response.json()
-  }
+  /**
+   * Render audio from specifications
+   */
+  async render(params: RenderRequest): Promise<RenderResponse> {
+    console.info('[AETHER] Starting render')
 
-  async render(request: RenderRequest): Promise<RenderResponse> {
-    const requestId = generateRequestId()
-    console.debug(`[AETHER] Render request ${requestId}`)
+    const result = await request<RenderResponse>('/v1/render', {
+      method: 'POST',
+      body: params,
+      timeout: CONFIG.timeouts.render,
+      retry: false, // Don't retry render to avoid duplicates
+    })
 
-    const response = await fetchWithTimeout(
-      `${this.baseUrl}/v1/render`,
-      {
-        method: 'POST',
-        headers: createHeaders(requestId),
-        body: JSON.stringify(request),
-      },
-      RENDER_TIMEOUT
-    )
-
-    if (!response.ok) {
-      const text = await response.text()
-      let detail = 'Rendering failed'
-      try {
-        const error = JSON.parse(text)
-        detail = error.detail || error.error || detail
-      } catch {
-        if (text) detail = text
-      }
-      console.error(`[AETHER] Render failed ${requestId}:`, detail)
-      throw new Error(detail)
-    }
-
-    console.debug(`[AETHER] Render success ${requestId}`)
-    return response.json()
-  }
+    console.info(`[AETHER] Render complete: ${result.job_id}`)
+    return result
+  },
 }
 
-export const api = new AetherAPI()
-export default api
+// =============================================================================
+// Exports
+// =============================================================================
+
+// Default export for convenience
+export default aetherApi
+
+// Named export for explicit imports
+export { aetherApi as api }
