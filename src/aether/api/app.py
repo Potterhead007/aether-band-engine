@@ -456,10 +456,12 @@ def register_routes(app: FastAPI) -> None:
             )
 
         except Exception as e:
+            import traceback
+            error_detail = f"Generation failed: {str(e)}\n{traceback.format_exc()}"
             logger.exception(f"Generation failed: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Generation failed: {str(e)}",
+                detail=error_detail,
             )
 
     @app.post(
