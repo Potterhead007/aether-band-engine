@@ -36,7 +36,15 @@ class RateLimitConfig:
     enabled: bool = True
     # Paths to exclude from rate limiting
     exclude_paths: set = field(
-        default_factory=lambda: {"/health", "/ready", "/live", "/metrics", "/docs", "/redoc", "/openapi.json"}
+        default_factory=lambda: {
+            "/health",
+            "/ready",
+            "/live",
+            "/metrics",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        }
     )
 
     @classmethod
@@ -170,7 +178,9 @@ class RateLimiter:
         self._last_cleanup = now
         # Remove buckets that are at full capacity (inactive)
         stale_keys = [
-            key for key, bucket in self._buckets.items() if bucket.tokens >= self.config.burst_capacity
+            key
+            for key, bucket in self._buckets.items()
+            if bucket.tokens >= self.config.burst_capacity
         ]
         for key in stale_keys:
             del self._buckets[key]

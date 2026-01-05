@@ -63,7 +63,9 @@ class RenderRequest(BaseModel):
     song_spec: Dict[str, Any] = Field(..., description="Song specification")
     harmony_spec: Optional[Dict[str, Any]] = Field(None, description="Harmony specification")
     melody_spec: Optional[Dict[str, Any]] = Field(None, description="Melody specification")
-    arrangement_spec: Optional[Dict[str, Any]] = Field(None, description="Arrangement specification")
+    arrangement_spec: Optional[Dict[str, Any]] = Field(
+        None, description="Arrangement specification"
+    )
     output_formats: list[str] = Field(default=["wav", "mp3"], description="Output formats")
     render_stems: bool = Field(default=False, description="Also export individual stems")
 
@@ -76,7 +78,9 @@ class RenderResponse(BaseModel):
     duration_seconds: float
     loudness_lufs: Optional[float] = None
     peak_db: Optional[float] = None
-    output_files: Dict[str, str] = Field(default_factory=dict, description="Paths to rendered files")
+    output_files: Dict[str, str] = Field(
+        default_factory=dict, description="Paths to rendered files"
+    )
 
 
 class HealthResponse(BaseModel):
@@ -162,7 +166,7 @@ def create_app(
     if enable_cors:
         default_origins = os.environ.get(
             "AETHER_CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,http://localhost:8000"
+            "http://localhost:3000,http://localhost:3001,http://localhost:8000",
         ).split(",")
         app.add_middleware(
             CORSMiddleware,

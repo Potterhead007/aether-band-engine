@@ -424,6 +424,7 @@ class RenderingEngine:
                     output_paths["master_wav"] = master_path
                 elif fmt == "mp3":
                     from aether.audio.io import AudioFormat, AudioFormatSpec
+
                     mp3_path = output_dir / f"{safe_title}_master.mp3"
                     mp3_spec = AudioFormatSpec.from_format(AudioFormat.MP3_320)
                     write_audio(mp3_path, master.data, master.sample_rate, format_spec=mp3_spec)
