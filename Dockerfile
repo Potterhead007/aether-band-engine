@@ -79,8 +79,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application
 COPY --chown=aether:aether src/ ./src/
-COPY --chown=aether:aether data/ ./data/
 COPY --chown=aether:aether pyproject.toml ./
+
+# Copy data directory if it exists (optional)
+RUN mkdir -p ./data
+COPY --chown=aether:aether data/ ./data/ 2>/dev/null || true
 
 # Create directories
 RUN mkdir -p /home/aether/.aether/output \
@@ -130,8 +133,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application
 COPY --chown=aether:aether src/ ./src/
-COPY --chown=aether:aether data/ ./data/
 COPY --chown=aether:aether pyproject.toml ./
+
+# Copy data directory if it exists (optional)
+RUN mkdir -p ./data
+COPY --chown=aether:aether data/ ./data/ 2>/dev/null || true
 
 # Create directories
 RUN mkdir -p /home/aether/.aether/output \

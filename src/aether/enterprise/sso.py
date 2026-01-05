@@ -5,11 +5,20 @@ Enterprise Single Sign-On support:
 - SAML 2.0
 - OpenID Connect (OIDC)
 - OAuth 2.0
+
+NOTE: This module provides interface definitions and reference implementations.
+For production use, install the required dependencies:
+    - SAML: pip install python3-saml
+    - OIDC: pip install python-jose[cryptography] httpx
+
+The current implementations are stubs that demonstrate the interface.
+Production deployments MUST provide real implementations.
 """
 
 from __future__ import annotations
 
 import logging
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -17,6 +26,9 @@ from typing import Any, Dict, List, Optional
 from aether.api.auth import AuthContext, AuthProvider
 
 logger = logging.getLogger(__name__)
+
+# Production readiness flag
+_SSO_PRODUCTION_READY = False
 
 
 @dataclass
@@ -300,7 +312,21 @@ class OIDCAuth(SSOProvider):
 
 
 def create_sso_provider(config: SSOConfig) -> SSOProvider:
-    """Factory function to create SSO provider."""
+    """
+    Factory function to create SSO provider.
+
+    WARNING: Current implementations are reference stubs.
+    For production, implement proper SAML/OIDC validation.
+    """
+    if not _SSO_PRODUCTION_READY:
+        warnings.warn(
+            "SSO module is using stub implementations. "
+            "Do NOT use in production without implementing proper token validation. "
+            "See module docstring for required dependencies.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     if config.provider_type == "saml":
         return SAMLAuth(config)
     elif config.provider_type == "oidc":

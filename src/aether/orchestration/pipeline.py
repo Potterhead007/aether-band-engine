@@ -8,8 +8,9 @@ Ties agents together with the workflow engine.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 from uuid import uuid4
 
 from aether.orchestration.workflow import (
@@ -47,7 +48,7 @@ class PipelineAgentExecutor(AgentExecutor):
         context: dict[str, Any],
     ) -> TaskResult:
         """Execute a pipeline task by calling the appropriate agent."""
-        started_at = __import__("datetime").datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
 
         try:
             # Import agents at runtime to avoid circular import
@@ -70,7 +71,7 @@ class PipelineAgentExecutor(AgentExecutor):
             # Update context with outputs
             self._update_context(task.agent_type, output_dict, context)
 
-            completed_at = __import__("datetime").datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
 
             return TaskResult(
                 task_id=task.id,
@@ -84,7 +85,7 @@ class PipelineAgentExecutor(AgentExecutor):
 
         except Exception as e:
             logger.error(f"Agent execution failed for {task.agent_type}: {e}")
-            completed_at = __import__("datetime").datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             return TaskResult(
                 task_id=task.id,
                 status=TaskStatus.FAILED,

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from aether.core import AetherRuntime, get_runtime
 from aether.api.auth import AuthMiddleware, JWTAuth, APIKeyAuth
+from aether.api.ratelimit import RateLimitMiddleware, RateLimitConfig
 from aether.agents.creative_director import CreativeDirectorAgent, CreativeDirectorInput
 from aether.agents.composition import CompositionAgent, CompositionInput
 from aether.agents.arrangement import ArrangementAgent, ArrangementInput
@@ -128,14 +129,14 @@ def create_app(
         runtime = get_runtime()
         await runtime.initialize()
 
-        # Initialize providers
-        config = ProviderConfig(
-            llm_provider="mock",
-            midi_provider="internal",
-            audio_provider="synth",
-            embedding_provider="mock",
+        # Initialize providers from environment or defaults
+        provider_config = ProviderConfig(
+            llm_provider=os.environ.get("AETHER_LLM_PROVIDER", "mock"),
+            midi_provider=os.environ.get("AETHER_MIDI_PROVIDER", "internal"),
+            audio_provider=os.environ.get("AETHER_AUDIO_PROVIDER", "synth"),
+            embedding_provider=os.environ.get("AETHER_EMBEDDING_PROVIDER", "mock"),
         )
-        app.state.provider_manager = ProviderManager(config)
+        app.state.provider_manager = ProviderManager(provider_config)
         await app.state.provider_manager.initialize()
 
         logger.info("AETHER API service started")
@@ -170,6 +171,10 @@ def create_app(
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
         )
+
+    # Rate limiting middleware
+    if os.environ.get("AETHER_RATE_LIMIT_ENABLED", "true").lower() == "true":
+        app.add_middleware(RateLimitMiddleware, config=RateLimitConfig.from_env())
 
     # Authentication middleware
     if os.environ.get("AETHER_AUTH_ENABLED", "false").lower() == "true":
