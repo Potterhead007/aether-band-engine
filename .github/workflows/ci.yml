@@ -163,27 +163,38 @@ jobs:
     steps:
       - name: Free disk space
         run: |
+          # Remove unnecessary large packages
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/share/swift
+          # Clean apt cache
+          sudo apt-get clean
+          # Clean docker
           docker system prune -af
+          # Show available space
+          df -h
 
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build API Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
           load: true
+          target: api
           tags: aether-band-engine:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Test Docker image
         run: |
-          docker run --rm aether-band-engine:${{ github.sha }} --version
+          docker run --rm aether-band-engine:${{ github.sha }} python -c "from aether.api.app import create_app; print('API OK')"
