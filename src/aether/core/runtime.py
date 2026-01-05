@@ -37,9 +37,7 @@ if TYPE_CHECKING:
 
 
 # Context variable for runtime scoping (enables per-task runtime in async)
-_runtime_context: ContextVar[AetherRuntime | None] = ContextVar(
-    "aether_runtime", default=None
-)
+_runtime_context: ContextVar[AetherRuntime | None] = ContextVar("aether_runtime", default=None)
 
 
 @dataclass
@@ -144,9 +142,7 @@ class AetherRuntime:
             if cls._global_instance is not None:
                 # Attempt graceful shutdown
                 try:
-                    asyncio.get_event_loop().run_until_complete(
-                        cls._global_instance.shutdown()
-                    )
+                    asyncio.get_event_loop().run_until_complete(cls._global_instance.shutdown())
                 except Exception:
                     pass
             cls._global_instance = None

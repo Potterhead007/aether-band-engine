@@ -5,7 +5,6 @@ Purpose: Defines vocal persona, performance style, and vocal arrangement.
 CRITICAL: Uses parametric voice design only - NO voice cloning.
 """
 
-
 from pydantic import Field, field_validator
 
 from aether.schemas.base import (
