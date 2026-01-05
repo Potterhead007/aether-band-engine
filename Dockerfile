@@ -153,5 +153,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run API server - use shell form for env var expansion
-# Override with: docker run ... python -c "your command"
-CMD /bin/sh -c "python -m uvicorn aether.api.app:create_app --factory --host ${AETHER_API_HOST:-0.0.0.0} --port ${AETHER_API_PORT:-8000}"
+# Railway uses PORT, fallback to AETHER_API_PORT, then 8000
+CMD /bin/sh -c "python -m uvicorn aether.api.app:create_app --factory --host 0.0.0.0 --port ${PORT:-${AETHER_API_PORT:-8000}}"
