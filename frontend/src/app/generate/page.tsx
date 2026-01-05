@@ -101,17 +101,14 @@ export default function GeneratePage() {
     mutationFn: (data: GenerateRequest) => aetherApi.generate(data),
     onSuccess: (data) => {
       setGenerateResult(data)
-      setStep('rendering')
-      // Trigger audio rendering
-      const renderRequest: RenderRequest = {
-        song_spec: data.song_spec || {},
-        harmony_spec: data.harmony_spec,
-        melody_spec: data.melody_spec,
-        arrangement_spec: data.arrangement_spec,
-        output_formats: ['mp3'],  // MP3 only for faster rendering
-        render_stems: false,
-      }
-      renderMutation.mutate(renderRequest)
+      // Skip render on cloud (Railway memory limits) - show generation results
+      setRenderResult({
+        job_id: data.job_id,
+        status: 'completed',
+        duration_seconds: 0,
+        output_files: {},
+      })
+      setStep('complete')
     },
     onError: (err: unknown) => {
       setError(formatError(err))
@@ -518,9 +515,12 @@ function CompleteCard({ title, generateResult, renderResult, onReset }: Complete
         )}
 
         {!hasAudioFiles && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-8">
-            <p className="text-amber-400 text-sm">
-              Audio rendering did not produce output files. Check the song specification below.
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-8">
+            <p className="text-blue-400 text-sm mb-2">
+              <strong>Cloud Rendering Unavailable:</strong> Audio rendering requires more memory than Railway's free tier allows.
+            </p>
+            <p className="text-blue-400/80 text-sm">
+              To render MP3 files, run locally: <code className="bg-slate-800 px-1 rounded">pip install aether-band-engine && aether render</code>
             </p>
           </div>
         )}
