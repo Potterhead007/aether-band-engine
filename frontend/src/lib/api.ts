@@ -200,6 +200,7 @@ async function request<T>(
   const url = `${API_BASE_URL}${endpoint}`
 
   const headers: Record<string, string> = {
+    'Accept': 'application/json',
     'X-Request-ID': requestId,
   }
 
@@ -210,6 +211,7 @@ async function request<T>(
   const fetchOptions: RequestInit = {
     method,
     headers,
+    mode: 'cors',
     body: body ? JSON.stringify(body) : undefined,
   }
 

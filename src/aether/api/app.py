@@ -234,7 +234,7 @@ def create_app(
             allow_origins=origins,
             allow_credentials=not has_wildcard,  # Disable credentials if wildcard
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
+            allow_headers=["Accept", "Accept-Language", "Authorization", "Content-Language", "Content-Type", "X-API-Key", "X-Request-ID"],
         )
 
     # Rate limiting middleware
