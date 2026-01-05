@@ -107,6 +107,8 @@ site/
 .env.local
 .env.*.local
 .env.production
+# Allow frontend production env (public API URL, not secrets)
+!frontend/.env.production
 secrets/
 *.pem
 *.key
