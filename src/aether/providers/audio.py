@@ -360,33 +360,50 @@ class SynthAudioProvider(AudioProvider):
                 logger.error(f"SoundFont not found: {soundfont_path}")
                 return await self._render_fallback(midi_data)
 
+            # Calculate dynamic timeout based on song duration
+            # Estimate duration from MIDI data (in beats -> seconds)
+            max_time = 0
+            for track in midi_data.tracks:
+                for note in track.notes:
+                    end_time = note.start_time + note.duration
+                    max_time = max(max_time, end_time)
+            duration_seconds = (max_time / midi_data.tempo_bpm) * 60
+            # Allow 3x realtime + 30s buffer for rendering overhead
+            timeout = max(120, int(duration_seconds * 3) + 30)
+            logger.info(f"FluidSynth rendering {duration_seconds:.1f}s audio (timeout: {timeout}s)")
+
             # Render with FluidSynth using safe subprocess
+            # CRITICAL: Options must come BEFORE soundfont and MIDI file
             cmd = [
                 "fluidsynth",
-                "-ni",
-                "-g",
-                "0.5",  # Gain
-                "-r",
-                str(self.sample_rate),
-                str(sf_path_resolved),
-                str(midi_path),
-                "-F",
-                str(wav_path),
+                "-ni",  # Non-interactive, no shell
+                "-g", "0.6",  # Gain (slightly higher for better levels)
+                "-r", str(self.sample_rate),
+                "-F", str(wav_path),  # Output file (must be before soundfont)
+                str(sf_path_resolved),  # SoundFont
+                str(midi_path),  # MIDI file
             ]
 
             try:
-                result = _safe_subprocess_run(cmd, timeout=120)
+                result = _safe_subprocess_run(cmd, timeout=timeout)
                 if result.returncode != 0:
-                    logger.error(f"FluidSynth error: {result.stderr.decode()}")
+                    stderr = result.stderr.decode() if result.stderr else "Unknown error"
+                    logger.error(f"FluidSynth error: {stderr}")
                     return await self._render_fallback(midi_data)
             except subprocess.TimeoutExpired:
-                logger.error("FluidSynth rendering timed out")
+                logger.error(f"FluidSynth rendering timed out after {timeout}s")
                 return await self._render_fallback(midi_data)
             except SubprocessSecurityError as e:
                 logger.error(f"Security validation failed: {e}")
                 return await self._render_fallback(midi_data)
 
+            # Verify output file exists and has content
+            if not wav_path.exists() or wav_path.stat().st_size < 1000:
+                logger.error("FluidSynth produced no output or empty file")
+                return await self._render_fallback(midi_data)
+
             # Load the rendered audio
+            logger.info(f"FluidSynth render complete: {wav_path.stat().st_size / 1024 / 1024:.1f}MB")
             return await self.load_file(wav_path)
 
     async def _render_fallback(self, midi_data: MIDIFile) -> AudioBuffer:
@@ -635,9 +652,8 @@ class SynthAudioProvider(AudioProvider):
 
             write_audio(
                 path=path,
-                data=buffer.data,
+                audio=buffer.data,
                 sample_rate=buffer.sample_rate,
-                bit_depth=bit_depth,
             )
             return path
         except ImportError:

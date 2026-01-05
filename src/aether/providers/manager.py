@@ -8,8 +8,10 @@ and lifecycle management for the pipeline.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Optional
 
 from aether.providers.audio import SynthAudioProvider
 from aether.providers.base import (
@@ -29,6 +31,65 @@ from aether.providers.llm import (
 from aether.providers.midi import AlgorithmicMIDIProvider
 
 logger = logging.getLogger(__name__)
+
+
+def discover_soundfont() -> Optional[Path]:
+    """
+    Auto-discover the best available SoundFont.
+
+    Search order (highest quality first):
+    1. ~/soundfonts/*.sf2, *.sf3 (user-installed)
+    2. SOUNDFONT_PATH environment variable
+    3. System locations (/usr/share/sounds/sf2/, etc.)
+    4. Python packages (pretty_midi bundled font)
+
+    Returns:
+        Path to best available SoundFont, or None if not found.
+    """
+    soundfont_paths = []
+
+    # 1. User soundfonts directory (prioritize larger files = better quality)
+    user_sf_dir = Path.home() / "soundfonts"
+    if user_sf_dir.exists():
+        for pattern in ["*.sf2", "*.sf3", "*.SF2", "*.SF3"]:
+            soundfont_paths.extend(user_sf_dir.glob(pattern))
+
+    # 2. Environment variable
+    env_path = os.environ.get("SOUNDFONT_PATH")
+    if env_path:
+        env_sf = Path(env_path)
+        if env_sf.exists():
+            soundfont_paths.append(env_sf)
+
+    # 3. System locations
+    system_dirs = [
+        Path("/usr/share/sounds/sf2"),
+        Path("/usr/share/soundfonts"),
+        Path("/opt/homebrew/share/soundfonts"),
+    ]
+    for sys_dir in system_dirs:
+        if sys_dir.exists():
+            for pattern in ["*.sf2", "*.sf3"]:
+                soundfont_paths.extend(sys_dir.glob(pattern))
+
+    # 4. Python packages (pretty_midi)
+    try:
+        import pretty_midi
+        pkg_dir = Path(pretty_midi.__file__).parent
+        pkg_sf = pkg_dir / "TimGM6mb.sf2"
+        if pkg_sf.exists():
+            soundfont_paths.append(pkg_sf)
+    except ImportError:
+        pass
+
+    # Sort by file size (larger = better quality) and return best
+    valid_paths = [p for p in soundfont_paths if p.exists() and p.stat().st_size > 1000]
+    if valid_paths:
+        best = max(valid_paths, key=lambda p: p.stat().st_size)
+        logger.info(f"Auto-discovered SoundFont: {best} ({best.stat().st_size / 1024 / 1024:.1f}MB)")
+        return best
+
+    return None
 
 
 @dataclass
@@ -199,14 +260,22 @@ class ProviderManager:
         """Create Audio provider based on config."""
         provider_type = self.config.audio_provider.lower()
 
+        # Auto-discover soundfont if not specified
+        soundfont = self.config.soundfont_path
+        if not soundfont:
+            discovered = discover_soundfont()
+            if discovered:
+                soundfont = str(discovered)
+
         if provider_type == "synth":
             return SynthAudioProvider(
                 sample_rate=self.config.audio_sample_rate,
+                soundfont_path=soundfont,
             )
 
         else:
             logger.warning(f"Unknown Audio provider: {provider_type}, using synth")
-            return SynthAudioProvider()
+            return SynthAudioProvider(soundfont_path=soundfont)
 
     def _create_embedding_provider(self) -> BaseProvider | None:
         """Create Embedding provider based on config."""
