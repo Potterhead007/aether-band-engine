@@ -17,9 +17,15 @@ const API_BASE_URL = ((): string => {
   const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   const trimmed = url.trim()
 
-  // Debug logging
+  // Debug logging - always log in browser
   if (typeof window !== 'undefined') {
     console.info('[AETHER] API URL:', trimmed)
+    console.info('[AETHER] ENV:', process.env.NODE_ENV)
+    // Also show in an alert for debugging
+    if (!sessionStorage.getItem('aether_url_shown')) {
+      sessionStorage.setItem('aether_url_shown', 'true')
+      alert('AETHER API URL: ' + trimmed)
+    }
   }
 
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
