@@ -17,6 +17,11 @@ const API_BASE_URL = ((): string => {
   const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   const trimmed = url.trim()
 
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    console.info('[AETHER] API URL:', trimmed)
+  }
+
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
     if (!trimmed.startsWith('https://')) {
       console.error('[AETHER] SECURITY WARNING: Production API URL should use HTTPS')
@@ -222,10 +227,14 @@ async function request<T>(
         await sleep(backoff)
       }
 
+      console.debug(`[AETHER] Fetching: ${method} ${url}`)
+
       const response = await fetch(url, {
         ...fetchOptions,
         signal: controller.signal,
       })
+
+      console.debug(`[AETHER] Response: ${response.status} ${response.statusText}`)
 
       clearTimeout(timeoutId)
 
