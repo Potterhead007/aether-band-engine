@@ -27,7 +27,7 @@ export default function GeneratePage() {
   })
 
   const generateMutation = useMutation({
-    mutationFn: api.generate,
+    mutationFn: (data: typeof formData) => api.generate(data),
     onSuccess: (data) => {
       setGenerateResult(data)
       setStep('rendering')
@@ -48,7 +48,7 @@ export default function GeneratePage() {
   })
 
   const renderMutation = useMutation({
-    mutationFn: api.render,
+    mutationFn: (data: Parameters<typeof api.render>[0]) => api.render(data),
     onSuccess: (data) => {
       setRenderResult(data)
       setStep('complete')
