@@ -19,7 +19,7 @@ import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -226,3 +226,61 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 def create_rate_limiter() -> RateLimitMiddleware:
     """Create rate limiter with default configuration."""
     return RateLimitMiddleware(None, RateLimitConfig.from_env())
+
+
+class SlidingWindowCounter:
+    """
+    Sliding window rate limiter for expensive operations.
+
+    More accurate than fixed windows, with O(1) space per client.
+    Used for per-endpoint rate limiting on expensive operations like /v1/generate.
+    """
+
+    def __init__(
+        self,
+        window_size_seconds: float = 3600.0,
+        max_requests: int = 10,
+    ):
+        self.window_size = window_size_seconds
+        self.max_requests = max_requests
+        self._windows: Dict[str, Dict[str, Any]] = {}
+        self._lock = asyncio.Lock()
+
+    async def is_allowed(self, key: str) -> tuple[bool, int]:
+        """
+        Check if request is allowed.
+
+        Returns (allowed, remaining_requests).
+        """
+        now = time.monotonic()
+        current_window = int(now / self.window_size)
+        window_progress = (now % self.window_size) / self.window_size
+
+        async with self._lock:
+            if key not in self._windows:
+                self._windows[key] = {
+                    "current_window": current_window,
+                    "current_count": 0,
+                    "prev_count": 0,
+                }
+
+            state = self._windows[key]
+
+            # Roll over to new window
+            if state["current_window"] < current_window:
+                state["prev_count"] = (
+                    state["current_count"] if state["current_window"] == current_window - 1 else 0
+                )
+                state["current_count"] = 0
+                state["current_window"] = current_window
+
+            # Calculate weighted count
+            weighted_count = state["prev_count"] * (1 - window_progress) + state["current_count"]
+
+            if weighted_count >= self.max_requests:
+                remaining = 0
+                return False, remaining
+
+            state["current_count"] += 1
+            remaining = int(self.max_requests - weighted_count - 1)
+            return True, max(0, remaining)

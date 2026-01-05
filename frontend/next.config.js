@@ -2,7 +2,9 @@ const path = require('path')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'standalone', // Only for self-hosted Docker deployments
+  // Enable standalone output for Docker deployments
+  // Set BUILD_STANDALONE=true in Docker build, leave unset for Vercel
+  output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   },

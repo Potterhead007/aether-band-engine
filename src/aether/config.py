@@ -159,8 +159,16 @@ class AetherConfig(BaseSettings):
 
         return cls(**data)
 
-    # Fields that should never be serialized to disk
-    SENSITIVE_FIELDS: ClassVar[set[str]] = {"llm_api_key", "embedding_api_key", "api_key"}
+    # Patterns that indicate sensitive fields (convention-based detection)
+    SENSITIVE_PATTERNS: ClassVar[tuple[str, ...]] = (
+        "_key", "_secret", "_token", "_password", "_credential", "_api_key"
+    )
+
+    @classmethod
+    def is_sensitive_field(cls, field_name: str) -> bool:
+        """Check if field contains sensitive data using naming convention."""
+        lower_name = field_name.lower()
+        return any(lower_name.endswith(p) for p in cls.SENSITIVE_PATTERNS)
 
     def save_to_yaml(self, path: Path) -> None:
         """Save configuration to YAML file, excluding sensitive fields."""
@@ -169,10 +177,16 @@ class AetherConfig(BaseSettings):
         # Get config data excluding sensitive fields
         data = self.model_dump()
 
-        # Remove sensitive fields from providers section
-        if "providers" in data:
-            for sensitive_key in self.SENSITIVE_FIELDS:
-                data["providers"].pop(sensitive_key, None)
+        # Remove sensitive fields from all sections using convention-based detection
+        def remove_sensitive(d: dict) -> None:
+            keys_to_remove = [k for k in d if self.is_sensitive_field(k)]
+            for k in keys_to_remove:
+                d.pop(k, None)
+            for v in d.values():
+                if isinstance(v, dict):
+                    remove_sensitive(v)
+
+        remove_sensitive(data)
 
         with open(path, "w") as f:
             yaml.dump(data, f, default_flow_style=False)

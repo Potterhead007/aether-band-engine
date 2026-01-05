@@ -19,15 +19,63 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+import re
 from aether.core import AetherRuntime, get_runtime
 from aether.api.auth import AuthMiddleware, JWTAuth, APIKeyAuth
-from aether.api.ratelimit import RateLimitMiddleware, RateLimitConfig
+from aether.api.ratelimit import RateLimitMiddleware, RateLimitConfig, SlidingWindowCounter
 from aether.agents.creative_director import CreativeDirectorAgent, CreativeDirectorInput
 from aether.agents.composition import CompositionAgent, CompositionInput
 from aether.agents.arrangement import ArrangementAgent, ArrangementInput
 from aether.providers import ProviderManager, ProviderConfig
 
 logger = logging.getLogger(__name__)
+
+# Per-endpoint rate limiters for expensive operations
+_generate_limiter: Optional[SlidingWindowCounter] = None
+_render_limiter: Optional[SlidingWindowCounter] = None
+
+
+def get_generate_limiter() -> SlidingWindowCounter:
+    """Get or create the generation rate limiter."""
+    global _generate_limiter
+    if _generate_limiter is None:
+        # 10 generations per hour per client
+        max_per_hour = int(os.environ.get("AETHER_GENERATE_RATE_LIMIT", "10"))
+        _generate_limiter = SlidingWindowCounter(window_size_seconds=3600, max_requests=max_per_hour)
+    return _generate_limiter
+
+
+def get_render_limiter() -> SlidingWindowCounter:
+    """Get or create the render rate limiter."""
+    global _render_limiter
+    if _render_limiter is None:
+        # 20 renders per hour per client
+        max_per_hour = int(os.environ.get("AETHER_RENDER_RATE_LIMIT", "20"))
+        _render_limiter = SlidingWindowCounter(window_size_seconds=3600, max_requests=max_per_hour)
+    return _render_limiter
+
+
+def safe_path_component(value: str) -> str:
+    """Sanitize path component to prevent directory traversal."""
+    if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+        raise ValueError(f"Invalid path component: {value}")
+    return value
+
+
+def get_client_key(request: Request) -> str:
+    """Extract client identifier for rate limiting."""
+    # Try X-Forwarded-For first (for proxied requests)
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    # Try X-Real-IP
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+    # Fall back to direct client IP
+    if request.client:
+        return request.client.host
+    return "unknown"
 
 
 # =============================================================================
@@ -93,11 +141,14 @@ class HealthResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Standard error response."""
+    """RFC 7807 Problem Details error response."""
 
-    error: str
-    detail: Optional[str] = None
-    request_id: Optional[str] = None
+    type: str = Field(default="about:blank", description="URI reference for problem type")
+    title: str = Field(..., description="Short human-readable summary")
+    status: int = Field(..., description="HTTP status code")
+    detail: Optional[str] = Field(None, description="Human-readable explanation")
+    instance: Optional[str] = Field(None, description="URI reference to specific occurrence")
+    request_id: Optional[str] = Field(None, description="Request ID for tracing")
 
 
 # =============================================================================
@@ -162,17 +213,24 @@ def create_app(
         openapi_url="/openapi.json",
     )
 
-    # CORS - Security: restrict origins, no wildcard with credentials
+    # CORS - Security: restrict origins, prevent wildcard with credentials
     if enable_cors:
         api_port = os.environ.get("AETHER_API_PORT", "8000")
         default_origins = os.environ.get(
             "AETHER_CORS_ORIGINS",
             f"http://localhost:3000,http://localhost:3001,http://localhost:{api_port}",
         ).split(",")
+        origins = cors_origins or default_origins
+
+        # Security: prevent wildcard with credentials
+        has_wildcard = "*" in origins
+        if has_wildcard:
+            logger.warning("CORS wildcard origin detected - disabling credentials")
+
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=cors_origins or default_origins,
-            allow_credentials=True,
+            allow_origins=origins,
+            allow_credentials=not has_wildcard,  # Disable credentials if wildcard
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
         )
@@ -181,13 +239,22 @@ def create_app(
     if os.environ.get("AETHER_RATE_LIMIT_ENABLED", "true").lower() == "true":
         app.add_middleware(RateLimitMiddleware, config=RateLimitConfig.from_env())
 
-    # Authentication middleware
-    if os.environ.get("AETHER_AUTH_ENABLED", "false").lower() == "true":
+    # Authentication middleware (enabled by default in production)
+    auth_enabled = os.environ.get("AETHER_AUTH_ENABLED", "true").lower() != "false"
+    if auth_enabled:
         auth_providers: List = []
         jwt_secret = os.environ.get("AETHER_JWT_SECRET")
         if jwt_secret:
+            # Validate JWT secret strength
+            if len(jwt_secret) < 32:
+                logger.warning("JWT secret is too short (< 32 chars) - consider using a stronger secret")
+            if jwt_secret.isalnum() and (jwt_secret.islower() or jwt_secret.isupper()):
+                logger.warning("JWT secret lacks complexity - consider adding mixed case and symbols")
             auth_providers.append(JWTAuth(secret_key=jwt_secret))
-        auth_providers.append(APIKeyAuth())
+
+        # API Key auth - disable query param in production
+        is_production = os.environ.get("AETHER_ENVIRONMENT", "development") == "production"
+        auth_providers.append(APIKeyAuth(query_param=None if is_production else "api_key"))
 
         app.add_middleware(
             AuthMiddleware,
@@ -218,15 +285,20 @@ def create_app(
 
         return response
 
-    # Exception handlers
+    # Exception handlers (RFC 7807 Problem Details format)
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         return JSONResponse(
             status_code=exc.status_code,
             content=ErrorResponse(
-                error=exc.detail,
+                type=f"https://aether.band/errors/{exc.status_code}",
+                title=str(exc.detail) if exc.detail else "Error",
+                status=exc.status_code,
+                detail=str(exc.detail) if exc.detail else None,
+                instance=str(request.url.path),
                 request_id=getattr(request.state, "request_id", None),
-            ).model_dump(),
+            ).model_dump(exclude_none=True),
+            media_type="application/problem+json",
         )
 
     @app.exception_handler(Exception)
@@ -235,10 +307,14 @@ def create_app(
         return JSONResponse(
             status_code=500,
             content=ErrorResponse(
-                error="Internal server error",
-                detail=str(exc) if app.debug else None,
+                type="https://aether.band/errors/internal",
+                title="Internal Server Error",
+                status=500,
+                detail=str(exc) if app.debug else "An unexpected error occurred",
+                instance=str(request.url.path),
                 request_id=getattr(request.state, "request_id", None),
-            ).model_dump(),
+            ).model_dump(exclude_none=True),
+            media_type="application/problem+json",
         )
 
     # Register routes
@@ -301,7 +377,7 @@ def register_routes(app: FastAPI) -> None:
         tags=["Generation"],
         status_code=status.HTTP_202_ACCEPTED,
     )
-    async def generate_track(request: GenerateRequest):
+    async def generate_track(request: GenerateRequest, http_request: Request):
         """
         Generate a new music track.
 
@@ -309,6 +385,17 @@ def register_routes(app: FastAPI) -> None:
         the initial song specification. For full track generation,
         use the async job endpoint.
         """
+        # Per-endpoint rate limiting for expensive generation
+        client_key = get_client_key(http_request)
+        limiter = get_generate_limiter()
+        allowed, remaining = await limiter.is_allowed(client_key)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Generation rate limit exceeded. Please try again later.",
+                headers={"X-RateLimit-Remaining": "0", "Retry-After": "3600"},
+            )
+
         job_id = str(uuid4())
 
         try:
@@ -364,7 +451,7 @@ def register_routes(app: FastAPI) -> None:
         tags=["Rendering"],
         status_code=status.HTTP_200_OK,
     )
-    async def render_audio(request: RenderRequest):
+    async def render_audio(request: RenderRequest, http_request: Request):
         """
         Render audio from music specifications.
 
@@ -374,11 +461,24 @@ def register_routes(app: FastAPI) -> None:
         from pathlib import Path
         from aether.rendering.engine import RenderingEngine, RenderingConfig
 
+        # Per-endpoint rate limiting for expensive rendering
+        client_key = get_client_key(http_request)
+        limiter = get_render_limiter()
+        allowed, remaining = await limiter.is_allowed(client_key)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Render rate limit exceeded. Please try again later.",
+                headers={"X-RateLimit-Remaining": "0", "Retry-After": "3600"},
+            )
+
         job_id = str(uuid4())
 
         try:
+            # Validate and sanitize path component
+            safe_job_id = safe_path_component(job_id)
             # Configure rendering
-            output_dir = Path.home() / ".aether" / "output" / job_id
+            output_dir = Path.home() / ".aether" / "output" / safe_job_id
             output_dir.mkdir(parents=True, exist_ok=True)
 
             config = RenderingConfig(
@@ -446,9 +546,27 @@ def register_routes(app: FastAPI) -> None:
             ]
         }
 
-    @app.get("/metrics", tags=["System"])
-    async def prometheus_metrics():
-        """Prometheus metrics endpoint."""
+    @app.get("/metrics", tags=["System"], include_in_schema=False)
+    async def prometheus_metrics(request: Request):
+        """Prometheus metrics endpoint (internal network only)."""
+        # Restrict to internal networks for security
+        client_ip = request.client.host if request.client else ""
+        is_internal = (
+            client_ip.startswith("10.")
+            or client_ip.startswith("172.16.")
+            or client_ip.startswith("172.17.")
+            or client_ip.startswith("172.18.")
+            or client_ip.startswith("172.19.")
+            or client_ip.startswith("172.2")
+            or client_ip.startswith("172.3")
+            or client_ip.startswith("192.168.")
+            or client_ip.startswith("127.")
+            or client_ip == "::1"
+            or os.environ.get("AETHER_METRICS_PUBLIC", "false").lower() == "true"
+        )
+        if not is_internal:
+            raise HTTPException(status_code=403, detail="Metrics endpoint is internal only")
+
         runtime = get_runtime()
         metrics = runtime.metrics.collect()
 

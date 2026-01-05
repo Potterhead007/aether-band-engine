@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ErrorBoundary>
         <Providers>
           <div className="min-h-screen flex flex-col">
             <nav className="border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
@@ -47,6 +49,7 @@ export default function RootLayout({
             </footer>
           </div>
         </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   )

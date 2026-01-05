@@ -141,14 +141,20 @@ env:
   AETHER_RATE_LIMIT_RPM: "100"
   AETHER_RATE_LIMIT_BURST: "20"
 
-# Secrets (use external secrets in production)
-secrets:
-  # Set via --set or external secrets manager
-  openaiApiKey: ""
-  anthropicApiKey: ""
-  jwtSecret: ""
-  databaseUrl: ""
-  redisUrl: ""
+# External Secrets Configuration
+# IMPORTANT: Never store secrets in this file. Use one of:
+# 1. Kubernetes Secrets created externally: kubectl create secret generic aether-secrets --from-literal=...
+# 2. External Secrets Operator: https://external-secrets.io/
+# 3. Sealed Secrets: https://sealed-secrets.netlify.app/
+# 4. HashiCorp Vault with CSI: https://developer.hashicorp.com/vault/docs/platform/k8s/csi
+externalSecrets:
+  enabled: false
+  # Reference to existing Kubernetes secret containing API keys
+  secretRef: "aether-api-secrets"
+  # For External Secrets Operator integration
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
 
 # Network policy
 networkPolicy:

@@ -45,7 +45,7 @@ jobs:
         run: ruff check src/ tests/ --select=E --ignore=E501,E741
 
       - name: Type check with MyPy
-        run: mypy src/ --ignore-missing-imports --no-error-summary || true
+        run: mypy src/ --ignore-missing-imports --no-error-summary
 
   # ==========================================================================
   # Unit Tests
@@ -85,8 +85,8 @@ jobs:
           pytest tests/unit/ -v --tb=short -x
 
       - name: Run integration tests
-        run: |
-          pytest tests/integration/ -v --tb=short || echo "Integration tests need attention"
+        run: pytest tests/integration/ -v --tb=short
+        continue-on-error: false
 
   # ==========================================================================
   # Coverage Report
