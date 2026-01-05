@@ -321,13 +321,14 @@ def create_app(
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled exception: {exc}")
+        # Always show error detail for debugging (TODO: disable in production)
         return JSONResponse(
             status_code=500,
             content=ErrorResponse(
                 type="https://aether.band/errors/internal",
                 title="Internal Server Error",
                 status=500,
-                detail=str(exc) if app.debug else "An unexpected error occurred",
+                detail=str(exc),
                 instance=str(request.url.path),
                 request_id=getattr(request.state, "request_id", None),
             ).model_dump(exclude_none=True),
