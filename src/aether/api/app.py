@@ -59,11 +59,11 @@ def get_render_limiter() -> SlidingWindowCounter:
 
 def safe_path_component(value: str) -> str:
     """Sanitize path component to prevent directory traversal."""
-    # Allow alphanumeric, underscore, hyphen, and dots (for filenames)
+    # Allow alphanumeric, underscore, hyphen, dots, and spaces (for filenames)
     # But don't allow .. to prevent path traversal
     if ".." in value or "/" in value or "\\" in value:
         raise ValueError(f"Invalid path component: {value}")
-    if not re.match(r"^[a-zA-Z0-9_.-]+$", value):
+    if not re.match(r"^[a-zA-Z0-9_. -]+$", value):
         raise ValueError(f"Invalid path component: {value}")
     return value
 
