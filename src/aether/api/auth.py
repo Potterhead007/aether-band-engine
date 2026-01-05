@@ -213,6 +213,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Process authentication for each request."""
+        # Skip auth for CORS preflight requests (OPTIONS)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip auth for excluded paths
         if request.url.path in self.exclude_paths:
             return await call_next(request)
