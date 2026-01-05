@@ -594,11 +594,18 @@ def register_routes(app: FastAPI) -> None:
         if ext not in allowed_extensions:
             raise HTTPException(status_code=400, detail="Invalid file type")
 
-        # Construct file path
-        file_path = Path.home() / ".aether" / "output" / job_id / safe_filename
+        # Construct file path - check both direct and nested paths
+        # The render engine may nest files under song_id (which equals job_id)
+        base_dir = Path.home() / ".aether" / "output" / job_id
+        file_path = base_dir / safe_filename
 
+        # Also check nested path (output/{job_id}/{job_id}/filename)
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+            nested_path = base_dir / job_id / safe_filename
+            if nested_path.exists():
+                file_path = nested_path
+            else:
+                raise HTTPException(status_code=404, detail="File not found")
 
         # Determine media type
         media_types = {
