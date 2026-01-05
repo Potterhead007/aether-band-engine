@@ -234,7 +234,7 @@ def _create_boom_bap_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=80, max_bpm=100, typical_bpm=90),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["straight", "slight_swing"],
+            feels=["straight", "swing"],
             swing_amount_min=0.0,
             swing_amount_max=0.2,
             swing_amount_typical=0.08,
@@ -633,7 +633,7 @@ def _create_lofi_hiphop_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=70, max_bpm=90, typical_bpm=80),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["swing", "laid_back"],
+            feels=["swing", "shuffle"],
             swing_amount_min=0.1,
             swing_amount_max=0.3,
             swing_amount_typical=0.15,
@@ -834,7 +834,7 @@ def _create_house_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=118, max_bpm=130, typical_bpm=124),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["straight", "slight_swing"],
+            feels=["straight", "swing"],
             swing_amount_min=0.0,
             swing_amount_max=0.15,
             swing_amount_typical=0.05,
@@ -998,7 +998,7 @@ def _create_techno_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=125, max_bpm=150, typical_bpm=135),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["straight", "driving"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.05,
             swing_amount_typical=0.0,
@@ -1330,7 +1330,7 @@ def _create_rock_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=100, max_bpm=180, typical_bpm=130),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["straight", "driving"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.1,
             swing_amount_typical=0.05,
@@ -1494,7 +1494,7 @@ def _create_ambient_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=40, max_bpm=100, typical_bpm=60),
         rhythm=RhythmProfile(
             time_signatures=["4/4", "free"],
-            feels=["free", "floating"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.0,
             swing_amount_typical=0.0,
@@ -1655,7 +1655,7 @@ def _create_rnb_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=60, max_bpm=110, typical_bpm=85),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["swing", "laid_back"],
+            feels=["swing", "shuffle"],
             swing_amount_min=0.1,
             swing_amount_max=0.25,
             swing_amount_typical=0.15,
@@ -1819,7 +1819,7 @@ def _create_funk_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=95, max_bpm=125, typical_bpm=108),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["syncopated", "swing"],
+            feels=["shuffle", "swing"],
             swing_amount_min=0.1,
             swing_amount_max=0.2,
             swing_amount_typical=0.15,
@@ -1983,7 +1983,7 @@ def _create_disco_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=110, max_bpm=135, typical_bpm=120),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["straight", "driving"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.1,
             swing_amount_typical=0.05,
@@ -2149,7 +2149,7 @@ def _create_trap_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=130, max_bpm=175, typical_bpm=145),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["half_time", "triplet"],
+            feels=["straight", "triplet"],
             swing_amount_min=0.0,
             swing_amount_max=0.1,
             swing_amount_typical=0.0,
@@ -2313,7 +2313,7 @@ def _create_drum_and_bass_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=160, max_bpm=180, typical_bpm=174),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["broken", "syncopated"],
+            feels=["shuffle", "straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.15,
             swing_amount_typical=0.05,
@@ -2476,7 +2476,7 @@ def _create_dubstep_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=138, max_bpm=150, typical_bpm=140),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["half_time"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.1,
             swing_amount_typical=0.0,
@@ -2637,7 +2637,7 @@ def _create_acoustic_folk_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=60, max_bpm=140, typical_bpm=100),
         rhythm=RhythmProfile(
             time_signatures=["4/4", "3/4", "6/8"],
-            feels=["straight", "light_swing"],
+            feels=["straight", "swing"],
             swing_amount_min=0.0,
             swing_amount_max=0.15,
             swing_amount_typical=0.05,
@@ -2799,7 +2799,7 @@ def _create_cinematic_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=40, max_bpm=180, typical_bpm=90),
         rhythm=RhythmProfile(
             time_signatures=["4/4", "3/4", "6/8", "12/8"],
-            feels=["straight", "epic"],
+            feels=["straight"],
             swing_amount_min=0.0,
             swing_amount_max=0.05,
             swing_amount_typical=0.0,
@@ -2961,7 +2961,7 @@ def _create_chillwave_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=80, max_bpm=120, typical_bpm=100),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["laid_back", "dreamy"],
+            feels=["swing", "shuffle"],
             swing_amount_min=0.0,
             swing_amount_max=0.1,
             swing_amount_typical=0.05,
@@ -3125,7 +3125,7 @@ def _create_neo_soul_profile() -> GenreRootProfile:
         tempo=TempoRange(min_bpm=65, max_bpm=105, typical_bpm=85),
         rhythm=RhythmProfile(
             time_signatures=["4/4"],
-            feels=["swing", "laid_back"],
+            feels=["swing", "shuffle"],
             swing_amount_min=0.15,
             swing_amount_max=0.3,
             swing_amount_typical=0.2,

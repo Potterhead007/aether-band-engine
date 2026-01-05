@@ -681,3 +681,7 @@ def register_routes(app: FastAPI) -> None:
             content="\n".join(lines),
             media_type="text/plain; charset=utf-8",
         )
+
+
+# Create module-level app instance for uvicorn
+app = create_app()
