@@ -1,0 +1,164 @@
+# AETHER Engine Helm Values
+# Institutional-grade configuration
+
+# Replica configuration
+replicaCount: 3
+
+image:
+  repository: ghcr.io/aether-band-engine/aether-engine
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  hosts:
+    - host: api.aether-engine.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: aether-engine-tls
+      hosts:
+        - api.aether-engine.example.com
+
+# Resource limits
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: aether-engine
+          topologyKey: kubernetes.io/hostname
+
+# Probes
+livenessProbe:
+  httpGet:
+    path: /live
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Environment configuration
+env:
+  AETHER_ENVIRONMENT: production
+  AETHER_LOG_LEVEL: INFO
+  AETHER_LOG_FORMAT: json
+  AETHER_METRICS_PREFIX: aether
+  AETHER_LLM_PROVIDER: openai
+  AETHER_MIDI_PROVIDER: internal
+  AETHER_AUDIO_PROVIDER: synth
+  AETHER_API_HOST: "0.0.0.0"
+  AETHER_API_PORT: "8000"
+  AETHER_API_WORKERS: "4"
+  AETHER_RATE_LIMIT_RPS: "10"
+  AETHER_RATE_LIMIT_RPM: "100"
+  AETHER_RATE_LIMIT_BURST: "20"
+
+# Secrets (use external secrets in production)
+secrets:
+  # Set via --set or external secrets manager
+  openaiApiKey: ""
+  anthropicApiKey: ""
+  jwtSecret: ""
+  databaseUrl: ""
+  redisUrl: ""
+
+# Network policy
+networkPolicy:
+  enabled: true
+
+# Redis subchart
+redis:
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+
+# Prometheus subchart
+prometheus:
+  enabled: false

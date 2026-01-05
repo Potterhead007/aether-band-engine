@@ -1,0 +1,30 @@
+apiVersion: v2
+name: aether-engine
+description: AI-powered music generation engine for institutional deployment
+type: application
+version: 1.0.0
+appVersion: "0.1.0"
+
+keywords:
+  - music
+  - ai
+  - generation
+  - api
+
+home: https://github.com/aether-band-engine/aether-engine
+sources:
+  - https://github.com/aether-band-engine/aether-engine
+
+maintainers:
+  - name: AETHER Team
+    email: team@aether-engine.io
+
+dependencies:
+  - name: redis
+    version: "18.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: prometheus
+    version: "25.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled

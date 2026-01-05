@@ -78,3 +78,55 @@ CMD ["--help"]
 
 # Expose metrics port (if running API server)
 EXPOSE 9090
+
+# =============================================================================
+# Stage 3: API Server (production)
+# =============================================================================
+FROM python:3.11-slim AS api
+
+LABEL maintainer="AETHER Team"
+LABEL version="0.1.0"
+LABEL description="AETHER Band Engine - Production API Server"
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsndfile1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash aether
+USER aether
+WORKDIR /home/aether
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy application
+COPY --chown=aether:aether src/ ./src/
+COPY --chown=aether:aether data/ ./data/
+COPY --chown=aether:aether pyproject.toml ./
+
+# Create directories
+RUN mkdir -p /home/aether/.aether/output \
+             /home/aether/.aether/cache
+
+# Environment configuration
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV AETHER_ENVIRONMENT=production
+ENV AETHER_LOG_FORMAT=json
+ENV AETHER_API_HOST=0.0.0.0
+ENV AETHER_API_PORT=8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose API port
+EXPOSE 8000
+
+# Run API server
+CMD ["python", "-m", "uvicorn", "aether.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

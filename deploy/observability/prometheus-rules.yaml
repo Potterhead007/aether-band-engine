@@ -1,0 +1,105 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aether-engine-rules
+  namespace: monitoring
+  labels:
+    app: aether-engine
+    prometheus: main
+spec:
+  groups:
+    - name: aether-engine.alerts
+      rules:
+        # High error rate
+        - alert: AetherHighErrorRate
+          expr: |
+            sum(rate(aether_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(aether_http_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate detected"
+            description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+        # High latency
+        - alert: AetherHighLatency
+          expr: |
+            histogram_quantile(0.99, sum(rate(aether_http_request_duration_seconds_bucket[5m])) by (le))
+            > 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High request latency"
+            description: "P99 latency is {{ $value }}s"
+
+        # Pod availability
+        - alert: AetherPodUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{deployment="aether-engine"}
+            < kube_deployment_spec_replicas{deployment="aether-engine"}
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AETHER pods unavailable"
+            description: "{{ $value }} pods unavailable"
+
+        # Memory pressure
+        - alert: AetherMemoryPressure
+          expr: |
+            container_memory_usage_bytes{pod=~"aether-engine.*"}
+            / container_spec_memory_limit_bytes{pod=~"aether-engine.*"}
+            > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage"
+            description: "Memory usage at {{ $value | humanizePercentage }}"
+
+        # Rate limiting active
+        - alert: AetherRateLimitingActive
+          expr: |
+            sum(rate(aether_rate_limit_rejected_total[5m])) > 10
+          for: 5m
+          labels:
+            severity: info
+          annotations:
+            summary: "Rate limiting active"
+            description: "{{ $value }} requests/s being rate limited"
+
+        # Generation failures
+        - alert: AetherGenerationFailures
+          expr: |
+            sum(rate(aether_generation_errors_total[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Music generation failures"
+            description: "{{ $value }} generation failures/s"
+
+    - name: aether-engine.recording
+      rules:
+        # Request rate
+        - record: aether:http_requests:rate5m
+          expr: sum(rate(aether_http_requests_total[5m]))
+
+        # Error rate
+        - record: aether:http_errors:rate5m
+          expr: sum(rate(aether_http_requests_total{status=~"5.."}[5m]))
+
+        # P50 latency
+        - record: aether:http_latency_p50:5m
+          expr: histogram_quantile(0.50, sum(rate(aether_http_request_duration_seconds_bucket[5m])) by (le))
+
+        # P99 latency
+        - record: aether:http_latency_p99:5m
+          expr: histogram_quantile(0.99, sum(rate(aether_http_request_duration_seconds_bucket[5m])) by (le))
+
+        # Generation rate
+        - record: aether:generations:rate5m
+          expr: sum(rate(aether_generation_completed_total[5m]))

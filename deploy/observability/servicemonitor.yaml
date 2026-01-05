@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aether-engine
+  namespace: aether-engine
+  labels:
+    app: aether-engine
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aether-engine
+  namespaceSelector:
+    matchNames:
+      - aether-engine
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
