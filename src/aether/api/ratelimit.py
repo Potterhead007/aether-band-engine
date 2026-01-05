@@ -204,6 +204,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         """Process request through rate limiter."""
+        # Skip rate limiting for CORS preflight requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         allowed, headers = await self.limiter.is_allowed(request)
 
         if not allowed:
