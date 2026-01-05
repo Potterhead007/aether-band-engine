@@ -262,10 +262,21 @@ def create_app(
         is_production = os.environ.get("AETHER_ENVIRONMENT", "development") == "production"
         auth_providers.append(APIKeyAuth(query_param=None if is_production else "api_key"))
 
+        # Public endpoints exempt from authentication
+        public_paths = [
+            "/health",
+            "/ready",
+            "/live",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/v1/genres",  # Public reference data
+        ]
         app.add_middleware(
             AuthMiddleware,
             providers=auth_providers,
             require_auth=True,
+            exclude_paths=public_paths,
         )
 
     # Request tracking middleware
