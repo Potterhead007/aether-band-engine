@@ -65,7 +65,8 @@ function formatError(error: unknown): string {
   }
 
   if (error instanceof NetworkError) {
-    return 'Network error. Please check your internet connection and try again.'
+    const cause = error.cause?.message || 'Unknown cause'
+    return `Network error: ${cause}. Check browser console for details.`
   }
 
   if (error instanceof Error) {

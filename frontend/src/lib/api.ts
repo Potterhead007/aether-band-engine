@@ -264,12 +264,18 @@ async function request<T>(
       clearTimeout(timeoutId)
 
       // Detailed error logging
-      console.error('[AETHER] Fetch error:', {
+      const errorInfo = {
         name: err instanceof Error ? err.name : 'Unknown',
         message: err instanceof Error ? err.message : String(err),
         url,
         attempt: attempt + 1,
-      })
+      }
+      console.error('[AETHER] Fetch error:', errorInfo)
+
+      // Debug alert for production troubleshooting
+      if (typeof window !== 'undefined') {
+        console.error('[AETHER] Full error:', err)
+      }
 
       if (err instanceof ApiError) {
         throw err
