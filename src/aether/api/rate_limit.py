@@ -131,7 +131,9 @@ class RateLimiter:
         headers = {
             "X-RateLimit-Limit": str(int(self.config.requests_per_minute)),
             "X-RateLimit-Remaining": str(int(bucket.tokens)),
-            "X-RateLimit-Reset": str(int(time.time() + (bucket.capacity - bucket.tokens) / bucket.refill_rate)),
+            "X-RateLimit-Reset": str(
+                int(time.time() + (bucket.capacity - bucket.tokens) / bucket.refill_rate)
+            ),
         }
 
         if not allowed:
@@ -233,7 +235,9 @@ class SlidingWindowCounter:
 
             # Roll over to new window
             if state["current_window"] < current_window:
-                state["prev_count"] = state["current_count"] if state["current_window"] == current_window - 1 else 0
+                state["prev_count"] = (
+                    state["current_count"] if state["current_window"] == current_window - 1 else 0
+                )
                 state["current_count"] = 0
                 state["current_window"] = current_window
 

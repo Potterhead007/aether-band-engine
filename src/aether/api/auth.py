@@ -206,7 +206,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.providers = providers or []
-        self.exclude_paths = set(exclude_paths or ["/health", "/ready", "/live", "/docs", "/redoc", "/openapi.json"])
+        self.exclude_paths = set(
+            exclude_paths or ["/health", "/ready", "/live", "/docs", "/redoc", "/openapi.json"]
+        )
         self.require_auth = require_auth
 
     async def dispatch(self, request: Request, call_next):

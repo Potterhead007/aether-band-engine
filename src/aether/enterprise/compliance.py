@@ -320,9 +320,15 @@ class ComplianceManager:
             "frameworks": [fw.value for fw in self.frameworks],
             "controls": {
                 "total": len(controls),
-                "implemented": len([c for c in controls if c.implementation_status == "implemented"]),
-                "in_progress": len([c for c in controls if c.implementation_status == "in_progress"]),
-                "not_started": len([c for c in controls if c.implementation_status == "not_started"]),
+                "implemented": len(
+                    [c for c in controls if c.implementation_status == "implemented"]
+                ),
+                "in_progress": len(
+                    [c for c in controls if c.implementation_status == "in_progress"]
+                ),
+                "not_started": len(
+                    [c for c in controls if c.implementation_status == "not_started"]
+                ),
             },
             "retention_policies": len(self._retention_policies),
             "pii_fields_tracked": len(self._pii_fields),
