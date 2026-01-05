@@ -538,19 +538,23 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/v1/genres", tags=["Reference"])
     async def list_genres():
         """List available genres."""
-        from aether.knowledge import get_genre_manager
+        try:
+            from aether.knowledge import get_genre_manager
 
-        manager = get_genre_manager()
-        return {
-            "genres": [
-                {
-                    "id": profile.genre_id,
-                    "name": profile.name,
-                    "aliases": profile.aliases,
-                }
-                for profile in manager.list_profiles()
-            ]
-        }
+            manager = get_genre_manager()
+            return {
+                "genres": [
+                    {
+                        "id": profile.genre_id,
+                        "name": profile.name,
+                        "aliases": profile.aliases,
+                    }
+                    for profile in manager.list_profiles()
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Failed to list genres: {e}", exc_info=True)
+            raise
 
     @app.get("/metrics", tags=["System"], include_in_schema=False)
     async def prometheus_metrics(request: Request):
