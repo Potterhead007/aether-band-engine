@@ -19,7 +19,6 @@ from aether.schemas.base import (
     TempoRange,
 )
 
-
 # Genealogy
 
 

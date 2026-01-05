@@ -15,8 +15,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import shutil
+import logging
 import sqlite3
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -24,9 +25,8 @@ from datetime import datetime
 from enum import Enum
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, TypeVar, Union
+from typing import Any, Callable, TypeVar
 from uuid import uuid4
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ T = TypeVar("T")
 
 # Thread pool for async SQLite operations (SQLite is not async-safe)
 # Using max_workers=4 to allow concurrent reads while writes are serialized by SQLite
-_DB_EXECUTOR: Optional[ThreadPoolExecutor] = None
+_DB_EXECUTOR: ThreadPoolExecutor | None = None
 _DB_EXECUTOR_MAX_WORKERS = 4
 
 
@@ -109,10 +109,10 @@ class ArtifactMetadata:
     mime_type: str
     created_at: datetime
     created_by: str
-    tags: Dict[str, str]
-    parent_ids: List[str]
+    tags: dict[str, str]
+    parent_ids: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "artifact_id": self.artifact_id,
             "artifact_type": self.artifact_type.value,
@@ -246,13 +246,13 @@ class ArtifactStore:
 
     def store(
         self,
-        data: Union[bytes, str, Dict[str, Any]],
+        data: bytes | str | dict[str, Any],
         artifact_type: ArtifactType,
         name: str,
         song_id: Optional[str] = None,
         created_by: str = "aether",
-        tags: Optional[Dict[str, str]] = None,
-        parent_ids: Optional[List[str]] = None,
+        tags: dict[str, str] | None = None,
+        parent_ids: list[str] | None = None,
         mime_type: Optional[str] = None,
     ) -> ArtifactMetadata:
         """
@@ -393,7 +393,7 @@ class ArtifactStore:
             max_version = row["max_version"] if row["max_version"] else 0
             return max_version + 1
 
-    def get(self, artifact_id: str) -> Optional[bytes]:
+    def get(self, artifact_id: str) -> bytes | None:
         """Get artifact data by ID."""
         with self._get_connection() as conn:
             row = conn.execute(
@@ -414,14 +414,14 @@ class ArtifactStore:
 
             return blob_path.read_bytes()
 
-    def get_json(self, artifact_id: str) -> Optional[Dict[str, Any]]:
+    def get_json(self, artifact_id: str) -> dict[str, Any] | None:
         """Get artifact data as JSON dict."""
         data = self.get(artifact_id)
         if data is None:
             return None
         return json.loads(data.decode("utf-8"))
 
-    def get_metadata(self, artifact_id: str) -> Optional[ArtifactMetadata]:
+    def get_metadata(self, artifact_id: str) -> ArtifactMetadata | None:
         """Get artifact metadata by ID."""
         with self._get_connection() as conn:
             row = conn.execute(
@@ -473,8 +473,8 @@ class ArtifactStore:
     def list_by_song(
         self,
         song_id: str,
-        artifact_type: Optional[ArtifactType] = None,
-    ) -> List[ArtifactMetadata]:
+        artifact_type: ArtifactType | None = None,
+    ) -> list[ArtifactMetadata]:
         """List all artifacts for a song."""
         with self._get_connection() as conn:
             if artifact_type:
@@ -503,7 +503,7 @@ class ArtifactStore:
         song_id: str,
         artifact_type: ArtifactType,
         name: str,
-    ) -> Optional[ArtifactMetadata]:
+    ) -> ArtifactMetadata | None:
         """Get the latest version of an artifact."""
         with self._get_connection() as conn:
             row = conn.execute(
@@ -580,7 +580,7 @@ class ArtifactStore:
 
             return result.rowcount > 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get storage statistics."""
         with self._get_connection() as conn:
             total = conn.execute(
@@ -617,13 +617,13 @@ class ArtifactStore:
 
     async def store_async(
         self,
-        data: Union[bytes, str, Dict[str, Any]],
+        data: bytes | str | dict[str, Any],
         artifact_type: ArtifactType,
         name: str,
         song_id: Optional[str] = None,
         created_by: str = "aether",
-        tags: Optional[Dict[str, str]] = None,
-        parent_ids: Optional[List[str]] = None,
+        tags: dict[str, str] | None = None,
+        parent_ids: list[str] | None = None,
         mime_type: Optional[str] = None,
     ) -> ArtifactMetadata:
         """
@@ -644,23 +644,23 @@ class ArtifactStore:
             mime_type,
         )
 
-    async def get_async(self, artifact_id: str) -> Optional[bytes]:
+    async def get_async(self, artifact_id: str) -> bytes | None:
         """Async-safe version of get()."""
         return await _run_in_executor(self.get, artifact_id)
 
-    async def get_json_async(self, artifact_id: str) -> Optional[Dict[str, Any]]:
+    async def get_json_async(self, artifact_id: str) -> dict[str, Any] | None:
         """Async-safe version of get_json()."""
         return await _run_in_executor(self.get_json, artifact_id)
 
-    async def get_metadata_async(self, artifact_id: str) -> Optional[ArtifactMetadata]:
+    async def get_metadata_async(self, artifact_id: str) -> ArtifactMetadata | None:
         """Async-safe version of get_metadata()."""
         return await _run_in_executor(self.get_metadata, artifact_id)
 
     async def list_by_song_async(
         self,
         song_id: str,
-        artifact_type: Optional[ArtifactType] = None,
-    ) -> List[ArtifactMetadata]:
+        artifact_type: ArtifactType | None = None,
+    ) -> list[ArtifactMetadata]:
         """Async-safe version of list_by_song()."""
         return await _run_in_executor(self.list_by_song, song_id, artifact_type)
 
@@ -669,7 +669,7 @@ class ArtifactStore:
         song_id: str,
         artifact_type: ArtifactType,
         name: str,
-    ) -> Optional[ArtifactMetadata]:
+    ) -> ArtifactMetadata | None:
         """Async-safe version of get_latest()."""
         return await _run_in_executor(self.get_latest, song_id, artifact_type, name)
 
@@ -681,7 +681,7 @@ class ArtifactStore:
         """Async-safe version of delete()."""
         return await _run_in_executor(self.delete, artifact_id, soft)
 
-    async def get_stats_async(self) -> Dict[str, Any]:
+    async def get_stats_async(self) -> dict[str, Any]:
         """Async-safe version of get_stats()."""
         return await _run_in_executor(self.get_stats)
 

@@ -11,7 +11,7 @@ import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 
 class ErrorSeverity(Enum):
@@ -51,11 +51,11 @@ class ErrorContext:
     span_id: Optional[str] = None
     component: Optional[str] = None
     operation: Optional[str] = None
-    input_data: Optional[Dict[str, Any]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     stack_trace: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for logging/serialization."""
         return {
             "timestamp": self.timestamp.isoformat(),
@@ -91,12 +91,12 @@ class AetherError(Exception):
         message: str,
         *,
         code: Optional[str] = None,
-        severity: Optional[ErrorSeverity] = None,
-        category: Optional[ErrorCategory] = None,
-        context: Optional[ErrorContext] = None,
-        recovery_hints: Optional[List[str]] = None,
-        cause: Optional[Exception] = None,
-        details: Optional[Dict[str, Any]] = None,
+        severity: ErrorSeverity | None = None,
+        category: ErrorCategory | None = None,
+        context: ErrorContext | None = None,
+        recovery_hints: list[str] | None = None,
+        cause: Exception | None = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -132,7 +132,7 @@ class AetherError(Exception):
             f"severity={self.severity.value!r})"
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for logging/serialization."""
         return {
             "error_type": self.__class__.__name__,
@@ -146,7 +146,7 @@ class AetherError(Exception):
             "cause": str(self.cause) if self.cause else None,
         }
 
-    def with_context(self, **kwargs) -> "AetherError":
+    def with_context(self, **kwargs) -> AetherError:
         """Add context to existing error."""
         for key, value in kwargs.items():
             if hasattr(self.context, key):
@@ -155,7 +155,7 @@ class AetherError(Exception):
                 self.context.metadata[key] = value
         return self
 
-    def with_hint(self, hint: str) -> "AetherError":
+    def with_hint(self, hint: str) -> AetherError:
         """Add a recovery hint."""
         self.recovery_hints.append(hint)
         return self
@@ -176,8 +176,8 @@ class ConfigurationError(AetherError):
         self,
         message: str,
         config_key: Optional[str] = None,
-        config_value: Optional[Any] = None,
-        expected_type: Optional[Type] = None,
+        config_value: Any | None = None,
+        expected_type: type | None = None,
         **kwargs,
     ):
         super().__init__(message, **kwargs)
@@ -399,7 +399,7 @@ class ValidationError(AetherError):
         self,
         message: str,
         field: Optional[str] = None,
-        value: Optional[Any] = None,
+        value: Any | None = None,
         constraint: Optional[str] = None,
         **kwargs,
     ):
@@ -581,7 +581,7 @@ class RetryExhaustedError(AetherError):
         self,
         message: str,
         attempts: int,
-        last_error: Optional[Exception] = None,
+        last_error: Exception | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -630,7 +630,7 @@ class CircuitBreakerOpenError(AetherError):
 # Error Registry
 # =============================================================================
 
-ERROR_CODES: Dict[str, Type[AetherError]] = {
+ERROR_CODES: dict[str, type[AetherError]] = {
     # Base
     "AETHER_ERROR": AetherError,
     # Configuration
@@ -686,6 +686,6 @@ ERROR_CODES: Dict[str, Type[AetherError]] = {
 }
 
 
-def get_exception_class(code: str) -> Type[AetherError]:
+def get_exception_class(code: str) -> type[AetherError]:
     """Get exception class by error code."""
     return ERROR_CODES.get(code, AetherError)

@@ -26,10 +26,8 @@ import wave
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from numpy.typing import NDArray
 
 from aether.audio.dsp import StereoBuffer, db_to_linear, linear_to_db
 
@@ -66,7 +64,7 @@ class AudioFormatSpec:
     bitrate_kbps: Optional[int] = None
 
     @classmethod
-    def from_format(cls, fmt: AudioFormat) -> "AudioFormatSpec":
+    def from_format(cls, fmt: AudioFormat) -> AudioFormatSpec:
         """Get specification from format enum."""
         specs = {
             AudioFormat.WAV_16_44: cls("wav", 44100, 16),
@@ -98,7 +96,7 @@ class AudioMetadata:
     genre: Optional[str] = None
     comment: Optional[str] = None
     isrc: Optional[str] = None
-    custom: Dict[str, str] = field(default_factory=dict)
+    custom: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -190,7 +188,7 @@ class BitDepthConverter:
 
 
 def write_wav(
-    path: Union[str, Path],
+    path: str | Path,
     audio: StereoBuffer,
     sample_rate: int,
     bit_depth: int = 24,
@@ -257,7 +255,7 @@ def write_wav(
     return path
 
 
-def read_wav(path: Union[str, Path]) -> AudioFile:
+def read_wav(path: str | Path) -> AudioFile:
     """
     Read audio from WAV file.
 
@@ -317,12 +315,12 @@ def read_wav(path: Union[str, Path]) -> AudioFile:
 
 
 def write_audio(
-    path: Union[str, Path],
+    path: str | Path,
     audio: StereoBuffer,
     sample_rate: int,
-    format_spec: Optional[AudioFormatSpec] = None,
-    format_id: Optional[AudioFormat] = None,
-    metadata: Optional[AudioMetadata] = None,
+    format_spec: AudioFormatSpec | None = None,
+    format_id: AudioFormat | None = None,
+    metadata: AudioMetadata | None = None,
 ) -> Path:
     """
     Write audio to file in specified format.
@@ -425,7 +423,7 @@ def write_audio(
         raise ValueError(f"Unsupported format: {format_spec.extension}")
 
 
-def read_audio(path: Union[str, Path]) -> AudioFile:
+def read_audio(path: str | Path) -> AudioFile:
     """
     Read audio from file (auto-detect format).
 
@@ -485,9 +483,9 @@ class BatchExporter:
     """
 
     def __init__(self):
-        self.formats: List[AudioFormat] = []
+        self.formats: list[AudioFormat] = []
 
-    def add_format(self, fmt: AudioFormat) -> "BatchExporter":
+    def add_format(self, fmt: AudioFormat) -> BatchExporter:
         """Add an export format."""
         self.formats.append(fmt)
         return self
@@ -496,9 +494,9 @@ class BatchExporter:
         self,
         audio: StereoBuffer,
         sample_rate: int,
-        base_path: Union[str, Path],
-        metadata: Optional[AudioMetadata] = None,
-    ) -> List[Path]:
+        base_path: str | Path,
+        metadata: AudioMetadata | None = None,
+    ) -> list[Path]:
         """
         Export audio to all configured formats.
 
@@ -572,7 +570,7 @@ def generate_silence(
 def normalize_audio(
     audio: StereoBuffer,
     target_peak_db: float = -1.0,
-) -> Tuple[StereoBuffer, float]:
+) -> tuple[StereoBuffer, float]:
     """
     Normalize audio to target peak level.
 

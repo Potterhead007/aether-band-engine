@@ -9,25 +9,24 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
+from aether.providers.audio import SynthAudioProvider
 from aether.providers.base import (
-    ProviderRegistry,
-    get_provider_registry,
     BaseProvider,
+    get_provider_registry,
+)
+from aether.providers.embedding import (
+    MockEmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    SentenceTransformerEmbeddingProvider,
 )
 from aether.providers.llm import (
-    MockLLMProvider,
     ClaudeLLMProvider,
+    MockLLMProvider,
     OpenAILLMProvider,
 )
 from aether.providers.midi import AlgorithmicMIDIProvider
-from aether.providers.audio import SynthAudioProvider
-from aether.providers.embedding import (
-    MockEmbeddingProvider,
-    SentenceTransformerEmbeddingProvider,
-    OpenAIEmbeddingProvider,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class ProviderConfig:
     embedding_api_key: Optional[str] = None
 
     # Additional settings
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class ProviderManager:
@@ -72,13 +71,13 @@ class ProviderManager:
         await manager.shutdown()
     """
 
-    def __init__(self, config: Optional[ProviderConfig] = None):
+    def __init__(self, config: ProviderConfig | None = None):
         self.config = config or ProviderConfig()
         self.registry = get_provider_registry()
         self._initialized = False
-        self._providers_created: Dict[str, BaseProvider] = {}
+        self._providers_created: dict[str, BaseProvider] = {}
 
-    async def initialize(self) -> Dict[str, bool]:
+    async def initialize(self) -> dict[str, bool]:
         """
         Initialize all configured providers and register them.
 
@@ -162,7 +161,7 @@ class ProviderManager:
         self._initialized = False
         self._providers_created.clear()
 
-    def _create_llm_provider(self) -> Optional[BaseProvider]:
+    def _create_llm_provider(self) -> BaseProvider | None:
         """Create LLM provider based on config."""
         provider_type = self.config.llm_provider.lower()
 
@@ -185,7 +184,7 @@ class ProviderManager:
             logger.warning(f"Unknown LLM provider: {provider_type}, using mock")
             return MockLLMProvider()
 
-    def _create_midi_provider(self) -> Optional[BaseProvider]:
+    def _create_midi_provider(self) -> BaseProvider | None:
         """Create MIDI provider based on config."""
         provider_type = self.config.midi_provider.lower()
 
@@ -196,7 +195,7 @@ class ProviderManager:
             logger.warning(f"Unknown MIDI provider: {provider_type}, using algorithmic")
             return AlgorithmicMIDIProvider()
 
-    def _create_audio_provider(self) -> Optional[BaseProvider]:
+    def _create_audio_provider(self) -> BaseProvider | None:
         """Create Audio provider based on config."""
         provider_type = self.config.audio_provider.lower()
 
@@ -209,7 +208,7 @@ class ProviderManager:
             logger.warning(f"Unknown Audio provider: {provider_type}, using synth")
             return SynthAudioProvider()
 
-    def _create_embedding_provider(self) -> Optional[BaseProvider]:
+    def _create_embedding_provider(self) -> BaseProvider | None:
         """Create Embedding provider based on config."""
         provider_type = self.config.embedding_provider.lower()
 
@@ -236,13 +235,13 @@ class ProviderManager:
         """Check if providers are initialized."""
         return self._initialized
 
-    def get_status(self) -> Dict[str, str]:
+    def get_status(self) -> dict[str, str]:
         """Get status of all providers."""
         return {name: provider.status.value for name, provider in self._providers_created.items()}
 
 
 # Convenience function
-async def setup_providers(config: Optional[ProviderConfig] = None) -> ProviderManager:
+async def setup_providers(config: ProviderConfig | None = None) -> ProviderManager:
     """
     Setup and initialize all providers.
 

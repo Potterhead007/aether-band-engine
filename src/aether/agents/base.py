@@ -10,14 +10,14 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel
 
-from aether.orchestration import TaskResult, TaskStatus, TaskNode
-from aether.storage import ArtifactStore, ArtifactType
+from aether.orchestration import TaskNode, TaskResult, TaskStatus
 from aether.providers import get_provider_registry
+from aether.storage import ArtifactStore, ArtifactType
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ class AgentDecision:
     input_summary: str
     output_summary: str
     reasoning: str
-    alternatives_considered: List[str]
+    alternatives_considered: list[str]
     confidence: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class BaseAgent(ABC, Generic[TInput, TOutput]):
@@ -62,13 +62,13 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
 
     def __init__(
         self,
-        artifact_store: Optional[ArtifactStore] = None,
-        config: Optional[Dict[str, Any]] = None,
+        artifact_store: ArtifactStore | None = None,
+        config: dict[str, Any] | None = None,
     ):
         self.agent_id = f"{self.agent_type}_{uuid4().hex[:8]}"
         self.artifact_store = artifact_store
         self.config = config or {}
-        self.decisions: List[AgentDecision] = []
+        self.decisions: list[AgentDecision] = []
         self._providers = get_provider_registry()
 
     @property
@@ -97,7 +97,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
         input_summary: str,
         output_summary: str,
         reasoning: str,
-        alternatives: Optional[List[str]] = None,
+        alternatives: list[str] | None = None,
         confidence: float = 0.8,
         **metadata,
     ) -> AgentDecision:
@@ -142,7 +142,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
     async def process(
         self,
         input_data: TInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> TOutput:
         """
         Main processing method - implement in subclasses.
@@ -159,7 +159,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
     async def execute(
         self,
         task: TaskNode,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> TaskResult:
         """
         Execute the agent as part of a workflow task.
@@ -225,7 +225,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
                 },
             )
 
-    def get_decisions_summary(self) -> List[Dict[str, Any]]:
+    def get_decisions_summary(self) -> list[dict[str, Any]]:
         """Get summary of all decisions made."""
         return [
             {
@@ -242,7 +242,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
 class AgentRegistry:
     """Registry for agent types."""
 
-    _agents: Dict[str, type] = {}
+    _agents: dict[str, type] = {}
 
     @classmethod
     def register(cls, agent_type: str):
@@ -255,7 +255,7 @@ class AgentRegistry:
         return decorator
 
     @classmethod
-    def get(cls, agent_type: str) -> Optional[type]:
+    def get(cls, agent_type: str) -> type | None:
         """Get agent class by type."""
         return cls._agents.get(agent_type)
 
@@ -263,9 +263,9 @@ class AgentRegistry:
     def create(
         cls,
         agent_type: str,
-        artifact_store: Optional[ArtifactStore] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Optional[BaseAgent]:
+        artifact_store: ArtifactStore | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> BaseAgent | None:
         """Create an agent instance by type."""
         agent_cls = cls.get(agent_type)
         if agent_cls:
@@ -273,6 +273,6 @@ class AgentRegistry:
         return None
 
     @classmethod
-    def list_types(cls) -> List[str]:
+    def list_types(cls) -> list[str]:
         """List all registered agent types."""
         return list(cls._agents.keys())

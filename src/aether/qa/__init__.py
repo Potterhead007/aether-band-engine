@@ -37,60 +37,6 @@ Example Usage:
 """
 
 # Technical Validation
-from aether.qa.technical import (
-    TechnicalValidator,
-    TechnicalReport,
-    TechnicalCheckResult,
-    TechnicalCheckType,
-    CheckSeverity,
-    LoudnessValidator,
-    StereoValidator,
-    AudioQualityValidator,
-    SpectralValidator,
-)
-
-# Originality Checking
-from aether.qa.originality import (
-    OriginalityChecker,
-    OriginalityResult,
-    OriginalityCheckType,
-    MelodyOriginalityChecker,
-    LyricOriginalityChecker,
-    HarmonyOriginalityChecker,
-    AudioEmbeddingChecker,
-    MelodyFingerprint,
-)
-
-# Genre Authenticity
-from aether.qa.authenticity import (
-    GenreAuthenticityEvaluator,
-    AuthenticityResult,
-    DimensionScore,
-    ScoreLevel,
-    TrackAnalysis,
-    RhythmAnalysis,
-    HarmonyAnalysis,
-    MelodyAnalysis,
-    ProductionAnalysis,
-    ArrangementAnalysis,
-    evaluate_genre_authenticity,
-    create_track_analysis_from_artifacts,
-)
-
-# Report Generation
-from aether.qa.reports import (
-    QAReportGenerator,
-    QAReport,
-    CategoryReport,
-    ExecutiveSummary,
-    QAIssue,
-    MetricResult,
-    Severity,
-    QACategory,
-    PassFailStatus,
-    generate_qa_report,
-)
-
 # Main Integration
 from aether.qa.agent import (
     QAAgent,
@@ -98,6 +44,58 @@ from aether.qa.agent import (
     QAThresholds,
 )
 
+# Genre Authenticity
+from aether.qa.authenticity import (
+    ArrangementAnalysis,
+    AuthenticityResult,
+    DimensionScore,
+    GenreAuthenticityEvaluator,
+    HarmonyAnalysis,
+    MelodyAnalysis,
+    ProductionAnalysis,
+    RhythmAnalysis,
+    ScoreLevel,
+    TrackAnalysis,
+    create_track_analysis_from_artifacts,
+    evaluate_genre_authenticity,
+)
+
+# Originality Checking
+from aether.qa.originality import (
+    AudioEmbeddingChecker,
+    HarmonyOriginalityChecker,
+    LyricOriginalityChecker,
+    MelodyFingerprint,
+    MelodyOriginalityChecker,
+    OriginalityChecker,
+    OriginalityCheckType,
+    OriginalityResult,
+)
+
+# Report Generation
+from aether.qa.reports import (
+    CategoryReport,
+    ExecutiveSummary,
+    MetricResult,
+    PassFailStatus,
+    QACategory,
+    QAIssue,
+    QAReport,
+    QAReportGenerator,
+    Severity,
+    generate_qa_report,
+)
+from aether.qa.technical import (
+    AudioQualityValidator,
+    CheckSeverity,
+    LoudnessValidator,
+    SpectralValidator,
+    StereoValidator,
+    TechnicalCheckResult,
+    TechnicalCheckType,
+    TechnicalReport,
+    TechnicalValidator,
+)
 
 __all__ = [
     # Main Agent

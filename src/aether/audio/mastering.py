@@ -31,25 +31,22 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from aether.audio.dsp import (
-    AudioBuffer,
-    StereoBuffer,
     BiquadFilter,
-    FilterType,
-    ParametricEQ,
     Compressor,
-    TruePeakLimiter,
-    LoudnessMeter,
+    FilterType,
     LoudnessMeasurement,
+    LoudnessMeter,
+    ParametricEQ,
+    StereoBuffer,
     StereoProcessor,
+    TruePeakLimiter,
     db_to_linear,
     linear_to_db,
-    normalize_loudness,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,7 +77,7 @@ class MasteringTarget:
     target_dynamic_range_lu: float = 8.0
 
     @classmethod
-    def for_platform(cls, platform: DeliveryPlatform) -> "MasteringTarget":
+    def for_platform(cls, platform: DeliveryPlatform) -> MasteringTarget:
         """Get target for specific platform."""
         if platform == DeliveryPlatform.SPOTIFY:
             return cls(target_lufs=-14.0, true_peak_ceiling_dbtp=-1.0)
@@ -126,14 +123,14 @@ class MultibandCompressor:
     def __init__(
         self,
         sample_rate: float,
-        bands: List[MultibandCompressorBand],
+        bands: list[MultibandCompressorBand],
     ):
         self.sample_rate = sample_rate
         self.band_configs = bands
 
         # Initialize crossover filters and compressors
-        self.crossover_filters: List[Tuple[BiquadFilter, BiquadFilter]] = []
-        self.compressors: List[Optional[Compressor]] = []
+        self.crossover_filters: list[tuple[BiquadFilter, BiquadFilter]] = []
+        self.compressors: list[Compressor | None] = []
 
         self._init_crossovers()
         self._init_compressors()
@@ -175,7 +172,7 @@ class MultibandCompressor:
             else:
                 self.compressors.append(None)
 
-    def _split_bands(self, audio: StereoBuffer) -> List[StereoBuffer]:
+    def _split_bands(self, audio: StereoBuffer) -> list[StereoBuffer]:
         """Split audio into frequency bands."""
         bands = []
 
@@ -206,7 +203,7 @@ class MultibandCompressor:
 
         return bands
 
-    def process(self, audio: StereoBuffer) -> Tuple[StereoBuffer, List[float]]:
+    def process(self, audio: StereoBuffer) -> tuple[StereoBuffer, list[float]]:
         """
         Process audio through multiband compression.
 
@@ -404,7 +401,7 @@ class MasteringResult:
     gain_applied_db: float
     peak_reduction_db: float
     meets_target: bool
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 class MasteringChain:
@@ -424,20 +421,20 @@ class MasteringChain:
     def __init__(
         self,
         sample_rate: float = 48000,
-        target: Optional[MasteringTarget] = None,
+        target: MasteringTarget | None = None,
     ):
         self.sample_rate = sample_rate
         self.target = target or MasteringTarget()
 
         # Processing components
-        self.input_eq: Optional[ParametricEQ] = None
-        self.multiband: Optional[MultibandCompressor] = None
-        self.exciter: Optional[HarmonicExciter] = None
-        self.stereo_enhancer: Optional[StereoEnhancer] = None
-        self.limiter: Optional[TruePeakLimiter] = None
+        self.input_eq: ParametricEQ | None = None
+        self.multiband: MultibandCompressor | None = None
+        self.exciter: HarmonicExciter | None = None
+        self.stereo_enhancer: StereoEnhancer | None = None
+        self.limiter: TruePeakLimiter | None = None
 
         # Ditherer (for format conversion)
-        self.ditherer: Optional[Ditherer] = None
+        self.ditherer: Ditherer | None = None
 
         # Metering
         self.meter = LoudnessMeter(sample_rate)
@@ -459,7 +456,7 @@ class MasteringChain:
         self.target = target
         self._init_limiter()
 
-    def configure_eq(self, bands: List[Dict[str, Any]]) -> None:
+    def configure_eq(self, bands: list[dict[str, Any]]) -> None:
         """Configure input EQ."""
         eq = ParametricEQ(self.sample_rate)
         for band in bands:
@@ -471,7 +468,7 @@ class MasteringChain:
             )
         self.input_eq = eq
 
-    def configure_multiband(self, bands: List[Dict[str, Any]]) -> None:
+    def configure_multiband(self, bands: list[dict[str, Any]]) -> None:
         """Configure multiband compression."""
         band_configs = []
         for band in bands:

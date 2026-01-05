@@ -13,7 +13,6 @@ from aether.schemas.base import (
     AetherBaseModel,
     IdentifiableModel,
     KeySignature,
-    Mode,
     NoteName,
     SectionType,
 )

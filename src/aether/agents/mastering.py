@@ -7,27 +7,26 @@ Applies final processing for loudness, dynamics, and tonal balance.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import get_genre_manager
-from aether.schemas.master import MasterSpec, TonalTarget, MultibandSettings, LimiterSettings
-from aether.schemas.base import LoudnessTarget, TruePeakTarget, DynamicRangeTarget
-from aether.storage import ArtifactType
+from aether.schemas.base import DynamicRangeTarget, LoudnessTarget, TruePeakTarget
+from aether.schemas.master import LimiterSettings, MasterSpec, MultibandSettings, TonalTarget
 
 logger = logging.getLogger(__name__)
 
 
 class MasteringInput(BaseModel):
-    song_spec: Dict[str, Any]
-    mix_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    mix_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class MasteringOutput(BaseModel):
-    master_spec: Dict[str, Any]
+    master_spec: dict[str, Any]
 
 
 @AgentRegistry.register("mastering")
@@ -52,7 +51,7 @@ class MasteringAgent(BaseAgent[MasteringInput, MasteringOutput]):
     async def process(
         self,
         input_data: MasteringInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> MasteringOutput:
         song_spec = input_data.song_spec
         mix_spec = input_data.mix_spec
@@ -105,7 +104,7 @@ class MasteringAgent(BaseAgent[MasteringInput, MasteringOutput]):
             decision_type="mastering",
             input_summary=f"Genre: {input_data.genre_profile_id}, Mood: {mood}",
             output_summary=f"Target: {loudness.target_lufs} LUFS, DR: {dynamic_range.target_lu} LU",
-            reasoning=f"Following streaming platform standards and genre conventions",
+            reasoning="Following streaming platform standards and genre conventions",
             confidence=0.9,
         )
 
@@ -185,7 +184,7 @@ class MasteringAgent(BaseAgent[MasteringInput, MasteringOutput]):
             air=max(0.0, min(1.0, air)),
         )
 
-    def _create_multiband_settings(self, profile) -> List[MultibandSettings]:
+    def _create_multiband_settings(self, profile) -> list[MultibandSettings]:
         """Create multiband compression settings."""
         return [
             MultibandSettings(

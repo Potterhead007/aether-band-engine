@@ -23,7 +23,7 @@ from rich.table import Table
 from rich.tree import Tree
 
 from aether import __version__
-from aether.config import init_config, get_config
+from aether.config import init_config
 
 console = Console()
 
@@ -224,9 +224,8 @@ def build_track(
     10. Release Packaging
     """
     import asyncio
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-    from rich.live import Live
-    from aether.orchestration import MusicPipeline, WorkflowStatus
+
+    from aether.orchestration import MusicPipeline
 
     # Build creative brief
     creative_brief = brief or f"A {mood or 'compelling'} {genre} track"
@@ -338,8 +337,8 @@ def build_track(
 @click.pass_context
 def pipeline_list(ctx: click.Context) -> None:
     """List all saved pipeline states."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     state_dir = Path.home() / ".aether" / "workflows"
 
@@ -382,8 +381,8 @@ def pipeline_list(ctx: click.Context) -> None:
 @click.pass_context
 def pipeline_status(ctx: click.Context, workflow_id: str) -> None:
     """Show detailed status of a pipeline."""
-    from pathlib import Path
     import json
+    from pathlib import Path
 
     state_dir = Path.home() / ".aether" / "workflows"
 
@@ -455,6 +454,7 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
     """Resume a paused or failed pipeline."""
     import asyncio
     from pathlib import Path
+
     from aether.orchestration import WorkflowOrchestrator
 
     state_dir = Path.home() / ".aether" / "workflows"
@@ -476,8 +476,8 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
 
         async def run_resumed():
             # Re-register agent executors
-            from aether.orchestration import PipelineAgentExecutor
             from aether.agents import get_pipeline_agents
+            from aether.orchestration import PipelineAgentExecutor
 
             executor = PipelineAgentExecutor()
             for agent_type in get_pipeline_agents():
@@ -497,7 +497,7 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
             return await workflow.run()
 
         console.print("\n[bold]Resuming Pipeline...[/bold]\n")
-        results = asyncio.run(run_resumed())
+        asyncio.run(run_resumed())
 
         # Save updated state
         workflow.save_state()
@@ -525,7 +525,7 @@ def pipeline_resume(ctx: click.Context, workflow_id: str) -> None:
 @click.pass_context
 def build_album(ctx: click.Context, config: str) -> None:
     """Build a complete album from configuration."""
-    console.print(f"[yellow]Album builder not yet implemented.[/yellow]")
+    console.print("[yellow]Album builder not yet implemented.[/yellow]")
     console.print(f"[dim]Config file: {config}[/dim]")
 
 

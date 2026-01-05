@@ -26,19 +26,14 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from aether.audio.dsp import (
     LoudnessMeter,
-    LoudnessMeasurement,
     StereoProcessor,
-    BiquadFilter,
-    FilterType,
-    db_to_linear,
     linear_to_db,
 )
 
@@ -95,7 +90,7 @@ class TechnicalReport:
     bit_depth: int
     channels: int
     duration_seconds: float
-    checks: List[TechnicalCheckResult]
+    checks: list[TechnicalCheckResult]
     all_critical_passed: bool
     all_passed: bool
     summary: str
@@ -127,7 +122,7 @@ class LoudnessValidator:
 
         self.meter = LoudnessMeter(sample_rate)
 
-    def validate(self, audio: np.ndarray) -> List[TechnicalCheckResult]:
+    def validate(self, audio: np.ndarray) -> list[TechnicalCheckResult]:
         """
         Validate audio loudness.
 
@@ -224,7 +219,7 @@ class StereoValidator:
     - Stereo width
     """
 
-    def validate(self, audio: np.ndarray) -> List[TechnicalCheckResult]:
+    def validate(self, audio: np.ndarray) -> list[TechnicalCheckResult]:
         """Validate stereo characteristics."""
         results = []
 
@@ -296,7 +291,7 @@ class AudioQualityValidator:
         self,
         audio: np.ndarray,
         sample_rate: float,
-    ) -> List[TechnicalCheckResult]:
+    ) -> list[TechnicalCheckResult]:
         """Validate audio quality."""
         results = []
 
@@ -467,7 +462,7 @@ class SpectralValidator:
         self,
         audio: np.ndarray,
         sample_rate: float,
-    ) -> List[TechnicalCheckResult]:
+    ) -> list[TechnicalCheckResult]:
         """Validate spectral balance."""
         results = []
 
@@ -623,7 +618,7 @@ class TechnicalValidator:
             summary=summary,
         )
 
-    def get_measurements(self, audio: np.ndarray) -> Dict[str, float]:
+    def get_measurements(self, audio: np.ndarray) -> dict[str, float]:
         """
         Get raw measurements without pass/fail evaluation.
 

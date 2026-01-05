@@ -28,9 +28,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-from pydantic import BaseModel, Field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +56,9 @@ class DimensionScore:
     weight: float
     raw_score: float  # 1-5
     weighted_score: float  # raw_score * weight / 5.0
-    criteria_met: List[str]
-    criteria_failed: List[str]
-    improvement_suggestions: List[str]
+    criteria_met: list[str]
+    criteria_failed: list[str]
+    improvement_suggestions: list[str]
     confidence: float = 1.0  # How confident we are in this score
 
     @property
@@ -83,13 +81,13 @@ class AuthenticityResult:
     overall_score: float  # 0-1
     passing_threshold: float  # From genre rubric
     passed: bool
-    dimension_scores: List[DimensionScore]
-    top_strengths: List[str]
-    top_weaknesses: List[str]
-    improvement_priority: List[str]
-    evaluation_notes: List[str]
+    dimension_scores: list[DimensionScore]
+    top_strengths: list[str]
+    top_weaknesses: list[str]
+    improvement_priority: list[str]
+    evaluation_notes: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "genre_id": self.genre_id,
@@ -131,9 +129,9 @@ class RhythmAnalysis:
     feel: str = "straight"  # straight, swing, shuffle, triplet
     groove_pocket_deviation: float = 0.0  # How much notes deviate from grid (0-1)
     drum_pattern_type: str = ""  # e.g., "boom_bap", "four_on_floor"
-    kick_characteristics: Dict[str, Any] = field(default_factory=dict)
-    snare_characteristics: Dict[str, Any] = field(default_factory=dict)
-    hihat_characteristics: Dict[str, Any] = field(default_factory=dict)
+    kick_characteristics: dict[str, Any] = field(default_factory=dict)
+    snare_characteristics: dict[str, Any] = field(default_factory=dict)
+    hihat_characteristics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -142,7 +140,7 @@ class HarmonyAnalysis:
 
     key_root: str  # e.g., "C", "F#"
     mode: str  # e.g., "minor", "dorian"
-    detected_progressions: List[str]  # Roman numeral progressions
+    detected_progressions: list[str]  # Roman numeral progressions
     jazz_chord_ratio: float = 0.0  # Ratio of 7th/9th/extended chords
     tension_level: float = 0.0  # 0-1
     modal_interchange_used: bool = False
@@ -154,7 +152,7 @@ class MelodyAnalysis:
     """Analyzed melody characteristics of a track."""
 
     range_octaves: float
-    intervals_used: List[str]  # e.g., ["M2", "m3", "P4"]
+    intervals_used: list[str]  # e.g., ["M2", "m3", "P4"]
     contour_type: str  # ascending, descending, arch, wave, static
     average_phrase_length_bars: float
     note_density: float  # Notes per beat
@@ -176,7 +174,7 @@ class ProductionAnalysis:
     dynamic_range_lu: float = 8.0
 
     # Effects detected
-    effects_detected: List[str] = field(default_factory=list)
+    effects_detected: list[str] = field(default_factory=list)
 
     # Texture
     has_vinyl_texture: bool = False
@@ -191,7 +189,7 @@ class ArrangementAnalysis:
 
     duration_seconds: float
     structure: str  # e.g., "intro-verse-chorus-verse-chorus-outro"
-    section_types: List[str]
+    section_types: list[str]
     energy_curve_type: str  # build, maintain, build_release, wave
     energy_peak_position: float = 0.5  # 0-1 position in track
     has_intro: bool = True
@@ -209,7 +207,7 @@ class TrackAnalysis:
     arrangement: ArrangementAnalysis
 
     # Instrumentation
-    instruments_detected: List[str] = field(default_factory=list)
+    instruments_detected: list[str] = field(default_factory=list)
 
     # Additional metadata
     genre_id: str = ""
@@ -228,9 +226,9 @@ class DimensionEvaluator(ABC):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         """
         Evaluate the dimension.
 
@@ -241,8 +239,8 @@ class DimensionEvaluator(ABC):
 
     def _calculate_score(
         self,
-        checks: List[Tuple[bool, str, str, str]],
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+        checks: list[tuple[bool, str, str, str]],
+    ) -> tuple[float, list[str], list[str], list[str]]:
         """
         Calculate score from a list of checks.
 
@@ -286,9 +284,9 @@ class TempoGrooveEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         rhythm = analysis.rhythm
         tempo_range = genre_profile.tempo
@@ -335,7 +333,7 @@ class TempoGrooveEvaluator(DimensionEvaluator):
         checks.append(
             (
                 feel_matches,
-                f"Rhythmic feel matches genre",
+                "Rhythmic feel matches genre",
                 f"Feel '{rhythm.feel}' not typical (expected: {rhythm_profile.feels})",
                 f"Use {rhythm_profile.feels[0]} feel for this genre",
             )
@@ -372,9 +370,9 @@ class HarmonicEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         harmony = analysis.harmony
         harmony_profile = genre_profile.harmony
@@ -386,7 +384,7 @@ class HarmonicEvaluator(DimensionEvaluator):
         checks.append(
             (
                 mode_appropriate,
-                f"Mode appropriate for genre",
+                "Mode appropriate for genre",
                 f"Mode '{harmony.mode}' uncommon (expected: {[m.value for m in harmony_profile.common_modes]})",
                 f"Consider using {harmony_profile.common_modes[0].value} mode",
             )
@@ -394,7 +392,6 @@ class HarmonicEvaluator(DimensionEvaluator):
 
         # Check 2: Progression fits style
         progression_matches = False
-        matched_prog = None
         for prog in harmony.detected_progressions:
             prog_normalized = prog.lower().replace(" ", "")
             for expected in harmony_profile.typical_progressions:
@@ -403,7 +400,6 @@ class HarmonicEvaluator(DimensionEvaluator):
                     expected_normalized[:6]
                 ):
                     progression_matches = True
-                    matched_prog = prog
                     break
             if progression_matches:
                 break
@@ -452,9 +448,9 @@ class MelodicEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         melody = analysis.melody
         melody_profile = genre_profile.melody
@@ -520,9 +516,9 @@ class ProductionEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         production = analysis.production
         prod_profile = genre_profile.production
@@ -630,9 +626,9 @@ class ArrangementEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         arrangement = analysis.arrangement
         arr_profile = genre_profile.arrangement
@@ -708,9 +704,9 @@ class InstrumentationEvaluator(DimensionEvaluator):
     def evaluate(
         self,
         analysis: TrackAnalysis,
-        criteria: List[str],
+        criteria: list[str],
         genre_profile: Any,
-    ) -> Tuple[float, List[str], List[str], List[str]]:
+    ) -> tuple[float, list[str], list[str], list[str]]:
         checks = []
         instruments = set(i.lower() for i in analysis.instruments_detected)
         instr_profile = genre_profile.instrumentation
@@ -790,7 +786,7 @@ class GenreAuthenticityEvaluator:
 
     def __init__(self):
         """Initialize evaluator with dimension evaluators."""
-        self._evaluators: Dict[str, DimensionEvaluator] = {
+        self._evaluators: dict[str, DimensionEvaluator] = {
             "tempo": TempoGrooveEvaluator(),
             "groove": TempoGrooveEvaluator(),
             "rhythm": TempoGrooveEvaluator(),
@@ -844,7 +840,7 @@ class GenreAuthenticityEvaluator:
             AuthenticityResult with scores and suggestions
         """
         rubric = genre_profile.authenticity_rubric
-        dimension_scores: List[DimensionScore] = []
+        dimension_scores: list[DimensionScore] = []
 
         # Evaluate each rubric dimension
         for dimension in rubric.dimensions:
@@ -938,7 +934,7 @@ class GenreAuthenticityEvaluator:
 
     def _evaluate_specific_criteria(
         self,
-        criteria: List[str],
+        criteria: list[str],
         dimension_name: str,
         analysis: TrackAnalysis,
         genre_profile: Any,
@@ -1055,12 +1051,12 @@ def evaluate_genre_authenticity(
 
 
 def create_track_analysis_from_artifacts(
-    rhythm_data: Dict[str, Any],
-    harmony_data: Dict[str, Any],
-    melody_data: Dict[str, Any],
-    production_data: Dict[str, Any],
-    arrangement_data: Dict[str, Any],
-    instruments: List[str] = None,
+    rhythm_data: dict[str, Any],
+    harmony_data: dict[str, Any],
+    melody_data: dict[str, Any],
+    production_data: dict[str, Any],
+    arrangement_data: dict[str, Any],
+    instruments: list[str] = None,
     genre_id: str = "",
     title: str = "",
 ) -> TrackAnalysis:

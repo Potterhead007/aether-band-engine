@@ -15,17 +15,17 @@ import asyncio
 import functools
 import random
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 from aether.core.exceptions import (
     AetherError,
     CircuitBreakerOpenError,
     RetryExhaustedError,
 )
-from aether.core.logging import get_logger, LogContext
+from aether.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -68,8 +68,8 @@ class RetryPolicy:
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL
     jitter: bool = True
     jitter_factor: float = 0.2
-    retryable_exceptions: Tuple[Type[Exception], ...] = (Exception,)
-    non_retryable_exceptions: Tuple[Type[Exception], ...] = ()
+    retryable_exceptions: tuple[type[Exception], ...] = (Exception,)
+    non_retryable_exceptions: tuple[type[Exception], ...] = ()
 
     def calculate_delay(self, attempt: int) -> float:
         """Calculate delay for given attempt number."""
@@ -111,9 +111,9 @@ def retry(
     max_delay: float = 60.0,
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL,
     jitter: bool = True,
-    retryable_exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    non_retryable_exceptions: Tuple[Type[Exception], ...] = (),
-    on_retry: Optional[Callable[[Exception, int], None]] = None,
+    retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
+    non_retryable_exceptions: tuple[type[Exception], ...] = (),
+    on_retry: Callable[[Exception, int], None] | None = None,
 ) -> Callable[[F], F]:
     """
     Decorator for automatic retries with backoff.
@@ -146,7 +146,7 @@ def retry(
     def decorator(func: F) -> F:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs) -> Any:
-            last_exception: Optional[Exception] = None
+            last_exception: Exception | None = None
 
             for attempt in range(1, policy.max_attempts + 1):
                 try:
@@ -197,7 +197,7 @@ def retry(
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs) -> Any:
-            last_exception: Optional[Exception] = None
+            last_exception: Exception | None = None
 
             for attempt in range(1, policy.max_attempts + 1):
                 try:
@@ -290,7 +290,7 @@ class CircuitBreaker:
     """
 
     # Global registry of circuit breakers
-    _registry: Dict[str, "CircuitBreaker"] = {}
+    _registry: dict[str, CircuitBreaker] = {}
 
     def __init__(
         self,
@@ -299,7 +299,7 @@ class CircuitBreaker:
         success_threshold: int = 2,
         timeout: float = 30.0,
         half_open_max_calls: int = 1,
-        excluded_exceptions: Tuple[Type[Exception], ...] = (),
+        excluded_exceptions: tuple[type[Exception], ...] = (),
     ):
         self.name = name
         self.config = CircuitBreakerConfig(
@@ -391,7 +391,7 @@ class CircuitBreaker:
             # Reset failure count on success
             self._failure_count = 0
 
-    def record_failure(self, exception: Optional[Exception] = None) -> None:
+    def record_failure(self, exception: Exception | None = None) -> None:
         """Record a failed call."""
         # Check if exception is excluded
         if exception and isinstance(exception, self.excluded_exceptions):
@@ -412,7 +412,7 @@ class CircuitBreaker:
         logger.info(f"Circuit breaker '{self.name}' manually reset", circuit=self.name)
         self._transition_to_closed()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get circuit breaker statistics."""
         return {
             "name": self.name,
@@ -425,12 +425,12 @@ class CircuitBreaker:
         }
 
     @classmethod
-    def get(cls, name: str) -> Optional["CircuitBreaker"]:
+    def get(cls, name: str) -> CircuitBreaker | None:
         """Get circuit breaker by name."""
         return cls._registry.get(name)
 
     @classmethod
-    def get_all_stats(cls) -> Dict[str, Dict[str, Any]]:
+    def get_all_stats(cls) -> dict[str, dict[str, Any]]:
         """Get stats for all circuit breakers."""
         return {name: cb.get_stats() for name, cb in cls._registry.items()}
 
@@ -481,7 +481,7 @@ def circuit_breaker(
     failure_threshold: int = 5,
     success_threshold: int = 2,
     timeout: float = 30.0,
-    excluded_exceptions: Tuple[Type[Exception], ...] = (),
+    excluded_exceptions: tuple[type[Exception], ...] = (),
 ) -> Callable[[F], F]:
     """
     Decorator to apply circuit breaker pattern.
@@ -573,9 +573,9 @@ def timeout(seconds: float) -> Callable[[F], F]:
 
 
 def fallback(
-    fallback_func: Optional[Callable[..., T]] = None,
-    fallback_value: Optional[T] = None,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    fallback_func: Callable[..., T] | None = None,
+    fallback_value: T | None = None,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to provide fallback on failure.
@@ -664,7 +664,7 @@ class Bulkhead:
         self._active = 0
         self._waiting = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get bulkhead statistics."""
         return {
             "name": self.name,
@@ -681,7 +681,7 @@ class Bulkhead:
         async def wrapper(*args, **kwargs):
             self._waiting += 1
             try:
-                acquired = await asyncio.wait_for(
+                await asyncio.wait_for(
                     self._semaphore.acquire(),
                     timeout=self.max_wait,
                 )
@@ -718,7 +718,7 @@ def resilient(
     circuit_failure_threshold: int = 5,
     circuit_timeout: float = 30.0,
     execution_timeout: Optional[float] = None,
-    fallback_value: Optional[Any] = None,
+    fallback_value: Any | None = None,
 ) -> Callable[[F], F]:
     """
     Combined resilience decorator applying multiple patterns.

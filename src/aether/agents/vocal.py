@@ -8,34 +8,33 @@ CRITICAL: Uses parametric voice design only - NO voice cloning.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
+from aether.schemas.base import NoteName, SectionType
 from aether.schemas.vocal import (
-    VocalSpec,
-    VoicePersona,
-    VocalDouble,
-    VocalHarmony,
     AdLib,
     EmotionMarker,
+    VocalDouble,
+    VocalHarmony,
+    VocalSpec,
+    VoicePersona,
 )
-from aether.schemas.base import NoteName, SectionType
-from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
 
 
 class VocalInput(BaseModel):
-    song_spec: Dict[str, Any]
-    lyric_spec: Dict[str, Any]
-    melody_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    lyric_spec: dict[str, Any]
+    melody_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class VocalOutput(BaseModel):
-    vocal_spec: Dict[str, Any]
+    vocal_spec: dict[str, Any]
 
 
 @AgentRegistry.register("vocal")
@@ -58,7 +57,7 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
     async def process(
         self,
         input_data: VocalInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> VocalOutput:
         song_spec = input_data.song_spec
         lyric_spec = input_data.lyric_spec
@@ -144,7 +143,7 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
             comfortable_high=NoteName.C,  # C5
         )
 
-    def _create_doubles(self) -> List[VocalDouble]:
+    def _create_doubles(self) -> list[VocalDouble]:
         """Create vocal double tracks."""
         return [
             VocalDouble(
@@ -163,7 +162,7 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
             ),
         ]
 
-    def _create_harmonies(self) -> List[VocalHarmony]:
+    def _create_harmonies(self) -> list[VocalHarmony]:
         """Create backing vocal harmonies."""
         return [
             VocalHarmony(
@@ -180,7 +179,7 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
             ),
         ]
 
-    def _create_ad_libs(self, mood: str) -> List[AdLib]:
+    def _create_ad_libs(self, mood: str) -> list[AdLib]:
         """Create ad-lib specifications."""
         ad_libs = []
 
@@ -196,7 +195,7 @@ class VocalAgent(BaseAgent[VocalInput, VocalOutput]):
 
         return ad_libs
 
-    def _create_emotion_arc(self, lyric_spec: Dict) -> List[EmotionMarker]:
+    def _create_emotion_arc(self, lyric_spec: dict) -> list[EmotionMarker]:
         """Create emotional arc across sections."""
         markers = []
 

@@ -8,35 +8,34 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
-from aether.knowledge import get_genre_manager, contour_to_hash
+from aether.agents.base import AgentRegistry, BaseAgent
+from aether.knowledge import get_genre_manager
 from aether.schemas.qa import (
-    QAReport,
-    OriginalityCheck,
-    TechnicalCheck,
     GenreAuthenticityResult,
     GenreRubricScore,
+    OriginalityCheck,
+    QAReport,
+    TechnicalCheck,
 )
-from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
 
 
 class QAInput(BaseModel):
-    song_spec: Dict[str, Any]
-    harmony_spec: Dict[str, Any]
-    melody_spec: Dict[str, Any]
-    lyric_spec: Dict[str, Any]
-    master_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    harmony_spec: dict[str, Any]
+    melody_spec: dict[str, Any]
+    lyric_spec: dict[str, Any]
+    master_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class QAOutput(BaseModel):
-    qa_report: Dict[str, Any]
+    qa_report: dict[str, Any]
     passed: bool
 
 
@@ -68,7 +67,7 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
     async def process(
         self,
         input_data: QAInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> QAOutput:
         song_spec = input_data.song_spec
         melody_spec = input_data.melody_spec
@@ -141,7 +140,7 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
             passed=all_passed,
         )
 
-    def _check_melody_originality(self, melody_spec: Dict) -> OriginalityCheck:
+    def _check_melody_originality(self, melody_spec: dict) -> OriginalityCheck:
         """Check melody for originality."""
         # Get the primary hook
         hook = melody_spec.get("primary_hook", {})
@@ -162,7 +161,7 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
             similar_matches=[],
         )
 
-    def _check_lyric_originality(self, lyric_spec: Dict) -> OriginalityCheck:
+    def _check_lyric_originality(self, lyric_spec: dict) -> OriginalityCheck:
         """Check lyrics for originality using n-gram analysis."""
         sections = lyric_spec.get("sections", [])
         total_lines = sum(len(s.get("lines", [])) for s in sections)
@@ -181,7 +180,7 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
             similar_matches=[],
         )
 
-    def _check_harmony_originality(self, harmony_spec: Dict) -> OriginalityCheck:
+    def _check_harmony_originality(self, harmony_spec: dict) -> OriginalityCheck:
         """Check chord progressions for originality."""
         progressions = harmony_spec.get("progressions", [])
 
@@ -199,7 +198,7 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
             similar_matches=[],
         )
 
-    def _run_technical_checks(self, master_spec: Dict) -> List[TechnicalCheck]:
+    def _run_technical_checks(self, master_spec: dict) -> list[TechnicalCheck]:
         """Run technical audio checks."""
         checks = []
 
@@ -257,9 +256,9 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
 
     def _evaluate_genre_authenticity(
         self,
-        song_spec: Dict,
-        harmony_spec: Dict,
-        melody_spec: Dict,
+        song_spec: dict,
+        harmony_spec: dict,
+        melody_spec: dict,
         profile,
     ) -> GenreAuthenticityResult:
         """Evaluate genre authenticity against rubric."""
@@ -302,9 +301,9 @@ class QAAgent(BaseAgent[QAInput, QAOutput]):
     def _evaluate_dimension(
         self,
         dimension,
-        song_spec: Dict,
-        harmony_spec: Dict,
-        melody_spec: Dict,
+        song_spec: dict,
+        harmony_spec: dict,
+        melody_spec: dict,
         profile,
     ) -> float:
         """Evaluate a single rubric dimension."""

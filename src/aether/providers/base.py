@@ -11,9 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
-
-from pydantic import BaseModel
+from typing import Any
 
 
 class ProviderStatus(str, Enum):
@@ -33,8 +31,8 @@ class ProviderInfo:
     version: str
     provider_type: str
     status: ProviderStatus
-    capabilities: List[str]
-    config: Dict[str, Any]
+    capabilities: list[str]
+    config: dict[str, Any]
 
 
 class BaseProvider(ABC):
@@ -42,7 +40,7 @@ class BaseProvider(ABC):
 
     provider_type: str = "base"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self._status = ProviderStatus.INITIALIZING
 
@@ -92,7 +90,7 @@ class MIDITrack:
     """A MIDI track containing notes."""
 
     name: str
-    notes: List[MIDINote]
+    notes: list[MIDINote]
     program: int = 0  # MIDI program number
     channel: int = 0
 
@@ -101,7 +99,7 @@ class MIDITrack:
 class MIDIFile:
     """Complete MIDI file data."""
 
-    tracks: List[MIDITrack]
+    tracks: list[MIDITrack]
     tempo_bpm: float
     time_signature: tuple  # (numerator, denominator)
     ticks_per_beat: int = 480
@@ -217,9 +215,9 @@ class AudioProvider(BaseProvider):
     @abstractmethod
     async def mix_stems(
         self,
-        stems: List[AudioStem],
-        levels_db: Optional[Dict[str, float]] = None,
-        pans: Optional[Dict[str, float]] = None,
+        stems: list[AudioStem],
+        levels_db: dict[str, float] | None = None,
+        pans: dict[str, float] | None = None,
     ) -> AudioBuffer:
         """Mix multiple stems into a single buffer."""
         pass
@@ -229,7 +227,7 @@ class AudioProvider(BaseProvider):
         self,
         buffer: AudioBuffer,
         effect_type: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> AudioBuffer:
         """Apply an audio effect."""
         pass
@@ -238,7 +236,7 @@ class AudioProvider(BaseProvider):
     async def analyze_loudness(
         self,
         buffer: AudioBuffer,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Analyze audio loudness (LUFS, peak, etc.)."""
         pass
 
@@ -266,8 +264,8 @@ class VocalRequest:
 
     text: str
     voice_profile: VoiceProfile
-    melody_pitches: List[int]  # MIDI pitches
-    melody_durations: List[float]  # In seconds
+    melody_pitches: list[int]  # MIDI pitches
+    melody_durations: list[float]  # In seconds
     emotion: str
     intensity: float  # 0-1
 
@@ -286,7 +284,7 @@ class VocalProvider(BaseProvider):
         pass
 
     @abstractmethod
-    async def list_voices(self) -> List[VoiceProfile]:
+    async def list_voices(self) -> list[VoiceProfile]:
         """List available voice profiles."""
         pass
 
@@ -318,7 +316,7 @@ class LLMResponse:
 
     content: str
     model: str
-    usage: Dict[str, int]  # tokens used
+    usage: dict[str, int]  # tokens used
     finish_reason: str
 
 
@@ -330,7 +328,7 @@ class LLMProvider(BaseProvider):
     @abstractmethod
     async def complete(
         self,
-        messages: List[LLMMessage],
+        messages: list[LLMMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
         json_mode: bool = False,
@@ -341,10 +339,10 @@ class LLMProvider(BaseProvider):
     @abstractmethod
     async def generate_structured(
         self,
-        messages: List[LLMMessage],
-        schema: Dict[str, Any],
+        messages: list[LLMMessage],
+        schema: dict[str, Any],
         temperature: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate structured output matching schema."""
         pass
 
@@ -358,7 +356,7 @@ class LLMProvider(BaseProvider):
 class EmbeddingResult:
     """Result of embedding generation."""
 
-    embedding: List[float]
+    embedding: list[float]
     model: str
     dimensions: int
 
@@ -374,15 +372,15 @@ class EmbeddingProvider(BaseProvider):
         pass
 
     @abstractmethod
-    async def embed_batch(self, texts: List[str]) -> List[EmbeddingResult]:
+    async def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
         """Generate embeddings for multiple texts."""
         pass
 
     @abstractmethod
     async def similarity(
         self,
-        embedding1: List[float],
-        embedding2: List[float],
+        embedding1: list[float],
+        embedding2: list[float],
     ) -> float:
         """Compute cosine similarity between embeddings."""
         pass
@@ -397,27 +395,27 @@ class ProviderRegistry:
     """Registry for managing providers."""
 
     def __init__(self):
-        self._providers: Dict[str, BaseProvider] = {}
+        self._providers: dict[str, BaseProvider] = {}
 
     def register(self, name: str, provider: BaseProvider) -> None:
         """Register a provider."""
         self._providers[name] = provider
 
-    def get(self, name: str) -> Optional[BaseProvider]:
+    def get(self, name: str) -> BaseProvider | None:
         """Get a provider by name."""
         return self._providers.get(name)
 
-    def get_by_type(self, provider_type: str) -> List[BaseProvider]:
+    def get_by_type(self, provider_type: str) -> list[BaseProvider]:
         """Get all providers of a type."""
         return [p for p in self._providers.values() if p.provider_type == provider_type]
 
-    async def initialize_all(self) -> Dict[str, bool]:
+    async def initialize_all(self) -> dict[str, bool]:
         """Initialize all providers."""
         results = {}
         for name, provider in self._providers.items():
             try:
                 results[name] = await provider.initialize()
-            except Exception as e:
+            except Exception:
                 results[name] = False
         return results
 
@@ -429,18 +427,29 @@ class ProviderRegistry:
             except Exception:
                 pass
 
-    def list_all(self) -> List[ProviderInfo]:
+    def list_all(self) -> list[ProviderInfo]:
         """List all registered providers."""
         return [p.get_info() for p in self._providers.values()]
 
 
-# Global registry
-_registry: Optional[ProviderRegistry] = None
+# Global registry (legacy - prefer using AetherRuntime.providers)
+_registry: ProviderRegistry | None = None
 
 
 def get_provider_registry() -> ProviderRegistry:
-    """Get the global provider registry."""
+    """
+    Get the global provider registry.
+
+    Note: For new code, prefer using `get_runtime().providers` for
+    centralized lifecycle management.
+    """
     global _registry
     if _registry is None:
-        _registry = ProviderRegistry()
+        # Try to get from runtime if available
+        try:
+            from aether.core.runtime import get_runtime
+
+            return get_runtime().providers
+        except ImportError:
+            _registry = ProviderRegistry()
     return _registry

@@ -28,20 +28,19 @@ Example:
 from __future__ import annotations
 
 import logging
-import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 from aether.providers.base import (
-    AudioProvider,
     AudioBuffer,
+    AudioProvider,
     AudioStem,
     MIDIFile,
     ProviderInfo,
@@ -68,7 +67,7 @@ class SubprocessSecurityError(Exception):
     pass
 
 
-def _validate_subprocess_args(cmd: List[str]) -> None:
+def _validate_subprocess_args(cmd: list[str]) -> None:
     """
     Validate subprocess arguments for security.
 
@@ -113,7 +112,7 @@ def _validate_subprocess_args(cmd: List[str]) -> None:
 
 
 def _safe_subprocess_run(
-    cmd: List[str], timeout: int = 120, **kwargs
+    cmd: list[str], timeout: int = 120, **kwargs
 ) -> subprocess.CompletedProcess:
     """
     Safely execute subprocess with input validation.
@@ -190,9 +189,9 @@ def normalize_buffer(buffer: AudioBuffer, target_peak: float = 0.9) -> AudioBuff
 
 
 def mix_buffers(
-    buffers: List[AudioBuffer],
-    levels_db: Optional[List[float]] = None,
-    pans: Optional[List[float]] = None,
+    buffers: list[AudioBuffer],
+    levels_db: list[float] | None = None,
+    pans: list[float] | None = None,
 ) -> AudioBuffer:
     """Mix multiple audio buffers with levels and panning."""
     if not buffers:
@@ -267,7 +266,7 @@ class SynthAudioProvider(AudioProvider):
         self,
         soundfont_path: Optional[Path] = None,
         sample_rate: int = 48000,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.soundfont_path = Path(soundfont_path) if soundfont_path else None
@@ -516,7 +515,7 @@ class SynthAudioProvider(AudioProvider):
     def _create_envelope(self, num_samples: int, sample_rate: int) -> np.ndarray:
         """Create ADSR-like envelope."""
         attack_samples = int(0.01 * sample_rate)
-        decay_samples = int(0.1 * sample_rate)
+        int(0.1 * sample_rate)
         release_samples = int(0.1 * sample_rate)
 
         envelope = np.ones(num_samples)
@@ -662,9 +661,9 @@ class SynthAudioProvider(AudioProvider):
 
     async def mix_stems(
         self,
-        stems: List[AudioStem],
-        levels_db: Optional[Dict[str, float]] = None,
-        pans: Optional[Dict[str, float]] = None,
+        stems: list[AudioStem],
+        levels_db: dict[str, float] | None = None,
+        pans: dict[str, float] | None = None,
     ) -> AudioBuffer:
         """Mix multiple stems into a single buffer."""
         if not stems:
@@ -680,15 +679,15 @@ class SynthAudioProvider(AudioProvider):
         self,
         buffer: AudioBuffer,
         effect_type: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> AudioBuffer:
         """Apply an audio effect."""
         try:
             from aether.audio import (
-                ParametricEQ,
-                Compressor,
                 BiquadFilter,
+                Compressor,
                 FilterType,
+                ParametricEQ,
             )
 
             if effect_type == "eq":
@@ -748,7 +747,7 @@ class SynthAudioProvider(AudioProvider):
     async def analyze_loudness(
         self,
         buffer: AudioBuffer,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Analyze audio loudness."""
         try:
             from aether.audio import LoudnessMeter
@@ -768,7 +767,7 @@ class SynthAudioProvider(AudioProvider):
         except ImportError:
             # Fallback to simple analysis
             peak = np.max(np.abs(buffer.data))
-            rms = np.sqrt(np.mean(buffer.data**2))
+            np.sqrt(np.mean(buffer.data**2))
 
             return {
                 "integrated_lufs": -14.0,  # Placeholder

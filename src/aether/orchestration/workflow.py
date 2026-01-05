@@ -19,16 +19,9 @@ from pathlib import Path
 from typing import (
     Any,
     Callable,
-    Coroutine,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Set,
     TypeVar,
-    Union,
 )
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -69,15 +62,15 @@ class TaskResult:
 
     task_id: str
     status: TaskStatus
-    output: Optional[Any] = None
+    output: Any | None = None
     error: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     duration_ms: Optional[float] = None
     retry_count: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "task_id": self.task_id,
             "status": self.status.value,
@@ -97,9 +90,9 @@ class TaskNode:
     id: str
     name: str
     agent_type: str
-    dependencies: List[str] = field(default_factory=list)
-    config: Dict[str, Any] = field(default_factory=dict)
-    retry_policy: Dict[str, Any] = field(
+    dependencies: list[str] = field(default_factory=list)
+    config: dict[str, Any] = field(default_factory=dict)
+    retry_policy: dict[str, Any] = field(
         default_factory=lambda: {
             "max_retries": 3,
             "backoff_base": 2.0,
@@ -108,9 +101,9 @@ class TaskNode:
     )
     timeout_seconds: float = 300.0
     status: TaskStatus = TaskStatus.PENDING
-    result: Optional[TaskResult] = None
+    result: TaskResult | None = None
 
-    def can_run(self, completed_tasks: Set[str]) -> bool:
+    def can_run(self, completed_tasks: set[str]) -> bool:
         """Check if all dependencies are satisfied."""
         return all(dep in completed_tasks for dep in self.dependencies)
 
@@ -122,15 +115,15 @@ class WorkflowEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     workflow_id: str
     task_id: Optional[str] = None
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventBus:
     """Simple event bus for workflow events."""
 
     def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}
-        self._history: List[WorkflowEvent] = []
+        self._handlers: dict[str, list[Callable]] = {}
+        self._history: list[WorkflowEvent] = []
 
     def subscribe(self, event_type: str, handler: Callable[[WorkflowEvent], None]) -> None:
         """Subscribe to an event type."""
@@ -149,7 +142,7 @@ class EventBus:
             except Exception as e:
                 logger.error(f"Event handler error: {e}")
 
-    def get_history(self) -> List[WorkflowEvent]:
+    def get_history(self) -> list[WorkflowEvent]:
         """Get event history."""
         return self._history.copy()
 
@@ -162,10 +155,10 @@ class WorkflowState(BaseModel):
     status: WorkflowStatus
     created_at: datetime
     updated_at: datetime
-    tasks: Dict[str, Dict[str, Any]]
-    completed_tasks: List[str]
-    failed_tasks: List[str]
-    context: Dict[str, Any]
+    tasks: dict[str, dict[str, Any]]
+    completed_tasks: list[str]
+    failed_tasks: list[str]
+    context: dict[str, Any]
     checksum: Optional[str] = None
 
     def compute_checksum(self) -> str:
@@ -189,7 +182,7 @@ class AgentExecutor(ABC):
     async def execute(
         self,
         task: TaskNode,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> TaskResult:
         """Execute a task and return the result."""
         pass
@@ -221,17 +214,17 @@ class WorkflowOrchestrator:
         self.max_parallel = max_parallel
         self.state_dir = state_dir
 
-        self.tasks: Dict[str, TaskNode] = {}
-        self.context: Dict[str, Any] = {}
+        self.tasks: dict[str, TaskNode] = {}
+        self.context: dict[str, Any] = {}
         self.status = WorkflowStatus.INITIALIZING
         self.event_bus = EventBus()
 
-        self._completed_tasks: Set[str] = set()
-        self._failed_tasks: Set[str] = set()
-        self._running_tasks: Set[str] = set()
-        self._semaphore: Optional[asyncio.Semaphore] = None
-        self._cancel_event: Optional[asyncio.Event] = None
-        self._agent_executors: Dict[str, AgentExecutor] = {}
+        self._completed_tasks: set[str] = set()
+        self._failed_tasks: set[str] = set()
+        self._running_tasks: set[str] = set()
+        self._semaphore: asyncio.Semaphore | None = None
+        self._cancel_event: asyncio.Event | None = None
+        self._agent_executors: dict[str, AgentExecutor] = {}
 
         self._created_at = datetime.utcnow()
         self._updated_at = datetime.utcnow()
@@ -248,7 +241,7 @@ class WorkflowOrchestrator:
         self.tasks[task.id] = task
         self._emit_event("task_added", task_id=task.id)
 
-    def add_tasks(self, tasks: List[TaskNode]) -> None:
+    def add_tasks(self, tasks: list[TaskNode]) -> None:
         """Add multiple tasks to the workflow."""
         for task in tasks:
             self.add_task(task)
@@ -271,7 +264,7 @@ class WorkflowOrchestrator:
         )
         self.event_bus.publish(event)
 
-    def _get_ready_tasks(self) -> List[TaskNode]:
+    def _get_ready_tasks(self) -> list[TaskNode]:
         """Get tasks that are ready to run (all dependencies satisfied)."""
         ready = []
         for task_id, task in self.tasks.items():
@@ -379,7 +372,7 @@ class WorkflowOrchestrator:
 
         return result
 
-    async def run(self) -> Dict[str, TaskResult]:
+    async def run(self) -> dict[str, TaskResult]:
         """
         Execute the workflow.
 
@@ -390,8 +383,8 @@ class WorkflowOrchestrator:
         self._cancel_event = asyncio.Event()
         self._emit_event("workflow_started")
 
-        results: Dict[str, TaskResult] = {}
-        pending_futures: Dict[str, asyncio.Task] = {}
+        results: dict[str, TaskResult] = {}
+        pending_futures: dict[str, asyncio.Task] = {}
 
         try:
             while True:
@@ -514,7 +507,7 @@ class WorkflowOrchestrator:
         return path
 
     @classmethod
-    def load_state(cls, path: Path) -> "WorkflowOrchestrator":
+    def load_state(cls, path: Path) -> WorkflowOrchestrator:
         """Load workflow from saved state."""
         with open(path) as f:
             state = WorkflowState.model_validate_json(f.read())

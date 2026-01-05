@@ -7,11 +7,8 @@ chord voicing, and melodic operations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
 import math
-
+from dataclasses import dataclass
 
 # ============================================================================
 # Constants
@@ -119,7 +116,7 @@ def note_to_midi(note: str, octave: int = 4) -> int:
     return NOTE_NAMES.index(note) + (octave + 1) * 12
 
 
-def midi_to_note(midi: int) -> Tuple[str, int]:
+def midi_to_note(midi: int) -> tuple[str, int]:
     """Convert MIDI number to note name and octave."""
     octave = (midi // 12) - 1
     note_idx = midi % 12
@@ -153,7 +150,7 @@ def interval_between(note1: str, note2: str) -> int:
     return (idx2 - idx1) % 12
 
 
-def get_scale(root: str, scale_type: str) -> List[str]:
+def get_scale(root: str, scale_type: str) -> list[str]:
     """Get notes in a scale."""
     root = normalize_note(root)
     if scale_type not in SCALE_PATTERNS:
@@ -164,7 +161,7 @@ def get_scale(root: str, scale_type: str) -> List[str]:
     return [NOTE_NAMES[(root_idx + interval) % 12] for interval in pattern]
 
 
-def get_chord_notes(root: str, chord_type: str) -> List[str]:
+def get_chord_notes(root: str, chord_type: str) -> list[str]:
     """Get notes in a chord."""
     root = normalize_note(root)
     if chord_type not in CHORD_PATTERNS:
@@ -175,7 +172,7 @@ def get_chord_notes(root: str, chord_type: str) -> List[str]:
     return [NOTE_NAMES[(root_idx + interval) % 12] for interval in pattern]
 
 
-def get_chord_midi(root: str, chord_type: str, octave: int = 4) -> List[int]:
+def get_chord_midi(root: str, chord_type: str, octave: int = 4) -> list[int]:
     """Get MIDI note numbers for a chord."""
     root = normalize_note(root)
     if chord_type not in CHORD_PATTERNS:
@@ -197,7 +194,7 @@ def get_scale_degree(root: str, scale_type: str, degree: int) -> str:
     return scale[(degree - 1) % len(scale)]
 
 
-def get_diatonic_chord(root: str, scale_type: str, degree: int) -> Tuple[str, str]:
+def get_diatonic_chord(root: str, scale_type: str, degree: int) -> tuple[str, str]:
     """
     Get the diatonic chord for a scale degree.
 
@@ -218,13 +215,13 @@ def get_diatonic_chord(root: str, scale_type: str, degree: int) -> Tuple[str, st
 
 
 def get_diatonic_progression(
-    root: str, scale_type: str, degrees: List[int]
-) -> List[Tuple[str, str]]:
+    root: str, scale_type: str, degrees: list[int]
+) -> list[tuple[str, str]]:
     """Get chords for a progression given in scale degrees."""
     return [get_diatonic_chord(root, scale_type, d) for d in degrees]
 
 
-def roman_to_degree(roman: str) -> Tuple[int, str]:
+def roman_to_degree(roman: str) -> tuple[int, str]:
     """
     Convert Roman numeral to degree and quality.
 
@@ -282,7 +279,7 @@ def roman_to_degree(roman: str) -> Tuple[int, str]:
     return degree, quality_suffix
 
 
-def parse_progression(root: str, scale_type: str, roman_numerals: str) -> List[Tuple[str, str]]:
+def parse_progression(root: str, scale_type: str, roman_numerals: str) -> list[tuple[str, str]]:
     """
     Parse a Roman numeral progression string.
 
@@ -325,9 +322,9 @@ class VoiceLeadingViolation:
 
 
 def check_voice_leading(
-    chord1_midi: List[int],
-    chord2_midi: List[int],
-) -> List[VoiceLeadingViolation]:
+    chord1_midi: list[int],
+    chord2_midi: list[int],
+) -> list[VoiceLeadingViolation]:
     """
     Check for voice leading violations between two chords.
 
@@ -405,8 +402,8 @@ def check_voice_leading(
 
 
 def smooth_voice_leading_distance(
-    chord1_midi: List[int],
-    chord2_midi: List[int],
+    chord1_midi: list[int],
+    chord2_midi: list[int],
 ) -> float:
     """
     Calculate the total voice leading distance (in semitones).
@@ -425,12 +422,12 @@ def smooth_voice_leading_distance(
 # ============================================================================
 
 
-def get_interval_sequence(midi_notes: List[int]) -> List[int]:
+def get_interval_sequence(midi_notes: list[int]) -> list[int]:
     """Get sequence of intervals between consecutive notes."""
     return [midi_notes[i + 1] - midi_notes[i] for i in range(len(midi_notes) - 1)]
 
 
-def get_contour(midi_notes: List[int]) -> List[str]:
+def get_contour(midi_notes: list[int]) -> list[str]:
     """Get melodic contour as up/down/same sequence."""
     contour = []
     for i in range(len(midi_notes) - 1):
@@ -444,13 +441,13 @@ def get_contour(midi_notes: List[int]) -> List[str]:
     return contour
 
 
-def contour_to_hash(contour: List[str]) -> str:
+def contour_to_hash(contour: list[str]) -> str:
     """Convert contour to a hash string for comparison."""
     mapping = {"up": "U", "down": "D", "same": "S"}
     return "".join(mapping.get(c, "?") for c in contour)
 
 
-def analyze_melody_range(midi_notes: List[int]) -> Dict[str, int]:
+def analyze_melody_range(midi_notes: list[int]) -> dict[str, int]:
     """Analyze the range of a melody."""
     if not midi_notes:
         return {"lowest": 0, "highest": 0, "range": 0}
@@ -466,7 +463,7 @@ def analyze_melody_range(midi_notes: List[int]) -> Dict[str, int]:
     }
 
 
-def calculate_singability(midi_notes: List[int]) -> float:
+def calculate_singability(midi_notes: list[int]) -> float:
     """
     Calculate singability score (0-1).
 

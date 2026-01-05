@@ -8,26 +8,25 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
-from aether.schemas.lyrics import LyricSpec, LyricSection, LyricLine, NarrativeArc
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.schemas.base import SectionType
-from aether.storage import ArtifactType
+from aether.schemas.lyrics import LyricLine, LyricSection, LyricSpec, NarrativeArc
 
 logger = logging.getLogger(__name__)
 
 
 class LyricsInput(BaseModel):
-    song_spec: Dict[str, Any]
-    arrangement_spec: Dict[str, Any]
-    melody_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    arrangement_spec: dict[str, Any]
+    melody_spec: dict[str, Any]
 
 
 class LyricsOutput(BaseModel):
-    lyric_spec: Dict[str, Any]
+    lyric_spec: dict[str, Any]
 
 
 @AgentRegistry.register("lyrics")
@@ -76,7 +75,7 @@ class LyricsAgent(BaseAgent[LyricsInput, LyricsOutput]):
     async def process(
         self,
         input_data: LyricsInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> LyricsOutput:
         song_spec = input_data.song_spec
         arrangement = input_data.arrangement_spec
@@ -146,7 +145,7 @@ class LyricsAgent(BaseAgent[LyricsInput, LyricsOutput]):
         section_label: str,
         theme: str,
         mood: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate lyrics for a section."""
         if section_type == SectionType.CHORUS:
             num_lines = 4
@@ -212,7 +211,7 @@ class LyricsAgent(BaseAgent[LyricsInput, LyricsOutput]):
 
         return max(1, count)
 
-    def _estimate_stresses(self, syllable_count: int) -> List[bool]:
+    def _estimate_stresses(self, syllable_count: int) -> list[bool]:
         """Estimate stress pattern (simplified)."""
         # Simple alternating pattern
         return [(i % 2 == 0) for i in range(syllable_count)]

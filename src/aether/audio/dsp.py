@@ -13,9 +13,8 @@ Reference Standards:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -205,11 +204,11 @@ class ParametricEQ:
 
     def __init__(self, sample_rate: float):
         self.sample_rate = sample_rate
-        self.bands: List[BiquadFilter] = []
+        self.bands: list[BiquadFilter] = []
 
     def add_band(
         self,
-        filter_type: Union[FilterType, str],
+        filter_type: FilterType | str,
         frequency: float,
         gain_db: float = 0.0,
         q: float = 1.0,
@@ -298,7 +297,7 @@ class Compressor:
             knee_factor = knee_factor**2 / (2 * self.knee_db)
             return knee_factor * (1 - 1 / self.ratio)
 
-    def process_stereo(self, audio: StereoBuffer) -> Tuple[StereoBuffer, AudioBuffer]:
+    def process_stereo(self, audio: StereoBuffer) -> tuple[StereoBuffer, AudioBuffer]:
         """
         Process stereo audio.
 
@@ -506,8 +505,8 @@ class LoudnessMeter:
         self._init_k_weight_filters()
 
         # Buffers for measurements
-        self.momentary_buffer: List[float] = []
-        self.gated_loudness_blocks: List[float] = []
+        self.momentary_buffer: list[float] = []
+        self.gated_loudness_blocks: list[float] = []
         self.true_peak_max = 0.0
         self.sample_peak_max = 0.0
 
@@ -725,7 +724,7 @@ class StereoProcessor:
         return num / denom
 
     @staticmethod
-    def check_mono_compatibility(stereo: StereoBuffer) -> Tuple[bool, float]:
+    def check_mono_compatibility(stereo: StereoBuffer) -> tuple[bool, float]:
         """
         Check mono compatibility.
 

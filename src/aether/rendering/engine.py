@@ -15,22 +15,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import numpy as np
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Coroutine, Dict, List, Optional, Tuple
+from typing import Any
 from uuid import uuid4
 
+import numpy as np
+
+from aether.audio.mastering import MasteringChain
 from aether.providers import (
-    get_provider_registry,
-    MIDIFile,
-    MIDITrack,
-    MIDINote,
     AudioBuffer,
     AudioStem,
+    MIDIFile,
+    get_provider_registry,
 )
-from aether.audio.mixing import MixingEngine
-from aether.audio.mastering import MasteringChain
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class RenderingConfig:
     apply_mastering: bool = True
     target_lufs: float = -14.0
     true_peak_ceiling: float = -1.0
-    export_formats: List[str] = field(default_factory=lambda: ["wav", "mp3"])
+    export_formats: list[str] = field(default_factory=lambda: ["wav", "mp3"])
 
 
 @dataclass
@@ -55,15 +54,15 @@ class RenderingResult:
 
     success: bool
     song_id: str
-    midi_file: Optional[MIDIFile] = None
-    audio_buffer: Optional[AudioBuffer] = None
-    master_buffer: Optional[AudioBuffer] = None
-    stems: Dict[str, AudioBuffer] = field(default_factory=dict)
-    output_paths: Dict[str, Path] = field(default_factory=dict)
+    midi_file: MIDIFile | None = None
+    audio_buffer: AudioBuffer | None = None
+    master_buffer: AudioBuffer | None = None
+    stems: dict[str, AudioBuffer] = field(default_factory=dict)
+    output_paths: dict[str, Path] = field(default_factory=dict)
     duration_seconds: float = 0.0
     peak_db: float = 0.0
     loudness_lufs: float = 0.0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 class RenderingEngine:
@@ -75,7 +74,7 @@ class RenderingEngine:
         result = await engine.render(pipeline_output)
     """
 
-    def __init__(self, config: Optional[RenderingConfig] = None):
+    def __init__(self, config: RenderingConfig | None = None):
         self.config = config or RenderingConfig()
         self._registry = get_provider_registry()
 
@@ -89,7 +88,7 @@ class RenderingEngine:
         """Get Audio provider from registry."""
         return self._registry.get("audio")
 
-    async def render(self, pipeline_output: Dict[str, Any]) -> RenderingResult:
+    async def render(self, pipeline_output: dict[str, Any]) -> RenderingResult:
         """
         Render pipeline output to audio.
 
@@ -174,11 +173,11 @@ class RenderingEngine:
 
     async def _generate_midi(
         self,
-        song_spec: Dict,
-        harmony_spec: Dict,
-        melody_spec: Dict,
-        arrangement_spec: Dict,
-        rhythm_spec: Dict,
+        song_spec: dict,
+        harmony_spec: dict,
+        melody_spec: dict,
+        arrangement_spec: dict,
+        rhythm_spec: dict,
     ) -> MIDIFile:
         """Generate MIDI file from specifications."""
         if not self.midi_provider:
@@ -248,7 +247,7 @@ class RenderingEngine:
     async def _render_to_stems(
         self,
         midi_file: MIDIFile,
-    ) -> Dict[str, AudioBuffer]:
+    ) -> dict[str, AudioBuffer]:
         """
         Render MIDI tracks to audio stems.
 
@@ -259,7 +258,7 @@ class RenderingEngine:
             raise RuntimeError("Audio provider not available")
 
         # Prepare render tasks for parallel execution
-        async def render_track(track, name: str) -> Tuple[str, AudioBuffer]:
+        async def render_track(track, name: str) -> tuple[str, AudioBuffer]:
             """Render a single track and return (name, audio) tuple."""
             track_midi = MIDIFile(
                 tracks=[track],
@@ -270,12 +269,12 @@ class RenderingEngine:
             return (name, audio)
 
         # Create parallel render tasks for each track
-        track_tasks: List[Coroutine[Any, Any, Tuple[str, AudioBuffer]]] = [
+        track_tasks: list[Coroutine[Any, Any, tuple[str, AudioBuffer]]] = [
             render_track(track, track.name) for track in midi_file.tracks
         ]
 
         # Also render full MIDI in parallel
-        async def render_full() -> Tuple[str, AudioBuffer]:
+        async def render_full() -> tuple[str, AudioBuffer]:
             audio = await self.audio_provider.render_midi(midi_file)
             return ("full", audio)
 
@@ -298,8 +297,8 @@ class RenderingEngine:
 
     async def _mix_stems(
         self,
-        stems: Dict[str, AudioBuffer],
-        mix_spec: Dict,
+        stems: dict[str, AudioBuffer],
+        mix_spec: dict,
     ) -> AudioBuffer:
         """Mix rendered stems according to mix spec."""
         if not self.audio_provider:
@@ -365,7 +364,7 @@ class RenderingEngine:
     async def _apply_mastering(
         self,
         audio: AudioBuffer,
-        master_spec: Dict,
+        master_spec: dict,
     ) -> AudioBuffer:
         """Apply mastering chain to mixed audio."""
         # Extract mastering parameters
@@ -399,8 +398,8 @@ class RenderingEngine:
         song_id: str,
         title: str,
         master: AudioBuffer,
-        stems: Dict[str, AudioBuffer],
-    ) -> Dict[str, Path]:
+        stems: dict[str, AudioBuffer],
+    ) -> dict[str, Path]:
         """Export audio files."""
         output_paths = {}
 
@@ -446,8 +445,8 @@ class RenderingEngine:
 
 
 async def render_pipeline_output(
-    pipeline_output: Dict[str, Any],
-    config: Optional[RenderingConfig] = None,
+    pipeline_output: dict[str, Any],
+    config: RenderingConfig | None = None,
 ) -> RenderingResult:
     """Convenience function to render pipeline output."""
     engine = RenderingEngine(config)

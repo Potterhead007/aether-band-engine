@@ -7,37 +7,36 @@ Creates the mix specification with levels, panning, EQ, and dynamics.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import get_genre_manager
+from aether.schemas.base import SectionType
 from aether.schemas.mix import (
-    MixSpec,
-    TrackSettings,
-    BusSettings,
-    EQBand,
-    Compressor,
-    SpatialSettings,
     Automation,
     AutomationPoint,
+    BusSettings,
+    Compressor,
+    EQBand,
+    MixSpec,
+    SpatialSettings,
+    TrackSettings,
 )
-from aether.schemas.base import SectionType
-from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
 
 
 class MixingInput(BaseModel):
-    song_spec: Dict[str, Any]
-    arrangement_spec: Dict[str, Any]
-    sound_design_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    arrangement_spec: dict[str, Any]
+    sound_design_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class MixingOutput(BaseModel):
-    mix_spec: Dict[str, Any]
+    mix_spec: dict[str, Any]
 
 
 @AgentRegistry.register("mixing")
@@ -62,7 +61,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
     async def process(
         self,
         input_data: MixingInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> MixingOutput:
         song_spec = input_data.song_spec
         arrangement = input_data.arrangement_spec
@@ -114,7 +113,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
 
         return MixingOutput(mix_spec=mix_spec.model_dump())
 
-    def _create_bus_structure(self, profile) -> List[BusSettings]:
+    def _create_bus_structure(self, profile) -> list[BusSettings]:
         """Create standard bus structure."""
         buses = []
 
@@ -196,7 +195,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
 
         return buses
 
-    def _create_track_settings(self, instrument: Dict, profile) -> TrackSettings:
+    def _create_track_settings(self, instrument: dict, profile) -> TrackSettings:
         """Create settings for a single track."""
         name = instrument.get("name", "unknown")
         category = instrument.get("category", "synth")
@@ -265,7 +264,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
             output_bus=output_bus,
         )
 
-    def _get_track_eq(self, category: str) -> List[EQBand]:
+    def _get_track_eq(self, category: str) -> list[EQBand]:
         """Get EQ settings for track category."""
         if category == "drums":
             return [
@@ -295,12 +294,12 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
                 EQBand(band_type="highpass", frequency_hz=80, gain_db=0.0, q=0.7),
             ]
 
-    def _create_automation(self, sections: List[Dict], instruments: List[Dict]) -> List[Automation]:
+    def _create_automation(self, sections: list[dict], instruments: list[dict]) -> list[Automation]:
         """Create mix automation for dynamic movement."""
         automations = []
 
         # Calculate approximate section times
-        total_duration = sum(s.get("length_bars", 8) * 2 for s in sections)  # Approx 2s per bar
+        sum(s.get("length_bars", 8) * 2 for s in sections)  # Approx 2s per bar
 
         current_time = 0.0
         for section in sections:
@@ -347,7 +346,7 @@ class MixingAgent(BaseAgent[MixingInput, MixingOutput]):
             haas_delay_ms=None,
         )
 
-    def _create_master_eq(self, profile) -> List[EQBand]:
+    def _create_master_eq(self, profile) -> list[EQBand]:
         """Create master bus EQ."""
         return [
             EQBand(band_type="highpass", frequency_hz=30, gain_db=0.0, q=0.7),

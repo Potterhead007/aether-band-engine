@@ -20,10 +20,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -51,7 +50,7 @@ class OriginalityResult:
     threshold: float
     passed: bool
     details: str
-    similar_matches: List[str] = field(default_factory=list)
+    similar_matches: list[str] = field(default_factory=list)
     fingerprint: Optional[str] = None
 
 
@@ -82,7 +81,7 @@ class MelodyOriginalityChecker:
 
     # Known melody patterns to check against (would be populated from database)
     # Format: (name, interval_hash, contour)
-    KNOWN_MELODIES: List[Tuple[str, str, str]] = [
+    KNOWN_MELODIES: list[tuple[str, str, str]] = [
         # Famous melodic phrases that should be avoided
         ("happy_birthday_phrase", "2,2,5,-2,-2,", "UUDDD"),
         ("twinkle_twinkle", "0,0,7,0,-2,-2,", "SSUDDD"),
@@ -94,14 +93,14 @@ class MelodyOriginalityChecker:
     CONTOUR_SIMILARITY_THRESHOLD = 0.75
 
     @staticmethod
-    def midi_to_intervals(midi_notes: List[int]) -> List[int]:
+    def midi_to_intervals(midi_notes: list[int]) -> list[int]:
         """Convert MIDI note sequence to interval sequence."""
         if len(midi_notes) < 2:
             return []
         return [midi_notes[i + 1] - midi_notes[i] for i in range(len(midi_notes) - 1)]
 
     @staticmethod
-    def intervals_to_contour(intervals: List[int]) -> str:
+    def intervals_to_contour(intervals: list[int]) -> str:
         """Convert intervals to contour string (U=up, D=down, S=same)."""
         contour = []
         for interval in intervals:
@@ -114,7 +113,7 @@ class MelodyOriginalityChecker:
         return "".join(contour)
 
     @staticmethod
-    def compute_interval_hash(intervals: List[int]) -> str:
+    def compute_interval_hash(intervals: list[int]) -> str:
         """Compute hash of interval sequence."""
         # Normalize large intervals
         normalized = [min(max(i, -12), 12) for i in intervals]
@@ -122,7 +121,7 @@ class MelodyOriginalityChecker:
         return hashlib.md5(interval_str.encode()).hexdigest()[:16]
 
     @staticmethod
-    def compute_rhythm_pattern(durations: List[float]) -> str:
+    def compute_rhythm_pattern(durations: list[float]) -> str:
         """Compute rhythm pattern from note durations."""
         if not durations:
             return ""
@@ -177,8 +176,8 @@ class MelodyOriginalityChecker:
     @classmethod
     def extract_fingerprint(
         cls,
-        midi_notes: List[int],
-        durations: Optional[List[float]] = None,
+        midi_notes: list[int],
+        durations: list[float] | None = None,
     ) -> MelodyFingerprint:
         """Extract fingerprint from melody data."""
         intervals = cls.midi_to_intervals(midi_notes)
@@ -205,7 +204,7 @@ class MelodyOriginalityChecker:
     def check_against_known(
         cls,
         fingerprint: MelodyFingerprint,
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """
         Check melody against known melodies.
 
@@ -230,7 +229,7 @@ class MelodyOriginalityChecker:
     @classmethod
     def check_melody(
         cls,
-        melody_spec: Dict[str, Any],
+        melody_spec: dict[str, Any],
     ) -> OriginalityResult:
         """
         Check melody specification for originality.
@@ -312,7 +311,7 @@ class LyricOriginalityChecker:
     NGRAM_OVERLAP_THRESHOLD = 0.03  # 3%
 
     # Common phrases that are acceptable (not copyrightable)
-    COMMON_PHRASES: Set[str] = {
+    COMMON_PHRASES: set[str] = {
         "i love you",
         "you love me",
         "let me go",
@@ -342,7 +341,7 @@ class LyricOriginalityChecker:
         return text
 
     @staticmethod
-    def extract_ngrams(text: str, n: int = 3) -> Set[str]:
+    def extract_ngrams(text: str, n: int = 3) -> set[str]:
         """Extract n-grams from text."""
         words = text.split()
         if len(words) < n:
@@ -359,8 +358,8 @@ class LyricOriginalityChecker:
     def check_against_known(
         cls,
         text: str,
-        known_lyrics: Optional[List[str]] = None,
-    ) -> Tuple[float, List[str]]:
+        known_lyrics: list[str] | None = None,
+    ) -> tuple[float, list[str]]:
         """
         Check lyrics against known lyrics database.
 
@@ -369,13 +368,13 @@ class LyricOriginalityChecker:
         """
         normalized = cls.normalize_text(text)
         trigrams = cls.extract_ngrams(normalized, 3)
-        fourgrams = cls.extract_ngrams(normalized, 4)
+        cls.extract_ngrams(normalized, 4)
 
         if not trigrams:
             return 0.0, []
 
         # Check against common phrases (these are okay)
-        uncommon_trigrams = trigrams - {cls.normalize_text(p) for p in cls.COMMON_PHRASES}
+        trigrams - {cls.normalize_text(p) for p in cls.COMMON_PHRASES}
 
         # In production, would check against lyrics database
         # For now, we assume no matches (placeholder)
@@ -389,7 +388,7 @@ class LyricOriginalityChecker:
         return overlap_ratio, matches
 
     @classmethod
-    def extract_rhyme_pattern(cls, lines: List[str]) -> str:
+    def extract_rhyme_pattern(cls, lines: list[str]) -> str:
         """Extract rhyme pattern from lyric lines."""
         if not lines:
             return ""
@@ -424,8 +423,8 @@ class LyricOriginalityChecker:
     @classmethod
     def check_lyrics(
         cls,
-        lyric_spec: Dict[str, Any],
-    ) -> List[OriginalityResult]:
+        lyric_spec: dict[str, Any],
+    ) -> list[OriginalityResult]:
         """
         Check lyric specification for originality.
 
@@ -484,7 +483,7 @@ class HarmonyOriginalityChecker:
     """
 
     # Common progressions that are free to use
-    COMMON_PROGRESSIONS: Set[str] = {
+    COMMON_PROGRESSIONS: set[str] = {
         "I-IV-V-I",
         "I-V-vi-IV",
         "I-vi-IV-V",
@@ -499,7 +498,7 @@ class HarmonyOriginalityChecker:
     }
 
     @staticmethod
-    def normalize_progression(chords: List[str]) -> str:
+    def normalize_progression(chords: list[str]) -> str:
         """Normalize chord progression to roman numeral format."""
         # This is a placeholder - real implementation would analyze
         # the actual chord symbols relative to key
@@ -508,7 +507,7 @@ class HarmonyOriginalityChecker:
     @classmethod
     def check_harmony(
         cls,
-        harmony_spec: Dict[str, Any],
+        harmony_spec: dict[str, Any],
     ) -> OriginalityResult:
         """Check harmony specification for originality."""
         progressions = harmony_spec.get("progressions", [])
@@ -628,7 +627,7 @@ class AudioEmbeddingChecker:
         cls,
         audio: np.ndarray,
         sample_rate: int,
-        known_embeddings: Optional[List[Tuple[str, np.ndarray]]] = None,
+        known_embeddings: list[tuple[str, np.ndarray]] | None = None,
     ) -> OriginalityResult:
         """
         Check audio for similarity to known recordings.
@@ -689,15 +688,15 @@ class OriginalityChecker:
         self.harmony_checker = HarmonyOriginalityChecker()
         self.audio_checker = AudioEmbeddingChecker()
 
-    def check_melody(self, melody_spec: Dict[str, Any]) -> OriginalityResult:
+    def check_melody(self, melody_spec: dict[str, Any]) -> OriginalityResult:
         """Check melody originality."""
         return self.melody_checker.check_melody(melody_spec)
 
-    def check_lyrics(self, lyric_spec: Dict[str, Any]) -> List[OriginalityResult]:
+    def check_lyrics(self, lyric_spec: dict[str, Any]) -> list[OriginalityResult]:
         """Check lyric originality."""
         return self.lyric_checker.check_lyrics(lyric_spec)
 
-    def check_harmony(self, harmony_spec: Dict[str, Any]) -> OriginalityResult:
+    def check_harmony(self, harmony_spec: dict[str, Any]) -> OriginalityResult:
         """Check harmony originality."""
         return self.harmony_checker.check_harmony(harmony_spec)
 
@@ -711,12 +710,12 @@ class OriginalityChecker:
 
     def check_all(
         self,
-        melody_spec: Optional[Dict[str, Any]] = None,
-        lyric_spec: Optional[Dict[str, Any]] = None,
-        harmony_spec: Optional[Dict[str, Any]] = None,
-        audio: Optional[np.ndarray] = None,
+        melody_spec: dict[str, Any] | None = None,
+        lyric_spec: dict[str, Any] | None = None,
+        harmony_spec: dict[str, Any] | None = None,
+        audio: np.ndarray | None = None,
         sample_rate: int = 48000,
-    ) -> List[OriginalityResult]:
+    ) -> list[OriginalityResult]:
         """
         Run all applicable originality checks.
 
@@ -738,7 +737,7 @@ class OriginalityChecker:
 
         return results
 
-    def get_overall_score(self, results: List[OriginalityResult]) -> Tuple[float, bool]:
+    def get_overall_score(self, results: list[OriginalityResult]) -> tuple[float, bool]:
         """
         Calculate overall originality score from individual results.
 

@@ -16,9 +16,9 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Deque, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 from aether.core.logging import get_logger
 
@@ -65,9 +65,9 @@ class MetricLabel:
 class MetricValue:
     """Timestamped metric value."""
 
-    value: Union[int, float]
+    value: int | float
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
 
 
 class Counter:
@@ -84,15 +84,15 @@ class Counter:
         self,
         name: str,
         description: str = "",
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ):
         self.name = name
         self.description = description
         self.label_names = labels or []
-        self._values: Dict[tuple, float] = defaultdict(float)
+        self._values: dict[tuple, float] = defaultdict(float)
         self._lock = threading.Lock()
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Increment the counter."""
         if amount < 0:
             raise ValueError("Counter can only be incremented")
@@ -101,19 +101,19 @@ class Counter:
         with self._lock:
             self._values[key] += amount
 
-    def _labels_to_key(self, labels: Optional[Dict[str, str]]) -> tuple:
+    def _labels_to_key(self, labels: dict[str, str] | None) -> tuple:
         """Convert labels dict to hashable tuple."""
         if not labels:
             return ()
         return tuple(sorted(labels.items()))
 
-    def get(self, labels: Optional[Dict[str, str]] = None) -> float:
+    def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current counter value."""
         key = self._labels_to_key(labels)
         with self._lock:
             return self._values[key]
 
-    def get_all(self) -> Dict[tuple, float]:
+    def get_all(self) -> dict[tuple, float]:
         """Get all counter values with labels."""
         with self._lock:
             return dict(self._values)
@@ -139,44 +139,44 @@ class Gauge:
         self,
         name: str,
         description: str = "",
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ):
         self.name = name
         self.description = description
         self.label_names = labels or []
-        self._values: Dict[tuple, float] = defaultdict(float)
+        self._values: dict[tuple, float] = defaultdict(float)
         self._lock = threading.Lock()
 
-    def set(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def set(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Set the gauge to a value."""
         key = self._labels_to_key(labels)
         with self._lock:
             self._values[key] = value
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Increment the gauge."""
         key = self._labels_to_key(labels)
         with self._lock:
             self._values[key] += amount
 
-    def dec(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def dec(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Decrement the gauge."""
         key = self._labels_to_key(labels)
         with self._lock:
             self._values[key] -= amount
 
-    def _labels_to_key(self, labels: Optional[Dict[str, str]]) -> tuple:
+    def _labels_to_key(self, labels: dict[str, str] | None) -> tuple:
         if not labels:
             return ()
         return tuple(sorted(labels.items()))
 
-    def get(self, labels: Optional[Dict[str, str]] = None) -> float:
+    def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current gauge value."""
         key = self._labels_to_key(labels)
         with self._lock:
             return self._values[key]
 
-    def get_all(self) -> Dict[tuple, float]:
+    def get_all(self) -> dict[tuple, float]:
         """Get all gauge values with labels."""
         with self._lock:
             return dict(self._values)
@@ -204,8 +204,8 @@ class Histogram:
         self,
         name: str,
         description: str = "",
-        buckets: Optional[tuple] = None,
-        labels: Optional[List[str]] = None,
+        buckets: tuple | None = None,
+        labels: list[str] | None = None,
         max_observations: int = MAX_HISTOGRAM_OBSERVATIONS,
     ):
         self.name = name
@@ -214,20 +214,20 @@ class Histogram:
         self.label_names = labels or []
         self._max_observations = max_observations
 
-        self._counts: Dict[tuple, int] = defaultdict(int)
-        self._sums: Dict[tuple, float] = defaultdict(float)
-        self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(lambda: defaultdict(int))
+        self._counts: dict[tuple, int] = defaultdict(int)
+        self._sums: dict[tuple, float] = defaultdict(float)
+        self._bucket_counts: dict[tuple, dict[float, int]] = defaultdict(lambda: defaultdict(int))
         # Use deque with maxlen to bound memory usage
-        self._observations: Dict[tuple, Deque[float]] = {}
+        self._observations: dict[tuple, deque[float]] = {}
         self._lock = threading.Lock()
 
-    def _get_observation_deque(self, key: tuple) -> Deque[float]:
+    def _get_observation_deque(self, key: tuple) -> deque[float]:
         """Get or create a bounded deque for observations."""
         if key not in self._observations:
             self._observations[key] = deque(maxlen=self._max_observations)
         return self._observations[key]
 
-    def observe(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def observe(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Record an observation."""
         key = self._labels_to_key(labels)
         with self._lock:
@@ -242,32 +242,32 @@ class Histogram:
                 if value <= bucket:
                     self._bucket_counts[key][bucket] += 1
 
-    def _labels_to_key(self, labels: Optional[Dict[str, str]]) -> tuple:
+    def _labels_to_key(self, labels: dict[str, str] | None) -> tuple:
         if not labels:
             return ()
         return tuple(sorted(labels.items()))
 
-    def get_count(self, labels: Optional[Dict[str, str]] = None) -> int:
+    def get_count(self, labels: dict[str, str] | None = None) -> int:
         """Get observation count."""
         key = self._labels_to_key(labels)
         with self._lock:
             return self._counts[key]
 
-    def get_sum(self, labels: Optional[Dict[str, str]] = None) -> float:
+    def get_sum(self, labels: dict[str, str] | None = None) -> float:
         """Get sum of observations."""
         key = self._labels_to_key(labels)
         with self._lock:
             return self._sums[key]
 
-    def get_buckets(self, labels: Optional[Dict[str, str]] = None) -> Dict[float, int]:
+    def get_buckets(self, labels: dict[str, str] | None = None) -> dict[float, int]:
         """Get bucket counts."""
         key = self._labels_to_key(labels)
         with self._lock:
             return dict(self._bucket_counts[key])
 
     def get_percentile(
-        self, percentile: float, labels: Optional[Dict[str, str]] = None
-    ) -> Optional[float]:
+        self, percentile: float, labels: dict[str, str] | None = None
+    ) -> float | None:
         """Calculate percentile from observations (uses recent observations only)."""
         key = self._labels_to_key(labels)
         with self._lock:
@@ -278,7 +278,7 @@ class Histogram:
             idx = int(len(sorted_obs) * percentile / 100)
             return sorted_obs[min(idx, len(sorted_obs) - 1)]
 
-    def get_stats(self, labels: Optional[Dict[str, str]] = None) -> Dict[str, float]:
+    def get_stats(self, labels: dict[str, str] | None = None) -> dict[str, float]:
         """Get statistical summary (uses recent observations only)."""
         key = self._labels_to_key(labels)
         with self._lock:
@@ -311,7 +311,7 @@ class Histogram:
                 "p99": self._percentile(sorted_obs, 99),
             }
 
-    def _percentile(self, sorted_data: List[float], p: float) -> float:
+    def _percentile(self, sorted_data: list[float], p: float) -> float:
         """Calculate percentile from sorted data."""
         idx = int(len(sorted_data) * p / 100)
         return sorted_data[min(idx, len(sorted_data) - 1)]
@@ -344,21 +344,21 @@ class Timer:
         self,
         name: str,
         description: str = "",
-        buckets: Optional[tuple] = None,
-        labels: Optional[List[str]] = None,
+        buckets: tuple | None = None,
+        labels: list[str] | None = None,
     ):
         self.histogram = Histogram(name, description, buckets, labels)
         self.name = name
 
-    def time(self, labels: Optional[Dict[str, str]] = None) -> "_TimerContext":
+    def time(self, labels: dict[str, str] | None = None) -> _TimerContext:
         """Create a timer context."""
         return _TimerContext(self.histogram, labels)
 
-    def observe(self, duration: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def observe(self, duration: float, labels: dict[str, str] | None = None) -> None:
         """Record a duration directly."""
         self.histogram.observe(duration, labels)
 
-    def get_stats(self, labels: Optional[Dict[str, str]] = None) -> Dict[str, float]:
+    def get_stats(self, labels: dict[str, str] | None = None) -> dict[str, float]:
         """Get timing statistics."""
         return self.histogram.get_stats(labels)
 
@@ -369,13 +369,13 @@ class _TimerContext:
     def __init__(
         self,
         histogram: Histogram,
-        labels: Optional[Dict[str, str]] = None,
+        labels: dict[str, str] | None = None,
     ):
         self.histogram = histogram
         self.labels = labels
         self.start_time: Optional[float] = None
 
-    def __enter__(self) -> "_TimerContext":
+    def __enter__(self) -> _TimerContext:
         self.start_time = time.perf_counter()
         return self
 
@@ -425,18 +425,18 @@ class MetricsCollector:
     """
 
     # Global instance
-    _instance: Optional["MetricsCollector"] = None
+    _instance: MetricsCollector | None = None
 
     def __init__(self, prefix: str = "aether"):
         self.prefix = prefix
-        self._counters: Dict[str, Counter] = {}
-        self._gauges: Dict[str, Gauge] = {}
-        self._histograms: Dict[str, Histogram] = {}
-        self._timers: Dict[str, Timer] = {}
+        self._counters: dict[str, Counter] = {}
+        self._gauges: dict[str, Gauge] = {}
+        self._histograms: dict[str, Histogram] = {}
+        self._timers: dict[str, Timer] = {}
         self._lock = threading.Lock()
 
     @classmethod
-    def get_instance(cls, prefix: str = "aether") -> "MetricsCollector":
+    def get_instance(cls, prefix: str = "aether") -> MetricsCollector:
         """Get or create singleton instance."""
         if cls._instance is None:
             cls._instance = cls(prefix)
@@ -452,7 +452,7 @@ class MetricsCollector:
         self,
         name: str,
         description: str = "",
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ) -> Counter:
         """Get or create a counter metric."""
         full_name = self._full_name(name)
@@ -465,7 +465,7 @@ class MetricsCollector:
         self,
         name: str,
         description: str = "",
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ) -> Gauge:
         """Get or create a gauge metric."""
         full_name = self._full_name(name)
@@ -478,8 +478,8 @@ class MetricsCollector:
         self,
         name: str,
         description: str = "",
-        buckets: Optional[tuple] = None,
-        labels: Optional[List[str]] = None,
+        buckets: tuple | None = None,
+        labels: list[str] | None = None,
     ) -> Histogram:
         """Get or create a histogram metric."""
         full_name = self._full_name(name)
@@ -492,8 +492,8 @@ class MetricsCollector:
         self,
         name: str,
         description: str = "",
-        buckets: Optional[tuple] = None,
-        labels: Optional[List[str]] = None,
+        buckets: tuple | None = None,
+        labels: list[str] | None = None,
     ) -> Timer:
         """Get or create a timer metric."""
         full_name = self._full_name(name)
@@ -502,9 +502,9 @@ class MetricsCollector:
                 self._timers[full_name] = Timer(full_name, description, buckets, labels)
             return self._timers[full_name]
 
-    def collect(self) -> Dict[str, Any]:
+    def collect(self) -> dict[str, Any]:
         """Collect all metrics."""
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat(),
             "counters": {},
             "gauges": {},
@@ -596,7 +596,20 @@ class MetricsCollector:
 
 # Convenience function
 def get_metrics(prefix: str = "aether") -> MetricsCollector:
-    """Get global metrics collector."""
+    """
+    Get global metrics collector.
+
+    Note: For new code, prefer using `get_runtime().metrics` for
+    centralized lifecycle management.
+    """
+    # Try to get from runtime if available and prefix matches default
+    if prefix == "aether":
+        try:
+            from aether.core.runtime import get_runtime
+
+            return get_runtime().metrics
+        except ImportError:
+            pass
     return MetricsCollector.get_instance(prefix)
 
 

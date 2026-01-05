@@ -23,20 +23,16 @@ import logging
 import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 import numpy as np
-from numpy.typing import NDArray
 
 from aether.audio.dsp import (
-    AudioBuffer,
-    StereoBuffer,
-    BiquadFilter,
-    FilterType,
-    ParametricEQ,
     Compressor,
-    StereoProcessor,
     LoudnessMeter,
+    ParametricEQ,
+    StereoBuffer,
+    StereoProcessor,
     db_to_linear,
     linear_to_db,
 )
@@ -69,9 +65,9 @@ class AutomationLane:
 
     target: str  # "track:kick:gain" or "bus:drums:pan"
     parameter: str
-    points: List[AutomationPoint] = field(default_factory=list)
+    points: list[AutomationPoint] = field(default_factory=list)
 
-    def get_value_at(self, time_seconds: float) -> Optional[float]:
+    def get_value_at(self, time_seconds: float) -> float | None:
         """Get interpolated value at a given time."""
         if not self.points:
             return None
@@ -125,7 +121,7 @@ class TrackState:
     """Runtime state for a mix track."""
 
     name: str
-    audio: Optional[StereoBuffer] = None
+    audio: StereoBuffer | None = None
     gain_db: float = 0.0
     pan: float = 0.0  # -1 to +1
     mute: bool = False
@@ -133,13 +129,13 @@ class TrackState:
     output_bus: str = "master"
 
     # Insert chain
-    eq: Optional[ParametricEQ] = None
-    compressor: Optional[Compressor] = None
+    eq: ParametricEQ | None = None
+    compressor: Compressor | None = None
 
     # Send levels
-    sends: Dict[str, float] = field(default_factory=dict)  # bus_name -> level_db
+    sends: dict[str, float] = field(default_factory=dict)  # bus_name -> level_db
 
-    def get_panned_gain(self) -> Tuple[float, float]:
+    def get_panned_gain(self) -> tuple[float, float]:
         """Calculate L/R gains from gain_db and pan (constant power)."""
         linear_gain = db_to_linear(self.gain_db)
 
@@ -160,11 +156,11 @@ class BusState:
     output_bus: str = "master"
 
     # Insert chain
-    eq: Optional[ParametricEQ] = None
-    compressor: Optional[Compressor] = None
+    eq: ParametricEQ | None = None
+    compressor: Compressor | None = None
 
     # Accumulated audio
-    buffer: Optional[StereoBuffer] = None
+    buffer: StereoBuffer | None = None
 
 
 @dataclass
@@ -208,21 +204,21 @@ class MixingEngine:
         self.target_headroom_db = target_headroom_db
 
         # Tracks and buses
-        self.tracks: Dict[str, TrackState] = {}
-        self.buses: Dict[str, BusState] = {}
+        self.tracks: dict[str, TrackState] = {}
+        self.buses: dict[str, BusState] = {}
 
         # Always have a master bus
         self.buses["master"] = BusState(name="master", output_bus="")
 
         # Send effects
-        self.send_effects: Dict[str, SendEffect] = {}
+        self.send_effects: dict[str, SendEffect] = {}
 
         # Automation
-        self.automation_lanes: List[AutomationLane] = []
+        self.automation_lanes: list[AutomationLane] = []
 
         # Master section
-        self.master_eq: Optional[ParametricEQ] = None
-        self.master_compressor: Optional[Compressor] = None
+        self.master_eq: ParametricEQ | None = None
+        self.master_compressor: Compressor | None = None
 
         # Metering
         self.loudness_meter = LoudnessMeter(sample_rate)
@@ -283,7 +279,7 @@ class MixingEngine:
     def configure_track_eq(
         self,
         name: str,
-        bands: List[Dict[str, Any]],
+        bands: list[dict[str, Any]],
     ) -> None:
         """Configure track EQ from band definitions."""
         if name not in self.tracks:
@@ -350,7 +346,7 @@ class MixingEngine:
     def configure_bus_eq(
         self,
         name: str,
-        bands: List[Dict[str, Any]],
+        bands: list[dict[str, Any]],
     ) -> None:
         """Configure bus EQ."""
         if name not in self.buses:
@@ -396,7 +392,7 @@ class MixingEngine:
     # Master Section
     # =========================================================================
 
-    def configure_master_eq(self, bands: List[Dict[str, Any]]) -> None:
+    def configure_master_eq(self, bands: list[dict[str, Any]]) -> None:
         """Configure master bus EQ."""
         eq = ParametricEQ(self.sample_rate)
         for band in bands:
@@ -455,7 +451,7 @@ class MixingEngine:
         self,
         target: str,
         parameter: str,
-        points: List[Tuple[float, float]],
+        points: list[tuple[float, float]],
         curve: AutomationCurve = AutomationCurve.LINEAR,
     ) -> None:
         """
@@ -552,10 +548,10 @@ class MixingEngine:
 
         return audio
 
-    def _topological_sort_buses(self) -> List[str]:
+    def _topological_sort_buses(self) -> list[str]:
         """Sort buses in processing order (leaves first, master last)."""
         # Build dependency graph
-        dependencies: Dict[str, List[str]] = {}
+        dependencies: dict[str, list[str]] = {}
         for name, bus in self.buses.items():
             dependencies[name] = []
             for other_name, other_bus in self.buses.items():
@@ -610,7 +606,7 @@ class MixingEngine:
             bus.buffer = np.zeros((2, total_samples))
 
         # Initialize effect send buffers
-        effect_sends: Dict[str, StereoBuffer] = {
+        effect_sends: dict[str, StereoBuffer] = {
             name: np.zeros((2, total_samples)) for name in self.send_effects
         }
 
@@ -724,7 +720,7 @@ class MixingEngine:
 
         return output
 
-    def get_loudness_measurement(self, audio: StereoBuffer) -> Dict[str, float]:
+    def get_loudness_measurement(self, audio: StereoBuffer) -> dict[str, float]:
         """Measure loudness of rendered audio."""
         self.loudness_meter.reset()
         measurement = self.loudness_meter.measure(audio)

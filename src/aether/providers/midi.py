@@ -28,15 +28,14 @@ from __future__ import annotations
 
 import logging
 import random
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from aether.providers.base import (
-    MIDIProvider,
     MIDIFile,
-    MIDITrack,
     MIDINote,
+    MIDIProvider,
+    MIDITrack,
     ProviderInfo,
     ProviderStatus,
 )
@@ -137,14 +136,14 @@ def note_name_to_midi(note: str, octave: int = 4) -> int:
     return (octave + 1) * 12 + (note_index % 12)
 
 
-def midi_to_note_name(midi_note: int) -> Tuple[str, int]:
+def midi_to_note_name(midi_note: int) -> tuple[str, int]:
     """Convert MIDI number to note name and octave."""
     octave = (midi_note // 12) - 1
     note_index = midi_note % 12
     return NOTE_NAMES[note_index], octave
 
 
-def parse_chord(chord_str: str) -> Tuple[int, str, int]:
+def parse_chord(chord_str: str) -> tuple[int, str, int]:
     """
     Parse chord string into root MIDI note, quality, and bass note.
 
@@ -210,7 +209,7 @@ def parse_chord(chord_str: str) -> Tuple[int, str, int]:
     return root_midi, quality, bass_note
 
 
-def get_chord_notes(root: int, quality: str, inversion: int = 0) -> List[int]:
+def get_chord_notes(root: int, quality: str, inversion: int = 0) -> list[int]:
     """Get MIDI notes for a chord."""
     intervals = CHORD_INTERVALS.get(quality, CHORD_INTERVALS["major"])
     notes = [root + interval for interval in intervals]
@@ -223,7 +222,7 @@ def get_chord_notes(root: int, quality: str, inversion: int = 0) -> List[int]:
     return notes
 
 
-def get_scale_notes(root: int, scale: str, octave_range: int = 2) -> List[int]:
+def get_scale_notes(root: int, scale: str, octave_range: int = 2) -> list[int]:
     """Get MIDI notes for a scale across octaves."""
     intervals = SCALE_INTERVALS.get(scale, SCALE_INTERVALS["major"])
     notes = []
@@ -253,7 +252,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
     - Humanization (timing/velocity variation)
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config)
         self._rng = random.Random()
 
@@ -379,7 +378,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
     def _generate_chord_track(
         self,
-        progression: List[str],
+        progression: list[str],
         bars: int,
         bars_per_chord: int,
         time_sig: tuple,
@@ -422,7 +421,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
     def _generate_bass_track(
         self,
-        progression: List[str],
+        progression: list[str],
         bars: int,
         bars_per_chord: int,
         time_sig: tuple,

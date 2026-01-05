@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
@@ -43,7 +42,7 @@ class GenreProfileManager:
 
     def __init__(self, profiles_dir: Optional[Path] = None):
         self.profiles_dir = profiles_dir
-        self._cache: Dict[str, GenreRootProfile] = {}
+        self._cache: dict[str, GenreRootProfile] = {}
         self._load_builtin_profiles()
 
     def _load_builtin_profiles(self) -> None:
@@ -109,11 +108,11 @@ class GenreProfileManager:
 
         return self._cache[genre_id]
 
-    def list_genres(self) -> List[str]:
+    def list_genres(self) -> list[str]:
         """List all available genre IDs."""
         return list(self._cache.keys())
 
-    def list_profiles(self) -> List[GenreRootProfile]:
+    def list_profiles(self) -> list[GenreRootProfile]:
         """List all available profiles."""
         return list(self._cache.values())
 
@@ -121,7 +120,7 @@ class GenreProfileManager:
         self,
         tempo_bpm: Optional[int] = None,
         era: Optional[str] = None,
-    ) -> List[GenreRootProfile]:
+    ) -> list[GenreRootProfile]:
         """Search genres by criteria."""
         results = []
         for profile in self._cache.values():
@@ -139,7 +138,7 @@ class GenreProfileManager:
         genre_id: str,
         bpm: int,
         key_mode: str,
-    ) -> Dict[str, bool]:
+    ) -> dict[str, bool]:
         """Validate song parameters against genre profile."""
         profile = self.get(genre_id)
 
@@ -155,27 +154,27 @@ class GenreProfileManager:
 # Built-in Genre Profiles
 # ============================================================================
 
-BUILTIN_PROFILES: List[GenreRootProfile] = []
+BUILTIN_PROFILES: list[GenreRootProfile] = []
 
 
 def _create_boom_bap_profile() -> GenreRootProfile:
     """Create the Boom Bap genre profile."""
+    from aether.schemas.base import DurationRange, Mode, TempoRange
     from aether.schemas.genre import (
-        GenreLineage,
-        HistoricalContext,
-        EvolutionPeriod,
-        RhythmProfile,
-        HarmonyProfile,
-        MelodyProfile,
         ArrangementProfile,
-        InstrumentationProfile,
-        ProductionProfile,
-        MixCharacteristics,
-        MasterTargets,
         AuthenticityRubric,
+        EvolutionPeriod,
+        GenreLineage,
+        HarmonyProfile,
+        HistoricalContext,
+        InstrumentationProfile,
+        MasterTargets,
+        MelodyProfile,
+        MixCharacteristics,
+        ProductionProfile,
+        RhythmProfile,
         RubricDimension,
     )
-    from aether.schemas.base import TempoRange, DurationRange, Mode
 
     return GenreRootProfile(
         genre_id="hip-hop-boom-bap",
@@ -392,21 +391,21 @@ def _create_boom_bap_profile() -> GenreRootProfile:
 
 def _create_synthwave_profile() -> GenreRootProfile:
     """Create the Synthwave genre profile."""
+    from aether.schemas.base import DurationRange, Mode, TempoRange
     from aether.schemas.genre import (
-        GenreLineage,
-        HistoricalContext,
-        RhythmProfile,
-        HarmonyProfile,
-        MelodyProfile,
         ArrangementProfile,
-        InstrumentationProfile,
-        ProductionProfile,
-        MixCharacteristics,
-        MasterTargets,
         AuthenticityRubric,
+        GenreLineage,
+        HarmonyProfile,
+        HistoricalContext,
+        InstrumentationProfile,
+        MasterTargets,
+        MelodyProfile,
+        MixCharacteristics,
+        ProductionProfile,
+        RhythmProfile,
         RubricDimension,
     )
-    from aether.schemas.base import TempoRange, DurationRange, Mode
 
     return GenreRootProfile(
         genre_id="synthwave",
@@ -585,21 +584,21 @@ def _create_synthwave_profile() -> GenreRootProfile:
 
 def _create_lofi_hiphop_profile() -> GenreRootProfile:
     """Create the Lo-Fi Hip Hop genre profile."""
+    from aether.schemas.base import DurationRange, Mode, TempoRange
     from aether.schemas.genre import (
-        GenreLineage,
-        HistoricalContext,
-        RhythmProfile,
-        HarmonyProfile,
-        MelodyProfile,
         ArrangementProfile,
-        InstrumentationProfile,
-        ProductionProfile,
-        MixCharacteristics,
-        MasterTargets,
         AuthenticityRubric,
+        GenreLineage,
+        HarmonyProfile,
+        HistoricalContext,
+        InstrumentationProfile,
+        MasterTargets,
+        MelodyProfile,
+        MixCharacteristics,
+        ProductionProfile,
+        RhythmProfile,
         RubricDimension,
     )
-    from aether.schemas.base import TempoRange, DurationRange, Mode
 
     return GenreRootProfile(
         genre_id="lo-fi-hip-hop",
@@ -793,7 +792,7 @@ BUILTIN_PROFILES = [
 
 
 # Global instance
-_genre_manager: Optional[GenreProfileManager] = None
+_genre_manager: GenreProfileManager | None = None
 
 
 def get_genre_manager(profiles_dir: Optional[Path] = None) -> GenreProfileManager:

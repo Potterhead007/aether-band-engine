@@ -33,20 +33,18 @@ import json
 import logging
 import os
 import time
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Type
+from dataclasses import dataclass
+from typing import Any, Callable
 
+from aether.core.exceptions import MissingConfigError
+from aether.core.resilience import BackoffStrategy, RetryPolicy
 from aether.providers.base import (
-    BaseProvider,
-    LLMProvider,
     LLMMessage,
+    LLMProvider,
     LLMResponse,
     ProviderInfo,
     ProviderStatus,
 )
-from aether.core.exceptions import MissingConfigError, ProviderInitializationError
-from aether.core.resilience import RetryPolicy, BackoffStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +76,7 @@ async def _execute_with_retry(
     Raises:
         RuntimeError: If all retry attempts exhausted
     """
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(1, policy.max_attempts + 1):
         try:
@@ -135,8 +133,8 @@ class RateLimiter:
 
     def __init__(self, config: RateLimitConfig):
         self.config = config
-        self._request_times: List[float] = []
-        self._token_usage: List[tuple] = []  # (time, tokens)
+        self._request_times: list[float] = []
+        self._token_usage: list[tuple] = []  # (time, tokens)
         self._lock = asyncio.Lock()
 
     async def acquire(self, estimated_tokens: int = 1000) -> None:
@@ -196,8 +194,8 @@ class ClaudeLLMProvider(LLMProvider):
         self,
         api_key: Optional[str] = None,
         model: str = "claude-3-5-sonnet-20241022",
-        rate_limit: Optional[RateLimitConfig] = None,
-        config: Optional[Dict[str, Any]] = None,
+        rate_limit: RateLimitConfig | None = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -258,7 +256,7 @@ class ClaudeLLMProvider(LLMProvider):
             return False
         try:
             # Simple test completion
-            response = await self._client.messages.create(
+            await self._client.messages.create(
                 model=self.model,
                 max_tokens=10,
                 messages=[{"role": "user", "content": "Hi"}],
@@ -270,7 +268,7 @@ class ClaudeLLMProvider(LLMProvider):
 
     async def complete(
         self,
-        messages: List[LLMMessage],
+        messages: list[LLMMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
         json_mode: bool = False,
@@ -339,10 +337,10 @@ class ClaudeLLMProvider(LLMProvider):
 
     async def generate_structured(
         self,
-        messages: List[LLMMessage],
-        schema: Dict[str, Any],
+        messages: list[LLMMessage],
+        schema: dict[str, Any],
         temperature: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate structured output matching schema."""
         # Add schema instruction to system message
         schema_instruction = f"""
@@ -416,8 +414,8 @@ class OpenAILLMProvider(LLMProvider):
         self,
         api_key: Optional[str] = None,
         model: str = "gpt-4-turbo-preview",
-        rate_limit: Optional[RateLimitConfig] = None,
-        config: Optional[Dict[str, Any]] = None,
+        rate_limit: RateLimitConfig | None = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
@@ -477,7 +475,7 @@ class OpenAILLMProvider(LLMProvider):
         if not self._client:
             return False
         try:
-            response = await self._client.chat.completions.create(
+            await self._client.chat.completions.create(
                 model=self.model,
                 max_tokens=10,
                 messages=[{"role": "user", "content": "Hi"}],
@@ -489,7 +487,7 @@ class OpenAILLMProvider(LLMProvider):
 
     async def complete(
         self,
-        messages: List[LLMMessage],
+        messages: list[LLMMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
         json_mode: bool = False,
@@ -548,10 +546,10 @@ class OpenAILLMProvider(LLMProvider):
 
     async def generate_structured(
         self,
-        messages: List[LLMMessage],
-        schema: Dict[str, Any],
+        messages: list[LLMMessage],
+        schema: dict[str, Any],
         temperature: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate structured output matching schema."""
         schema_instruction = f"""
 Respond with valid JSON matching this schema:
@@ -593,8 +591,8 @@ class MockLLMProvider(LLMProvider):
 
     def __init__(
         self,
-        responses: Optional[Dict[str, str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        responses: dict[str, str] | None = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.responses = responses or {}
@@ -622,7 +620,7 @@ class MockLLMProvider(LLMProvider):
 
     async def complete(
         self,
-        messages: List[LLMMessage],
+        messages: list[LLMMessage],
         temperature: float = 0.7,
         max_tokens: int = 4096,
         json_mode: bool = False,
@@ -656,10 +654,10 @@ class MockLLMProvider(LLMProvider):
 
     async def generate_structured(
         self,
-        messages: List[LLMMessage],
-        schema: Dict[str, Any],
+        messages: list[LLMMessage],
+        schema: dict[str, Any],
         temperature: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return mock structured output."""
         # Generate default values based on schema
         result = {}
@@ -696,8 +694,8 @@ class CreativePrompts:
         genre: str,
         mood: str,
         theme: str,
-        structure: List[str],
-    ) -> List[LLMMessage]:
+        structure: list[str],
+    ) -> list[LLMMessage]:
         """Generate prompt for lyrics writing."""
         return [
             LLMMessage(
@@ -730,8 +728,8 @@ Write the complete lyrics:""",
     def creative_brief(
         genre: str,
         mood: str,
-        influences: List[str],
-    ) -> List[LLMMessage]:
+        influences: list[str],
+    ) -> list[LLMMessage]:
         """Generate prompt for creative brief generation."""
         return [
             LLMMessage(
@@ -763,7 +761,7 @@ Generate the creative brief:""",
         genre: str,
         concept: str,
         track_count: int,
-    ) -> List[LLMMessage]:
+    ) -> list[LLMMessage]:
         """Generate prompt for concept album planning."""
         return [
             LLMMessage(

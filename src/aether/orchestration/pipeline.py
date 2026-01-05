@@ -9,24 +9,23 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from aether.orchestration.workflow import (
-    WorkflowOrchestrator,
+    AgentExecutor,
     TaskNode,
     TaskResult,
     TaskStatus,
-    AgentExecutor,
     create_pipeline_workflow,
 )
+from aether.providers import ProviderConfig, ProviderManager
+from aether.rendering import RenderingConfig, RenderingEngine
 from aether.storage import ArtifactStore, create_artifact_store
-from aether.providers import ProviderManager, ProviderConfig
-from aether.rendering import RenderingEngine, RenderingConfig, RenderingResult
 
 # Lazy import to avoid circular dependency
 if TYPE_CHECKING:
-    from aether.agents import AgentRegistry
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +38,13 @@ class PipelineAgentExecutor(AgentExecutor):
     and individual agent input/output schemas.
     """
 
-    def __init__(self, artifact_store: Optional[ArtifactStore] = None):
+    def __init__(self, artifact_store: ArtifactStore | None = None):
         self.artifact_store = artifact_store or create_artifact_store()
 
     async def execute(
         self,
         task: TaskNode,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> TaskResult:
         """Execute a pipeline task by calling the appropriate agent."""
         started_at = __import__("datetime").datetime.utcnow()
@@ -95,20 +94,20 @@ class PipelineAgentExecutor(AgentExecutor):
                 duration_ms=(completed_at - started_at).total_seconds() * 1000,
             )
 
-    def _build_agent_input(self, agent_type: str, context: Dict[str, Any]) -> Any:
+    def _build_agent_input(self, agent_type: str, context: dict[str, Any]) -> Any:
         """Build the appropriate input for an agent from context."""
         # Import at runtime to avoid circular import
         from aether.agents import (
-            CreativeDirectorInput,
-            CompositionInput,
             ArrangementInput,
+            CompositionInput,
+            CreativeDirectorInput,
             LyricsInput,
-            VocalInput,
-            SoundDesignInput,
-            MixingInput,
             MasteringInput,
+            MixingInput,
             QAInput,
             ReleaseInput,
+            SoundDesignInput,
+            VocalInput,
         )
 
         genre_profile_id = context.get("genre_profile_id", "boom-bap")
@@ -202,7 +201,7 @@ class PipelineAgentExecutor(AgentExecutor):
             raise ValueError(f"Unknown agent type: {agent_type}")
 
     def _update_context(
-        self, agent_type: str, output: Dict[str, Any], context: Dict[str, Any]
+        self, agent_type: str, output: dict[str, Any], context: dict[str, Any]
     ) -> None:
         """Update context with agent output."""
         if agent_type == "creative_director":
@@ -258,18 +257,18 @@ class MusicPipeline:
 
     def __init__(
         self,
-        artifact_store: Optional[ArtifactStore] = None,
+        artifact_store: ArtifactStore | None = None,
         state_dir: Optional[Path] = None,
-        provider_config: Optional[ProviderConfig] = None,
-        rendering_config: Optional[RenderingConfig] = None,
+        provider_config: ProviderConfig | None = None,
+        rendering_config: RenderingConfig | None = None,
     ):
         self.artifact_store = artifact_store or create_artifact_store()
         self.state_dir = state_dir or Path.home() / ".aether" / "workflows"
         self.executor = PipelineAgentExecutor(self.artifact_store)
         self.provider_config = provider_config or ProviderConfig()
         self.rendering_config = rendering_config
-        self._provider_manager: Optional[ProviderManager] = None
-        self._rendering_engine: Optional[RenderingEngine] = None
+        self._provider_manager: ProviderManager | None = None
+        self._rendering_engine: RenderingEngine | None = None
 
     async def generate(
         self,
@@ -284,7 +283,7 @@ class MusicPipeline:
         random_seed: Optional[int] = None,
         save_state: bool = True,
         render_audio: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate a complete track through the pipeline.
 
@@ -423,7 +422,7 @@ async def generate_track(
     genre: str,
     creative_brief: str,
     **kwargs,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convenience function to generate a track.
 

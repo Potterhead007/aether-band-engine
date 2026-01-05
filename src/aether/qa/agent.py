@@ -34,34 +34,27 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 
-from aether.qa.technical import (
-    TechnicalValidator,
-    TechnicalReport,
+from aether.qa.authenticity import (
+    AuthenticityResult,
+    GenreAuthenticityEvaluator,
+    TrackAnalysis,
+    create_track_analysis_from_artifacts,
 )
 from aether.qa.originality import (
     OriginalityChecker,
     OriginalityResult,
 )
-from typing import Tuple
-from aether.qa.authenticity import (
-    GenreAuthenticityEvaluator,
-    AuthenticityResult,
-    TrackAnalysis,
-    RhythmAnalysis,
-    HarmonyAnalysis,
-    MelodyAnalysis,
-    ProductionAnalysis,
-    ArrangementAnalysis,
-    create_track_analysis_from_artifacts,
-)
 from aether.qa.reports import (
-    QAReportGenerator,
     QAReport,
-    generate_qa_report,
+    QAReportGenerator,
+)
+from aether.qa.technical import (
+    TechnicalReport,
+    TechnicalValidator,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,7 +156,7 @@ class QAAgent:
             print("Approved for release!")
     """
 
-    def __init__(self, config: Optional[QAConfig] = None):
+    def __init__(self, config: QAConfig | None = None):
         """
         Initialize QA Agent.
 
@@ -191,36 +184,36 @@ class QAAgent:
         )
 
         # Cache for genre profiles
-        self._genre_cache: Dict[str, Any] = {}
+        self._genre_cache: dict[str, Any] = {}
 
         logger.info("QA Agent initialized")
 
     def evaluate_track(
         self,
-        audio: Optional[np.ndarray] = None,
+        audio: np.ndarray | None = None,
         sample_rate: float = 48000,
-        audio_path: Optional[Union[str, Path]] = None,
+        audio_path: str | Optional[Path] = None,
         genre_id: str = "",
         track_id: str = "",
         title: str = "",
         # Melody data for originality
-        melody_data: Optional[Dict[str, Any]] = None,
+        melody_data: dict[str, Any] | None = None,
         # Harmony data
-        harmony_data: Optional[Dict[str, Any]] = None,
+        harmony_data: dict[str, Any] | None = None,
         # Lyrics for originality
         lyrics: Optional[str] = None,
         # Production data
-        production_data: Optional[Dict[str, Any]] = None,
+        production_data: dict[str, Any] | None = None,
         # Arrangement data
-        arrangement_data: Optional[Dict[str, Any]] = None,
+        arrangement_data: dict[str, Any] | None = None,
         # Rhythm data
-        rhythm_data: Optional[Dict[str, Any]] = None,
+        rhythm_data: dict[str, Any] | None = None,
         # Instruments detected
-        instruments: Optional[List[str]] = None,
+        instruments: list[str] | None = None,
         # Reference data for originality comparison
-        reference_melodies: Optional[List[Dict[str, Any]]] = None,
-        reference_lyrics: Optional[List[str]] = None,
-        reference_embeddings: Optional[np.ndarray] = None,
+        reference_melodies: list[dict[str, Any]] | None = None,
+        reference_lyrics: list[str] | None = None,
+        reference_embeddings: np.ndarray | None = None,
     ) -> QAReport:
         """
         Perform full QA evaluation on a track.
@@ -396,14 +389,14 @@ class QAAgent:
 
     def _run_originality_check(
         self,
-        melody_data: Optional[Dict[str, Any]],
+        melody_data: dict[str, Any] | None,
         lyrics: Optional[str],
-        audio: Optional[np.ndarray],
+        audio: np.ndarray | None,
         sample_rate: float,
-        reference_melodies: Optional[List[Dict[str, Any]]],
-        reference_lyrics: Optional[List[str]],
-        reference_embeddings: Optional[np.ndarray],
-    ) -> List[OriginalityResult]:
+        reference_melodies: list[dict[str, Any]] | None,
+        reference_lyrics: list[str] | None,
+        reference_embeddings: np.ndarray | None,
+    ) -> list[OriginalityResult]:
         """Run originality checking."""
         # Build spec dicts for the checker
         melody_spec = melody_data if melody_data else None
@@ -421,14 +414,14 @@ class QAAgent:
     def _run_authenticity_evaluation(
         self,
         genre_id: str,
-        rhythm_data: Optional[Dict[str, Any]],
-        harmony_data: Optional[Dict[str, Any]],
-        melody_data: Optional[Dict[str, Any]],
-        production_data: Optional[Dict[str, Any]],
-        arrangement_data: Optional[Dict[str, Any]],
-        instruments: Optional[List[str]],
-        technical_result: Optional[TechnicalReport],
-    ) -> Optional[AuthenticityResult]:
+        rhythm_data: dict[str, Any] | None,
+        harmony_data: dict[str, Any] | None,
+        melody_data: dict[str, Any] | None,
+        production_data: dict[str, Any] | None,
+        arrangement_data: dict[str, Any] | None,
+        instruments: list[str] | None,
+        technical_result: TechnicalReport | None,
+    ) -> AuthenticityResult | None:
         """Run genre authenticity evaluation."""
         # Get genre profile
         genre_profile = self._get_genre_profile(genre_id)
@@ -450,7 +443,7 @@ class QAAgent:
 
         return self._authenticity_evaluator.evaluate(analysis, genre_profile)
 
-    def _get_genre_profile(self, genre_id: str) -> Optional[Any]:
+    def _get_genre_profile(self, genre_id: str) -> Any | None:
         """Get genre profile, using cache if available."""
         if genre_id in self._genre_cache:
             return self._genre_cache[genre_id]
@@ -468,13 +461,13 @@ class QAAgent:
 
     def _build_track_analysis(
         self,
-        rhythm_data: Dict[str, Any],
-        harmony_data: Dict[str, Any],
-        melody_data: Dict[str, Any],
-        production_data: Dict[str, Any],
-        arrangement_data: Dict[str, Any],
-        instruments: List[str],
-        technical_result: Optional[TechnicalReport],
+        rhythm_data: dict[str, Any],
+        harmony_data: dict[str, Any],
+        melody_data: dict[str, Any],
+        production_data: dict[str, Any],
+        arrangement_data: dict[str, Any],
+        instruments: list[str],
+        technical_result: TechnicalReport | None,
         genre_id: str,
     ) -> TrackAnalysis:
         """Build TrackAnalysis from available data."""
@@ -499,7 +492,7 @@ class QAAgent:
             genre_id=genre_id,
         )
 
-    def _load_audio(self, path: Union[str, Path], sample_rate: float) -> np.ndarray:
+    def _load_audio(self, path: str | Path, sample_rate: float) -> np.ndarray:
         """Load audio from file."""
         try:
             from aether.audio import read_audio

@@ -28,19 +28,17 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from abc import ABC
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
+from aether.core.exceptions import MissingConfigError
 from aether.providers.base import (
     EmbeddingProvider,
     EmbeddingResult,
     ProviderInfo,
     ProviderStatus,
 )
-from aether.core.exceptions import MissingConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +53,14 @@ class EmbeddingCache:
 
     def __init__(self, max_size: int = 10000):
         self.max_size = max_size
-        self._cache: Dict[str, EmbeddingResult] = {}
+        self._cache: dict[str, EmbeddingResult] = {}
 
     def _hash_text(self, text: str, model: str) -> str:
         """Create cache key from text and model."""
         content = f"{model}:{text}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-    def get(self, text: str, model: str) -> Optional[EmbeddingResult]:
+    def get(self, text: str, model: str) -> EmbeddingResult | None:
         """Get cached embedding."""
         key = self._hash_text(text, model)
         return self._cache.get(key)
@@ -108,7 +106,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
         self,
         model_name: str = "all-MiniLM-L6-v2",
         cache_enabled: bool = True,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.model_name = model_name
@@ -188,7 +186,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
 
         return result
 
-    async def embed_batch(self, texts: List[str]) -> List[EmbeddingResult]:
+    async def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
         """Generate embeddings for multiple texts."""
         if not self._model:
             raise RuntimeError("Provider not initialized")
@@ -228,8 +226,8 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
 
     async def similarity(
         self,
-        embedding1: List[float],
-        embedding2: List[float],
+        embedding1: list[float],
+        embedding2: list[float],
     ) -> float:
         """Compute cosine similarity between embeddings."""
         e1 = np.array(embedding1)
@@ -272,7 +270,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         api_key: Optional[str] = None,
         model: str = "text-embedding-3-small",
         cache_enabled: bool = True,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
@@ -368,7 +366,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
         return result
 
-    async def embed_batch(self, texts: List[str]) -> List[EmbeddingResult]:
+    async def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
         """Generate embeddings for multiple texts."""
         if not self._client:
             raise RuntimeError("Provider not initialized")
@@ -410,8 +408,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     async def similarity(
         self,
-        embedding1: List[float],
-        embedding2: List[float],
+        embedding1: list[float],
+        embedding2: list[float],
     ) -> float:
         """Compute cosine similarity."""
         e1 = np.array(embedding1)
@@ -442,7 +440,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
     def __init__(
         self,
         dimensions: int = 384,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         super().__init__(config)
         self.dimensions = dimensions
@@ -483,14 +481,14 @@ class MockEmbeddingProvider(EmbeddingProvider):
             dimensions=self.dimensions,
         )
 
-    async def embed_batch(self, texts: List[str]) -> List[EmbeddingResult]:
+    async def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
         """Generate mock embeddings for batch."""
         return [await self.embed_text(text) for text in texts]
 
     async def similarity(
         self,
-        embedding1: List[float],
-        embedding2: List[float],
+        embedding1: list[float],
+        embedding2: list[float],
     ) -> float:
         """Compute cosine similarity."""
         e1 = np.array(embedding1)

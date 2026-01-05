@@ -5,9 +5,9 @@ Artifact storage and metadata management.
 """
 
 from aether.storage.artifacts import (
+    ArtifactMetadata,
     ArtifactStore,
     ArtifactType,
-    ArtifactMetadata,
     create_artifact_store,
 )
 

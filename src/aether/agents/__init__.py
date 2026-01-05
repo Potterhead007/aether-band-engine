@@ -4,7 +4,17 @@ AETHER Agents
 The 10-agent pipeline for music generation.
 """
 
-from aether.agents.base import BaseAgent, AgentRegistry, AgentDecision
+from aether.agents.arrangement import (
+    ArrangementAgent,
+    ArrangementInput,
+    ArrangementOutput,
+)
+from aether.agents.base import AgentDecision, AgentRegistry, BaseAgent
+from aether.agents.composition import (
+    CompositionAgent,
+    CompositionInput,
+    CompositionOutput,
+)
 
 # Import all agents to register them
 from aether.agents.creative_director import (
@@ -12,40 +22,20 @@ from aether.agents.creative_director import (
     CreativeDirectorInput,
     CreativeDirectorOutput,
 )
-from aether.agents.composition import (
-    CompositionAgent,
-    CompositionInput,
-    CompositionOutput,
-)
-from aether.agents.arrangement import (
-    ArrangementAgent,
-    ArrangementInput,
-    ArrangementOutput,
-)
 from aether.agents.lyrics import (
     LyricsAgent,
     LyricsInput,
     LyricsOutput,
 )
-from aether.agents.vocal import (
-    VocalAgent,
-    VocalInput,
-    VocalOutput,
-)
-from aether.agents.sound_design import (
-    SoundDesignAgent,
-    SoundDesignInput,
-    SoundDesignOutput,
+from aether.agents.mastering import (
+    MasteringAgent,
+    MasteringInput,
+    MasteringOutput,
 )
 from aether.agents.mixing import (
     MixingAgent,
     MixingInput,
     MixingOutput,
-)
-from aether.agents.mastering import (
-    MasteringAgent,
-    MasteringInput,
-    MasteringOutput,
 )
 from aether.agents.qa import (
     QAAgent,
@@ -57,7 +47,16 @@ from aether.agents.release import (
     ReleaseInput,
     ReleaseOutput,
 )
-
+from aether.agents.sound_design import (
+    SoundDesignAgent,
+    SoundDesignInput,
+    SoundDesignOutput,
+)
+from aether.agents.vocal import (
+    VocalAgent,
+    VocalInput,
+    VocalOutput,
+)
 
 __all__ = [
     # Base

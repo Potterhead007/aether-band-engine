@@ -8,15 +8,15 @@ First agent in the pipeline - sets the creative direction for everything that fo
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import get_genre_manager
-from aether.schemas.song import SongSpec, CreativeBrief
-from aether.schemas.base import KeySignature, MoodCategory, TimeSignature, NoteName, Mode
+from aether.schemas.base import KeySignature, Mode, MoodCategory, NoteName, TimeSignature
+from aether.schemas.song import CreativeBrief, SongSpec
 from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class CreativeDirectorInput(BaseModel):
 class CreativeDirectorOutput(BaseModel):
     """Output from Creative Director."""
 
-    song_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
     genre_profile_id: str
     creative_decisions: list
 
@@ -65,7 +65,7 @@ class CreativeDirectorAgent(BaseAgent[CreativeDirectorInput, CreativeDirectorOut
     async def process(
         self,
         input_data: CreativeDirectorInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> CreativeDirectorOutput:
         """Process creative direction."""
         genre_manager = get_genre_manager()

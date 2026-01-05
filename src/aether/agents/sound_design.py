@@ -7,32 +7,31 @@ Assigns sounds/presets to instruments and designs the sonic palette.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import get_genre_manager
 from aether.schemas.sound_design import (
+    InstrumentAssignment,
+    SampleSource,
     SoundDesignSpec,
     SynthPatch,
-    SampleSource,
-    InstrumentAssignment,
 )
-from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
 
 
 class SoundDesignInput(BaseModel):
-    song_spec: Dict[str, Any]
-    arrangement_spec: Dict[str, Any]
-    rhythm_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    arrangement_spec: dict[str, Any]
+    rhythm_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class SoundDesignOutput(BaseModel):
-    sound_design_spec: Dict[str, Any]
+    sound_design_spec: dict[str, Any]
 
 
 @AgentRegistry.register("sound_design")
@@ -56,7 +55,7 @@ class SoundDesignAgent(BaseAgent[SoundDesignInput, SoundDesignOutput]):
     async def process(
         self,
         input_data: SoundDesignInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> SoundDesignOutput:
         song_spec = input_data.song_spec
         arrangement = input_data.arrangement_spec

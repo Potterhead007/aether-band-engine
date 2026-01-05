@@ -5,13 +5,12 @@ Manages all configuration including paths, providers, and defaults.
 Supports environment variables, YAML files, and programmatic override.
 """
 
-import os
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Set
+from typing import ClassVar, Optional
 
+import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import yaml
 
 
 class PathsConfig(BaseSettings):
@@ -161,7 +160,7 @@ class AetherConfig(BaseSettings):
         return cls(**data)
 
     # Fields that should never be serialized to disk
-    SENSITIVE_FIELDS: ClassVar[Set[str]] = {"llm_api_key", "embedding_api_key", "api_key"}
+    SENSITIVE_FIELDS: ClassVar[set[str]] = {"llm_api_key", "embedding_api_key", "api_key"}
 
     def save_to_yaml(self, path: Path) -> None:
         """Save configuration to YAML file, excluding sensitive fields."""

@@ -5,66 +5,62 @@ Pluggable providers for MIDI, Audio, Vocal, LLM, and Embedding generation.
 Includes concrete implementations for production use.
 """
 
+from aether.providers.audio import (
+    SynthAudioProvider,
+)
 from aether.providers.base import (
-    BaseProvider,
-    ProviderInfo,
-    ProviderStatus,
-    ProviderRegistry,
-    get_provider_registry,
-    # MIDI
-    MIDIProvider,
-    MIDIFile,
-    MIDITrack,
-    MIDINote,
+    AudioBuffer,
     # Audio
     AudioProvider,
-    AudioBuffer,
     AudioStem,
-    # Vocal
-    VocalProvider,
-    VoiceProfile,
-    VocalRequest,
-    # LLM
-    LLMProvider,
-    LLMMessage,
-    LLMResponse,
+    BaseProvider,
     # Embedding
     EmbeddingProvider,
     EmbeddingResult,
+    LLMMessage,
+    # LLM
+    LLMProvider,
+    LLMResponse,
+    MIDIFile,
+    MIDINote,
+    # MIDI
+    MIDIProvider,
+    MIDITrack,
+    ProviderInfo,
+    ProviderRegistry,
+    ProviderStatus,
+    # Vocal
+    VocalProvider,
+    VocalRequest,
+    VoiceProfile,
+    get_provider_registry,
+)
+from aether.providers.embedding import (
+    AudioEmbeddingProvider,
+    MockEmbeddingProvider,
+    OpenAIEmbeddingProvider,
+    SentenceTransformerEmbeddingProvider,
+    create_embedding_provider,
 )
 
 # Concrete implementations
 from aether.providers.llm import (
     ClaudeLLMProvider,
-    OpenAILLMProvider,
-    MockLLMProvider,
     CreativePrompts,
+    MockLLMProvider,
+    OpenAILLMProvider,
     create_llm_provider,
 )
-
-from aether.providers.midi import (
-    AlgorithmicMIDIProvider,
-    CHORD_INTERVALS,
-    SCALE_INTERVALS,
-    GM_DRUMS,
-)
-
-from aether.providers.audio import (
-    SynthAudioProvider,
-)
-
-from aether.providers.embedding import (
-    SentenceTransformerEmbeddingProvider,
-    OpenAIEmbeddingProvider,
-    MockEmbeddingProvider,
-    AudioEmbeddingProvider,
-    create_embedding_provider,
-)
-
 from aether.providers.manager import (
-    ProviderManager,
     ProviderConfig,
+    ProviderManager,
     setup_providers,
+)
+from aether.providers.midi import (
+    CHORD_INTERVALS,
+    GM_DRUMS,
+    SCALE_INTERVALS,
+    AlgorithmicMIDIProvider,
 )
 
 __all__ = [

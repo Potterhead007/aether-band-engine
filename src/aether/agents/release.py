@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class ReleaseMetadata(BaseModel):
     bpm: int
     key: str
     mood: str
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     isrc: Optional[str] = None
     upc: Optional[str] = None
     copyright_holder: str = "AETHER"
@@ -56,24 +56,24 @@ class ReleasePackage(BaseModel):
     release_id: str
     song_id: str
     metadata: ReleaseMetadata
-    assets: List[ReleaseAsset]
-    platforms: List[str]
+    assets: list[ReleaseAsset]
+    platforms: list[str]
     status: str = "pending"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     qa_passed: bool
-    notes: List[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
 
 
 class ReleaseInput(BaseModel):
-    song_spec: Dict[str, Any]
-    master_spec: Dict[str, Any]
-    lyric_spec: Dict[str, Any]
-    qa_report: Dict[str, Any]
+    song_spec: dict[str, Any]
+    master_spec: dict[str, Any]
+    lyric_spec: dict[str, Any]
+    qa_report: dict[str, Any]
     genre_profile_id: str
 
 
 class ReleaseOutput(BaseModel):
-    release_package: Dict[str, Any]
+    release_package: dict[str, Any]
     ready_for_distribution: bool
 
 
@@ -109,7 +109,7 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
     async def process(
         self,
         input_data: ReleaseInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> ReleaseOutput:
         song_spec = input_data.song_spec
         master_spec = input_data.master_spec
@@ -159,8 +159,8 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
 
     def _generate_metadata(
         self,
-        song_spec: Dict,
-        master_spec: Dict,
+        song_spec: dict,
+        master_spec: dict,
         genre_id: str,
     ) -> ReleaseMetadata:
         """Generate release metadata."""
@@ -193,9 +193,9 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
 
     def _create_assets(
         self,
-        master_spec: Dict,
-        lyric_spec: Dict,
-    ) -> List[ReleaseAsset]:
+        master_spec: dict,
+        lyric_spec: dict,
+    ) -> list[ReleaseAsset]:
         """Create list of release assets."""
         assets = []
 
@@ -239,7 +239,7 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
 
         return assets
 
-    def _generate_tags(self, song_spec: Dict, genre_id: str) -> List[str]:
+    def _generate_tags(self, song_spec: dict, genre_id: str) -> list[str]:
         """Generate descriptive tags for the release."""
         tags = []
 
@@ -289,7 +289,7 @@ class ReleaseAgent(BaseAgent[ReleaseInput, ReleaseOutput]):
         designation = str(random.randint(10000, 99999))
         return f"US-AET-{year}-{designation}"
 
-    def _generate_notes(self, qa_report: Dict) -> List[str]:
+    def _generate_notes(self, qa_report: dict) -> list[str]:
         """Generate release notes from QA report."""
         notes = []
 

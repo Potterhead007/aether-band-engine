@@ -22,15 +22,14 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, TypeVar, Union
-
+from typing import Any, Callable, TypeVar
 
 # ============================================================================
 # Security: Sensitive Data Redaction
 # ============================================================================
 
 # Fields that should be redacted in logs (case-insensitive matching)
-REDACTED_FIELD_NAMES: FrozenSet[str] = frozenset(
+REDACTED_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "api_key",
         "apikey",
@@ -86,7 +85,7 @@ def _redact_sensitive_value(value: str) -> str:
     return result
 
 
-def _redact_dict(data: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
+def _redact_dict(data: dict[str, Any], depth: int = 0) -> dict[str, Any]:
     """
     Recursively redact sensitive fields from a dictionary.
 
@@ -129,10 +128,10 @@ def _redact_dict(data: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
 # ============================================================================
 
 # Context variables for distributed tracing
-_trace_id: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
-_span_id: ContextVar[Optional[str]] = ContextVar("span_id", default=None)
-_operation: ContextVar[Optional[str]] = ContextVar("operation", default=None)
-_component: ContextVar[Optional[str]] = ContextVar("component", default=None)
+_trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
+_span_id: ContextVar[str | None] = ContextVar("span_id", default=None)
+_operation: ContextVar[str | None] = ContextVar("operation", default=None)
+_component: ContextVar[str | None] = ContextVar("component", default=None)
 
 
 class LogLevel(Enum):
@@ -159,11 +158,11 @@ class LogContext:
     span_id: Optional[str] = None
     operation: Optional[str] = None
     component: Optional[str] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
-    _tokens: List[Any] = field(default_factory=list, repr=False)
+    _tokens: list[Any] = field(default_factory=list, repr=False)
 
-    def __enter__(self) -> "LogContext":
+    def __enter__(self) -> LogContext:
         # Generate IDs if not provided
         if self.trace_id is None:
             self.trace_id = _trace_id.get() or str(uuid.uuid4())[:8]
@@ -190,7 +189,7 @@ class LogContext:
         return False
 
     @classmethod
-    def current(cls) -> Dict[str, Any]:
+    def current(cls) -> dict[str, Any]:
         """Get current context as dictionary."""
         return {
             "trace_id": _trace_id.get(),
@@ -229,7 +228,7 @@ class StructuredFormatter(logging.Formatter):
         if self.redact_sensitive:
             message = _redact_sensitive_value(message)
 
-        log_entry: Dict[str, Any] = {
+        log_entry: dict[str, Any] = {
             "level": record.levelname,
             "logger": record.name,
             "message": message,
@@ -386,7 +385,7 @@ class AetherLogger(logging.Logger):
         msg: str,
         args,
         exc_info=None,
-        extra: Optional[Dict[str, Any]] = None,
+        extra: dict[str, Any] | None = None,
         **kwargs,
     ):
         """Log with automatic context injection."""
@@ -435,7 +434,7 @@ class AetherLogger(logging.Logger):
             msg += f" ({duration_ms:.2f}ms)"
         self.info(msg, operation=operation, success=success, duration_ms=duration_ms, **details)
 
-    def metric(self, name: str, value: Union[int, float], unit: Optional[str] = None, **tags):
+    def metric(self, name: str, value: int | float, unit: Optional[str] = None, **tags):
         """Log a metric value."""
         self.info(
             f"Metric: {name}={value}{unit or ''}",
@@ -447,7 +446,7 @@ class AetherLogger(logging.Logger):
 
 
 # Logger cache
-_loggers: Dict[str, AetherLogger] = {}
+_loggers: dict[str, AetherLogger] = {}
 
 
 def get_logger(name: str = "aether") -> AetherLogger:
@@ -478,7 +477,7 @@ _configured = False
 
 
 def configure_logging(
-    level: Union[str, int, LogLevel] = LogLevel.INFO,
+    level: str | int | LogLevel = LogLevel.INFO,
     format: str = "human",  # "human" or "json"
     output: str = "stderr",  # "stderr", "stdout", or file path
     include_timestamp: bool = True,

@@ -9,24 +9,22 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import (
-    get_genre_manager,
-    parse_progression,
-    get_chord_midi,
-    get_scale,
     check_voice_leading,
-    calculate_singability,
+    get_chord_midi,
     get_contour,
-    contour_to_hash,
+    get_genre_manager,
+    get_scale,
+    parse_progression,
 )
-from aether.schemas.harmony import HarmonySpec, ChordProgression, ChordVoicing
-from aether.schemas.melody import MelodySpec, Hook, Motif, SectionMelody, MelodicContour
 from aether.schemas.base import NoteName, SectionType
+from aether.schemas.harmony import ChordProgression, ChordVoicing, HarmonySpec
+from aether.schemas.melody import Hook, MelodicContour, MelodySpec, Motif, SectionMelody
 from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
@@ -35,15 +33,15 @@ logger = logging.getLogger(__name__)
 class CompositionInput(BaseModel):
     """Input for Composition Agent."""
 
-    song_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class CompositionOutput(BaseModel):
     """Output from Composition Agent."""
 
-    harmony_spec: Dict[str, Any]
-    melody_spec: Dict[str, Any]
+    harmony_spec: dict[str, Any]
+    melody_spec: dict[str, Any]
     composition_decisions: list
 
 
@@ -68,7 +66,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
     async def process(
         self,
         input_data: CompositionInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> CompositionOutput:
         """Process composition."""
         song_spec = input_data.song_spec
@@ -113,11 +111,11 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
 
     async def _generate_harmony(
         self,
-        song_spec: Dict,
+        song_spec: dict,
         profile,
         key_root: str,
         key_mode: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate chord progressions for all sections."""
         progressions = []
 
@@ -170,7 +168,6 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             )
 
         # Check voice leading between progressions
-        voice_leading_ok = True
         for prog in progressions:
             chords = prog["chords"]
             for i in range(len(chords) - 1):
@@ -178,7 +175,6 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
                 midi2 = get_chord_midi(chords[i + 1]["root"], chords[i + 1]["quality"])
                 violations = check_voice_leading(midi1, midi2)
                 if violations:
-                    voice_leading_ok = False
                     logger.debug(f"Voice leading issue: {violations[0].description}")
 
         from aether.schemas.base import KeySignature, Mode
@@ -194,12 +190,12 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
 
     async def _generate_melody(
         self,
-        song_spec: Dict,
+        song_spec: dict,
         profile,
-        harmony_spec: Dict,
+        harmony_spec: dict,
         key_root: str,
         key_mode: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate melodies, hooks, and motifs."""
         scale = get_scale(key_root, key_mode)
 
@@ -237,7 +233,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             originality_score=0.85,
         ).model_dump()
 
-    def _create_hook(self, scale: List[str], profile) -> Dict:
+    def _create_hook(self, scale: list[str], profile) -> dict:
         """Create the main melodic hook."""
         # Simple hook generation - 5-8 notes from scale
         num_notes = random.randint(5, 8)
@@ -257,7 +253,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
         rhythm = [random.choice([0.25, 0.5, 0.5, 1.0]) for _ in range(num_notes)]
 
         # Calculate contour
-        contour_seq = get_contour([i for i in range(len(hook_notes))])  # Simplified
+        get_contour([i for i in range(len(hook_notes))])  # Simplified
 
         return {
             "melody_notes": [NoteName(n) for n in hook_notes],
@@ -272,7 +268,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             "memorability_score": 0.8,
         }
 
-    def _create_motif(self, scale: List[str], profile, name: str, is_hook: bool) -> Dict:
+    def _create_motif(self, scale: list[str], profile, name: str, is_hook: bool) -> dict:
         """Create a melodic motif."""
         num_notes = random.randint(3, 5)
         motif_notes = random.sample(scale, min(num_notes, len(scale)))
@@ -291,7 +287,7 @@ class CompositionAgent(BaseAgent[CompositionInput, CompositionOutput]):
             "hook_score": 0.8 if is_hook else None,
         }
 
-    def _create_section_melody(self, scale: List[str], profile, section_type: SectionType) -> Dict:
+    def _create_section_melody(self, scale: list[str], profile, section_type: SectionType) -> dict:
         """Create melody for a song section."""
         # 2 phrases for verse/chorus, 1 for bridge
         num_phrases = 1 if section_type == SectionType.BRIDGE else 2

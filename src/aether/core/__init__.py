@@ -6,47 +6,52 @@ Production-grade infrastructure for error handling, logging, and resilience.
 
 from aether.core.exceptions import (
     AetherError,
-    ConfigurationError,
-    ProviderError,
-    PipelineError,
     AgentError,
-    ValidationError,
     AudioProcessingError,
-    MIDIError,
-    RenderingError,
-    QAError,
-    StorageError,
-    RetryExhaustedError,
     CircuitBreakerOpenError,
-)
-from aether.core.logging import (
-    get_logger,
-    configure_logging,
-    LogContext,
-    log_operation,
-    log_performance,
-)
-from aether.core.resilience import (
-    retry,
-    circuit_breaker,
-    timeout,
-    fallback,
-    CircuitBreaker,
-    RetryPolicy,
+    ConfigurationError,
+    MIDIError,
+    PipelineError,
+    ProviderError,
+    QAError,
+    RenderingError,
+    RetryExhaustedError,
+    StorageError,
+    ValidationError,
 )
 from aether.core.health import (
+    ComponentHealth,
     HealthCheck,
     HealthStatus,
-    ComponentHealth,
     SystemHealth,
     health_check,
 )
+from aether.core.logging import (
+    LogContext,
+    configure_logging,
+    get_logger,
+    log_operation,
+    log_performance,
+)
 from aether.core.metrics import (
-    MetricsCollector,
-    Timer,
     Counter,
     Gauge,
+    MetricsCollector,
+    Timer,
     get_metrics,
+)
+from aether.core.resilience import (
+    CircuitBreaker,
+    RetryPolicy,
+    circuit_breaker,
+    fallback,
+    retry,
+    timeout,
+)
+from aether.core.runtime import (
+    AetherRuntime,
+    RuntimeConfig,
+    get_runtime,
 )
 
 __all__ = [
@@ -89,4 +94,8 @@ __all__ = [
     "Counter",
     "Gauge",
     "get_metrics",
+    # Runtime
+    "AetherRuntime",
+    "RuntimeConfig",
+    "get_runtime",
 ]

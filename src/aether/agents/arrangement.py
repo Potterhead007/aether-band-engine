@@ -7,44 +7,42 @@ Designs song structure, instrumentation, and energy curves.
 from __future__ import annotations
 
 import logging
-import random
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
-from aether.agents.base import BaseAgent, AgentRegistry
+from aether.agents.base import AgentRegistry, BaseAgent
 from aether.knowledge import get_genre_manager
 from aether.schemas.arrangement import (
     ArrangementSpec,
-    SectionDefinition,
-    Instrument,
-    Transition,
     EnergyPoint,
+    Instrument,
+    SectionDefinition,
+    Transition,
 )
+from aether.schemas.base import EnergyLevel, Feel, SectionType, TimeSignature
 from aether.schemas.rhythm import (
-    RhythmSpec,
+    DrumHit,
+    DrumPattern,
     GrooveTemplate,
     Humanization,
-    DrumPattern,
-    DrumHit,
+    RhythmSpec,
     SectionRhythm,
 )
-from aether.schemas.base import SectionType, EnergyLevel, Feel, TimeSignature
-from aether.storage import ArtifactType
 
 logger = logging.getLogger(__name__)
 
 
 class ArrangementInput(BaseModel):
-    song_spec: Dict[str, Any]
-    harmony_spec: Dict[str, Any]
-    melody_spec: Dict[str, Any]
+    song_spec: dict[str, Any]
+    harmony_spec: dict[str, Any]
+    melody_spec: dict[str, Any]
     genre_profile_id: str
 
 
 class ArrangementOutput(BaseModel):
-    arrangement_spec: Dict[str, Any]
-    rhythm_spec: Dict[str, Any]
+    arrangement_spec: dict[str, Any]
+    rhythm_spec: dict[str, Any]
 
 
 @AgentRegistry.register("arrangement")
@@ -68,7 +66,7 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
     async def process(
         self,
         input_data: ArrangementInput,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> ArrangementOutput:
         song_spec = input_data.song_spec
         genre_manager = get_genre_manager()
@@ -121,7 +119,7 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
             rhythm_spec=rhythm_spec.model_dump(),
         )
 
-    def _create_instruments(self, profile) -> List[Instrument]:
+    def _create_instruments(self, profile) -> list[Instrument]:
         """Create instrument list from genre profile."""
         instruments = []
 
@@ -174,8 +172,8 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
         self,
         profile,
         total_bars: int,
-        instruments: List[Instrument],
-    ) -> List[SectionDefinition]:
+        instruments: list[Instrument],
+    ) -> list[SectionDefinition]:
         """Create song structure."""
         # Parse a structure archetype
         structure_str = profile.arrangement.common_structures[0]
@@ -261,7 +259,7 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
         else:
             return EnergyLevel.MEDIUM
 
-    def _create_energy_curve(self, sections: List[SectionDefinition]) -> List[EnergyPoint]:
+    def _create_energy_curve(self, sections: list[SectionDefinition]) -> list[EnergyPoint]:
         """Create energy curve from sections."""
         curve = []
         total_bars = sum(s.length_bars for s in sections)
@@ -280,7 +278,7 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
 
         return curve
 
-    def _create_transitions(self, sections: List[SectionDefinition]) -> List[Transition]:
+    def _create_transitions(self, sections: list[SectionDefinition]) -> list[Transition]:
         """Create transitions between sections."""
         transitions = []
         for i in range(len(sections) - 1):
@@ -309,9 +307,9 @@ class ArrangementAgent(BaseAgent[ArrangementInput, ArrangementOutput]):
 
     def _create_rhythm_spec(
         self,
-        song_spec: Dict,
+        song_spec: dict,
         profile,
-        sections: List[SectionDefinition],
+        sections: list[SectionDefinition],
     ) -> RhythmSpec:
         """Create rhythm specification."""
         bpm = song_spec["bpm"]

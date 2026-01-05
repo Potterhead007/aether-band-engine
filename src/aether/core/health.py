@@ -24,9 +24,9 @@ except ImportError:
     psutil = None
     HAS_PSUTIL = False
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+from typing import Any, Callable, TypeVar
 
 from aether.core.logging import get_logger
 
@@ -52,11 +52,11 @@ class ComponentHealth:
     status: HealthStatus
     message: Optional[str] = None
     latency_ms: Optional[float] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     last_check: datetime = field(default_factory=datetime.utcnow)
     error: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -74,14 +74,14 @@ class SystemHealth:
     """Overall system health status."""
 
     status: HealthStatus
-    components: List[ComponentHealth]
+    components: list[ComponentHealth]
     uptime_seconds: float
     timestamp: datetime = field(default_factory=datetime.utcnow)
     version: str = "0.1.0"
     environment: str = "production"
-    system_info: Dict[str, Any] = field(default_factory=dict)
+    system_info: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "status": self.status.value,
@@ -113,15 +113,15 @@ class HealthCheck:
     """
 
     # Global instance
-    _instance: Optional["HealthCheck"] = None
+    _instance: HealthCheck | None = None
 
     def __init__(self):
-        self._checks: Dict[str, Callable[[], Any]] = {}
+        self._checks: dict[str, Callable[[], Any]] = {}
         self._start_time = datetime.utcnow()
-        self._last_results: Dict[str, ComponentHealth] = {}
+        self._last_results: dict[str, ComponentHealth] = {}
 
     @classmethod
-    def get_instance(cls) -> "HealthCheck":
+    def get_instance(cls) -> HealthCheck:
         """Get or create singleton instance."""
         if cls._instance is None:
             cls._instance = cls()
@@ -279,7 +279,7 @@ class HealthCheck:
             system_info=system_info,
         )
 
-    def _aggregate_status(self, components: List[ComponentHealth]) -> HealthStatus:
+    def _aggregate_status(self, components: list[ComponentHealth]) -> HealthStatus:
         """Aggregate component statuses into overall status."""
         if not components:
             return HealthStatus.UNKNOWN
@@ -303,7 +303,7 @@ class HealthCheck:
         else:
             return HealthStatus.UNKNOWN
 
-    def _get_system_info(self) -> Dict[str, Any]:
+    def _get_system_info(self) -> dict[str, Any]:
         """Get system resource information."""
         base_info = {
             "platform": platform.system(),
@@ -347,15 +347,15 @@ class HealthCheck:
             base_info["error"] = str(e)
             return base_info
 
-    def get_last_result(self, name: str) -> Optional[ComponentHealth]:
+    def get_last_result(self, name: str) -> ComponentHealth | None:
         """Get last check result for a component."""
         return self._last_results.get(name)
 
-    def get_all_last_results(self) -> Dict[str, ComponentHealth]:
+    def get_all_last_results(self) -> dict[str, ComponentHealth]:
         """Get all last check results."""
         return self._last_results.copy()
 
-    def list_checks(self) -> List[str]:
+    def list_checks(self) -> list[str]:
         """List all registered check names."""
         return list(self._checks.keys())
 
@@ -383,7 +383,7 @@ def health_check(
 # =============================================================================
 
 
-def register_default_checks(health: Optional[HealthCheck] = None) -> None:
+def register_default_checks(health: HealthCheck | None = None) -> None:
     """Register default health checks."""
     if health is None:
         health = HealthCheck.get_instance()
@@ -456,7 +456,7 @@ class ProbeResult:
 
     status: ProbeStatus
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_live(self) -> bool:
@@ -475,12 +475,12 @@ class ProbeManager:
     Readiness: Is the application ready to receive traffic?
     """
 
-    def __init__(self, health: Optional[HealthCheck] = None):
+    def __init__(self, health: HealthCheck | None = None):
         self.health = health or HealthCheck.get_instance()
         self._ready = False
         self._live = True
-        self._ready_checks: List[str] = []
-        self._live_checks: List[str] = []
+        self._ready_checks: list[str] = []
+        self._live_checks: list[str] = []
 
     def set_ready(self, ready: bool = True) -> None:
         """Set application readiness."""
@@ -571,13 +571,24 @@ class ProbeManager:
         )
 
 
-# Global probe manager
-_probe_manager: Optional[ProbeManager] = None
+# Global probe manager (legacy - prefer using AetherRuntime.probe_manager)
+_probe_manager: ProbeManager | None = None
 
 
 def get_probe_manager() -> ProbeManager:
-    """Get global probe manager."""
+    """
+    Get global probe manager.
+
+    Note: For new code, prefer using `get_runtime().probe_manager` for
+    centralized lifecycle management.
+    """
     global _probe_manager
     if _probe_manager is None:
-        _probe_manager = ProbeManager()
+        # Try to get from runtime if available
+        try:
+            from aether.core.runtime import get_runtime
+
+            return get_runtime().probe_manager
+        except ImportError:
+            _probe_manager = ProbeManager()
     return _probe_manager

@@ -22,10 +22,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
-
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +78,7 @@ class QAIssue:
     expected_value: Optional[float] = None
     threshold: Optional[float] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "category": self.category.value,
@@ -114,7 +112,7 @@ class MetricResult:
             return f"{self.value:.2f} {self.unit}"
         return f"{self.value:.2f}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -134,21 +132,21 @@ class CategoryReport:
     category: QACategory
     passed: bool
     score: float  # 0-1
-    metrics: List[MetricResult] = field(default_factory=list)
-    issues: List[QAIssue] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    metrics: list[MetricResult] = field(default_factory=list)
+    issues: list[QAIssue] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     @property
-    def critical_issues(self) -> List[QAIssue]:
+    def critical_issues(self) -> list[QAIssue]:
         """Get critical issues only."""
         return [i for i in self.issues if i.severity == Severity.CRITICAL]
 
     @property
-    def major_issues(self) -> List[QAIssue]:
+    def major_issues(self) -> list[QAIssue]:
         """Get major issues only."""
         return [i for i in self.issues if i.severity == Severity.MAJOR]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "category": self.category.value,
@@ -172,10 +170,10 @@ class ExecutiveSummary:
     critical_count: int
     major_count: int
     minor_count: int
-    top_issues: List[str]
+    top_issues: list[str]
     recommendation: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "status": self.status.value,
@@ -217,24 +215,24 @@ class QAReport:
     generated_at: datetime = field(default_factory=datetime.utcnow)
 
     # Summary
-    executive_summary: Optional[ExecutiveSummary] = None
+    executive_summary: ExecutiveSummary | None = None
 
     # Category reports
-    technical_report: Optional[CategoryReport] = None
-    originality_report: Optional[CategoryReport] = None
-    authenticity_report: Optional[CategoryReport] = None
+    technical_report: CategoryReport | None = None
+    originality_report: CategoryReport | None = None
+    authenticity_report: CategoryReport | None = None
 
     # Overall
     overall_passed: bool = False
     overall_score: float = 0.0
 
     # All issues aggregated
-    all_issues: List[QAIssue] = field(default_factory=list)
+    all_issues: list[QAIssue] = field(default_factory=list)
 
     # Improvement suggestions (prioritized)
-    improvement_priority: List[str] = field(default_factory=list)
+    improvement_priority: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert entire report to dictionary."""
         return {
             "metadata": {
@@ -469,9 +467,9 @@ class QAReportGenerator:
         track_id: str = "",
         title: str = "",
         genre_id: str = "",
-        technical_result: Optional[Any] = None,
-        originality_result: Optional[Any] = None,
-        authenticity_result: Optional[Any] = None,
+        technical_result: Any | None = None,
+        originality_result: Any | None = None,
+        authenticity_result: Any | None = None,
     ) -> QAReport:
         """
         Generate comprehensive QA report.
@@ -537,7 +535,7 @@ class QAReportGenerator:
 
         # Determine pass/fail
         critical_issues = [i for i in report.all_issues if i.severity == Severity.CRITICAL]
-        major_issues = [i for i in report.all_issues if i.severity == Severity.MAJOR]
+        [i for i in report.all_issues if i.severity == Severity.MAJOR]
 
         # Pass conditions: no critical, score >= 0.8
         report.overall_passed = len(critical_issues) == 0 and report.overall_score >= 0.8
@@ -888,7 +886,7 @@ class QAReportGenerator:
             recommendation=recommendation,
         )
 
-    def _prioritize_improvements(self, report: QAReport) -> List[str]:
+    def _prioritize_improvements(self, report: QAReport) -> list[str]:
         """Generate prioritized list of improvements."""
         improvements = []
 
@@ -920,9 +918,9 @@ def generate_qa_report(
     track_id: str = "",
     title: str = "",
     genre_id: str = "",
-    technical_result: Optional[Any] = None,
-    originality_result: Optional[Any] = None,
-    authenticity_result: Optional[Any] = None,
+    technical_result: Any | None = None,
+    originality_result: Any | None = None,
+    authenticity_result: Any | None = None,
 ) -> QAReport:
     """
     Generate QA report with default settings.
