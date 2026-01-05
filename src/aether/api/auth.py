@@ -217,9 +217,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Skip auth for excluded paths
-        if request.url.path in self.exclude_paths:
+        # Skip auth for excluded paths (exact match or prefix match for paths ending with /)
+        path = request.url.path
+        if path in self.exclude_paths:
             return await call_next(request)
+        # Also check prefix matches (e.g., "/v1/download/" matches "/v1/download/job_id/file.mp3")
+        for excluded in self.exclude_paths:
+            if excluded.endswith("/") and path.startswith(excluded):
+                return await call_next(request)
 
         # Try each provider
         auth_context = None

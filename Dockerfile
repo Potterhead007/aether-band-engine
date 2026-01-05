@@ -113,9 +113,12 @@ LABEL maintainer="AETHER Team"
 LABEL version="0.1.0"
 LABEL description="AETHER Band Engine - Production API Server"
 
-# Install runtime dependencies
+# Install runtime dependencies (including audio synthesis)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
+    fluidsynth \
+    fluid-soundfont-gm \
+    ffmpeg \
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean

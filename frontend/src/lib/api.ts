@@ -367,6 +367,14 @@ export const aetherApi = {
     console.info(`[AETHER] Render complete: ${result.job_id}`)
     return result
   },
+
+  /**
+   * Get full download URL for an audio file
+   */
+  getDownloadUrl(path: string): string {
+    // Path is like "/v1/download/{job_id}/{filename}"
+    return `${API_BASE_URL}${path}`
+  },
 }
 
 // =============================================================================

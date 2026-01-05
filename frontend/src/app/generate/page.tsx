@@ -100,14 +100,17 @@ export default function GeneratePage() {
     mutationFn: (data: GenerateRequest) => aetherApi.generate(data),
     onSuccess: (data) => {
       setGenerateResult(data)
-      // Skip render for now - show generation result directly
-      setRenderResult({
-        job_id: data.job_id,
-        status: 'completed',
-        duration_seconds: 180,
-        output_files: {},
-      })
-      setStep('complete')
+      setStep('rendering')
+      // Trigger audio rendering
+      const renderRequest: RenderRequest = {
+        song_spec: data.song_spec || {},
+        harmony_spec: data.harmony_spec,
+        melody_spec: data.melody_spec,
+        arrangement_spec: data.arrangement_spec,
+        output_formats: ['mp3'],  // MP3 only for faster rendering
+        render_stems: false,
+      }
+      renderMutation.mutate(renderRequest)
     },
     onError: (err: unknown) => {
       setError(formatError(err))
@@ -128,18 +131,6 @@ export default function GeneratePage() {
   })
 
   // Handlers
-  const triggerRender = useCallback((genData: GenerateResponse) => {
-    const renderRequest: RenderRequest = {
-      song_spec: genData.song_spec || {},
-      harmony_spec: genData.harmony_spec,
-      melody_spec: genData.melody_spec,
-      arrangement_spec: genData.arrangement_spec,
-      output_formats: ['wav', 'mp3'],
-      render_stems: false,
-    }
-    renderMutation.mutate(renderRequest)
-  }, [renderMutation])
-
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
 
@@ -226,8 +217,8 @@ export default function GeneratePage() {
       {step === 'complete' && renderResult && (
         <CompleteCard
           title={formData.title}
-          renderResult={renderResult}
           generateResult={generateResult}
+          renderResult={renderResult}
           onReset={handleReset}
         />
       )}
@@ -454,17 +445,15 @@ function LoadingCard({ step }: LoadingCardProps) {
 
 interface CompleteCardProps {
   title: string
-  renderResult: RenderResponse
   generateResult: GenerateResponse | null
+  renderResult: RenderResponse | null
   onReset: () => void
 }
 
-function CompleteCard({ title, renderResult, generateResult, onReset }: CompleteCardProps) {
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+function CompleteCard({ title, generateResult, renderResult, onReset }: CompleteCardProps) {
+  const songSpec = generateResult?.song_spec as Record<string, unknown> | undefined
+  const outputFiles = renderResult?.output_files || {}
+  const hasAudioFiles = Object.keys(outputFiles).length > 0
 
   return (
     <>
@@ -474,39 +463,66 @@ function CompleteCard({ title, renderResult, generateResult, onReset }: Complete
             <CheckCircle className="w-8 h-8 text-green-400" />
           </div>
           <h3 className="text-2xl font-semibold mb-2">{title}</h3>
-          <p className="text-slate-400">Your track has been generated successfully!</p>
+          <p className="text-slate-400">Your track is ready to download!</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-slate-900/50 rounded-lg p-4 text-center">
-            <div className="text-sm text-slate-400 mb-1">Duration</div>
-            <div className="text-lg font-mono">
-              {formatDuration(renderResult.duration_seconds)}
+        {songSpec && (
+          <div className="grid md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+              <div className="text-sm text-slate-400 mb-1">BPM</div>
+              <div className="text-lg font-mono">
+                {(songSpec.bpm as number) || 120}
+              </div>
+            </div>
+            <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+              <div className="text-sm text-slate-400 mb-1">Key</div>
+              <div className="text-lg font-mono">
+                {((songSpec.key as Record<string, string>)?.root || 'C')}{((songSpec.key as Record<string, string>)?.mode === 'minor' ? 'm' : '')}
+              </div>
+            </div>
+            <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+              <div className="text-sm text-slate-400 mb-1">Duration</div>
+              <div className="text-lg font-mono">
+                {Math.floor((songSpec.target_duration_seconds as number || 180) / 60)}:{String((songSpec.target_duration_seconds as number || 180) % 60).padStart(2, '0')}
+              </div>
             </div>
           </div>
-          <div className="bg-slate-900/50 rounded-lg p-4 text-center">
-            <div className="text-sm text-slate-400 mb-1">Loudness</div>
-            <div className="text-lg font-mono">
-              {renderResult.loudness_lufs?.toFixed(1) || '-14.0'} LUFS
-            </div>
-          </div>
-          <div className="bg-slate-900/50 rounded-lg p-4 text-center">
-            <div className="text-sm text-slate-400 mb-1">Files</div>
-            <div className="text-lg font-mono">
-              {Object.keys(renderResult.output_files).length}
-            </div>
-          </div>
-        </div>
+        )}
 
-        <div className="space-y-3 mb-8">
-          <h4 className="font-medium text-slate-300">Output Files</h4>
-          {Object.entries(renderResult.output_files).map(([key, path]) => (
-            <div key={key} className="flex items-center justify-between bg-slate-900/50 rounded-lg p-3">
-              <span className="text-sm text-slate-400">{key}</span>
-              <span className="text-sm font-mono text-slate-300 truncate max-w-md">{path}</span>
+        {/* Download Links */}
+        {hasAudioFiles && (
+          <div className="space-y-3 mb-8">
+            <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Download Audio</h4>
+            <div className="grid md:grid-cols-2 gap-3">
+              {Object.entries(outputFiles).map(([key, path]) => {
+                const isMP3 = path.endsWith('.mp3')
+                const isWAV = path.endsWith('.wav')
+                const label = isMP3 ? 'MP3' : isWAV ? 'WAV' : key.replace(/_/g, ' ')
+                const downloadUrl = aetherApi.getDownloadUrl(path)
+
+                return (
+                  <a
+                    key={key}
+                    href={downloadUrl}
+                    download
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-aether-600 hover:bg-aether-500 rounded-lg text-white font-medium transition-colors"
+                  >
+                    <Music className="w-5 h-5" />
+                    Download {label}
+                  </a>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {!hasAudioFiles && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-8">
+            <p className="text-amber-400 text-sm">
+              Audio rendering did not produce output files. Check the song specification below.
+            </p>
+          </div>
+        )}
 
         <button onClick={onReset} className="btn-secondary w-full">
           Create Another Track
@@ -517,7 +533,7 @@ function CompleteCard({ title, renderResult, generateResult, onReset }: Complete
       {generateResult?.song_spec && (
         <details className="card mt-6">
           <summary className="cursor-pointer font-medium text-slate-300 hover:text-white">
-            View Song Specification
+            Song Specification (Technical Details)
           </summary>
           <pre className="mt-4 p-4 bg-slate-900/50 rounded-lg overflow-x-auto text-sm text-slate-400">
             {JSON.stringify(generateResult.song_spec, null, 2)}

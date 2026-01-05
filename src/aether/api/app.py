@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 
 import re
@@ -273,6 +273,7 @@ def create_app(
             "/v1/genres",  # Public reference data
             "/v1/generate",  # Allow demo generation without auth
             "/v1/render",  # Allow demo rendering without auth
+            "/v1/download/",  # Allow audio file downloads (prefix match)
         ]
         app.add_middleware(
             AuthMiddleware,
@@ -533,13 +534,20 @@ def register_routes(app: FastAPI) -> None:
                     detail=f"Rendering failed: {', '.join(result.errors)}",
                 )
 
+            # Convert file paths to download URLs
+            from pathlib import Path
+            output_urls = {}
+            for key, path in result.output_paths.items():
+                filename = Path(path).name
+                output_urls[key] = f"/v1/download/{job_id}/{filename}"
+
             return RenderResponse(
                 job_id=job_id,
                 status="completed",
                 duration_seconds=result.duration_seconds,
                 loudness_lufs=result.loudness_lufs if result.loudness_lufs else None,
                 peak_db=result.peak_db if result.peak_db else None,
-                output_files={k: str(v) for k, v in result.output_paths.items()},
+                output_files=output_urls,
             )
 
         except HTTPException:
@@ -550,6 +558,58 @@ def register_routes(app: FastAPI) -> None:
                 status_code=500,
                 detail=f"Rendering failed: {str(e)}",
             )
+
+    @app.get(
+        "/v1/download/{job_id}/{filename}",
+        tags=["Rendering"],
+        response_class=FileResponse,
+    )
+    async def download_audio(job_id: str, filename: str):
+        """
+        Download a rendered audio file.
+
+        Use the job_id and filename from the render response.
+        """
+        from pathlib import Path
+
+        # Validate job_id format (UUID)
+        try:
+            from uuid import UUID
+            UUID(job_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+
+        # Sanitize filename to prevent path traversal
+        safe_filename = safe_path_component(filename)
+        if not safe_filename or safe_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        # Only allow audio file extensions
+        allowed_extensions = {".wav", ".mp3", ".flac", ".aiff"}
+        ext = Path(safe_filename).suffix.lower()
+        if ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Invalid file type")
+
+        # Construct file path
+        file_path = Path.home() / ".aether" / "output" / job_id / safe_filename
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Determine media type
+        media_types = {
+            ".wav": "audio/wav",
+            ".mp3": "audio/mpeg",
+            ".flac": "audio/flac",
+            ".aiff": "audio/aiff",
+        }
+        media_type = media_types.get(ext, "application/octet-stream")
+
+        return FileResponse(
+            path=file_path,
+            media_type=media_type,
+            filename=safe_filename,
+        )
 
     @app.get("/v1/genres", tags=["Reference"])
     async def list_genres():

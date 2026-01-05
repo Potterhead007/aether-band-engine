@@ -61,7 +61,7 @@ llm = [
     "openai>=1.0",
 ]
 
-# API server dependencies
+# API server dependencies (includes audio for rendering)
 api = [
     "fastapi>=0.109",
     "uvicorn[standard]>=0.27",
@@ -69,6 +69,7 @@ api = [
     "httpx>=0.26",
     "pyjwt>=2.8",
     "redis>=5.0",
+    "pedalboard>=0.8",  # MP3 encoding for render endpoint
 ]
 
 # Full installation with all features
