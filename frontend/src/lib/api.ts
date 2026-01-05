@@ -75,8 +75,15 @@ class AetherAPI {
       body: JSON.stringify(request),
     })
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Generation failed')
+      const text = await response.text()
+      let detail = 'Generation failed'
+      try {
+        const error = JSON.parse(text)
+        detail = error.detail || detail
+      } catch {
+        if (text) detail = text
+      }
+      throw new Error(detail)
     }
     return response.json()
   }
@@ -88,8 +95,15 @@ class AetherAPI {
       body: JSON.stringify(request),
     })
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Rendering failed')
+      const text = await response.text()
+      let detail = 'Rendering failed'
+      try {
+        const error = JSON.parse(text)
+        detail = error.detail || detail
+      } catch {
+        if (text) detail = text
+      }
+      throw new Error(detail)
     }
     return response.json()
   }
