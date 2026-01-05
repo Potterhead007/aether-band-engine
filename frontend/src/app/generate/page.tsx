@@ -96,19 +96,37 @@ export default function GeneratePage() {
     retry: 2,
   })
 
+  // Check if running locally (localhost = can render, cloud = skip render)
+  const isLocalhost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
   // Mutations
   const generateMutation = useMutation({
     mutationFn: (data: GenerateRequest) => aetherApi.generate(data),
     onSuccess: (data) => {
       setGenerateResult(data)
-      // Skip render on cloud (Railway memory limits) - show generation results
-      setRenderResult({
-        job_id: data.job_id,
-        status: 'completed',
-        duration_seconds: 0,
-        output_files: {},
-      })
-      setStep('complete')
+
+      if (isLocalhost && data.song_spec) {
+        // Local mode: proceed to render with FluidSynth
+        setStep('rendering')
+        renderMutation.mutate({
+          song_spec: data.song_spec,
+          harmony_spec: data.harmony_spec,
+          melody_spec: data.melody_spec,
+          arrangement_spec: data.arrangement_spec,
+          output_formats: ['mp3'],
+          render_stems: false,
+        })
+      } else {
+        // Cloud mode: skip render (Railway memory limits)
+        setRenderResult({
+          job_id: data.job_id,
+          status: 'completed',
+          duration_seconds: 0,
+          output_files: {},
+        })
+        setStep('complete')
+      }
     },
     onError: (err: unknown) => {
       setError(formatError(err))
