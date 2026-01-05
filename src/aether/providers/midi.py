@@ -636,7 +636,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
         )
         tracks.append(chord_track)
 
-        # Generate bass track with chord awareness
+        # Generate bass track with genre-specific patterns
         bass_track = self._generate_bass_track(
             progression=progression,
             bars=total_bars,
@@ -646,10 +646,11 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             key_root=key_root,
             mode=mode,
             program=instruments.get("bass", 33),
+            genre=genre,
         )
         tracks.append(bass_track)
 
-        # Generate melody track with chord-tone awareness
+        # Generate melody track with genre-specific style
         melody_track = self._generate_melody_track(
             key_root=key_root,
             mode=mode,
@@ -660,6 +661,7 @@ class AlgorithmicMIDIProvider(MIDIProvider):
             contour=melody_spec.get("contour", "arch"),
             density=melody_spec.get("density", 0.5),
             program=instruments.get("melody", 0),
+            genre=genre,
         )
         tracks.append(melody_track)
 
@@ -765,8 +767,99 @@ class AlgorithmicMIDIProvider(MIDIProvider):
         key_root: str,
         mode: str,
         program: int = 33,
+        genre: str = "default",
     ) -> MIDITrack:
-        """Generate bass track with proper chord awareness."""
+        """Generate bass track using genre-specific patterns."""
+        from aether.providers.genre_patterns import get_bass_patterns, get_groove_template
+
+        notes = []
+        beats_per_bar = time_sig[0]
+        current_beat = 0
+
+        # Get genre-specific patterns and groove
+        bass_patterns = get_bass_patterns(genre)
+        groove = get_groove_template(genre)
+
+        # Get scale for passing tones
+        root_midi = note_name_to_midi(key_root, 3)
+        scale_notes = get_scale_notes(root_midi - 12, mode, 2)
+
+        for bar in range(bars):
+            chord_idx = (bar // bars_per_chord) % len(progression)
+            chord_str = progression[chord_idx]
+            root, quality, _ = parse_chord(chord_str)
+
+            # Bass root 2 octaves below chord root
+            bass_root = root - 24
+
+            # Get actual chord intervals
+            chord_intervals = CHORD_INTERVALS.get(quality, CHORD_INTERVALS["major"])
+
+            # Select pattern (vary between available patterns)
+            if bass_patterns:
+                pattern = bass_patterns[bar % len(bass_patterns)]
+
+                for beat_offset, interval, duration, vel_range in pattern.notes:
+                    # Calculate pitch from root + interval
+                    pitch = bass_root + interval
+
+                    # Apply groove timing
+                    beat_time = current_beat + beat_offset
+
+                    # Apply push/pull from groove
+                    if beat_offset in groove.push_pull:
+                        beat_time += groove.push_pull[beat_offset]
+
+                    # Humanize timing
+                    beat_time += self._rng.gauss(0, groove.humanize_timing)
+
+                    # Calculate velocity with humanization
+                    velocity = self._rng.randint(vel_range[0], vel_range[1])
+                    velocity += int(self._rng.gauss(0, groove.humanize_velocity * 15))
+                    velocity = max(1, min(127, velocity))
+
+                    notes.append(
+                        MIDINote(
+                            pitch=pitch,
+                            velocity=velocity,
+                            start_time=max(0, beat_time),
+                            duration=duration * 0.95,  # Slight gap
+                            channel=1,
+                        )
+                    )
+            else:
+                # Fallback to simple root
+                notes.append(
+                    MIDINote(
+                        pitch=bass_root,
+                        velocity=self._rng.randint(85, 100),
+                        start_time=current_beat,
+                        duration=beats_per_bar - 0.5,
+                        channel=1,
+                    )
+                )
+
+            current_beat += beats_per_bar
+
+        return MIDITrack(
+            name="Bass",
+            notes=notes,
+            program=program,
+            channel=1,
+        )
+
+    def _generate_bass_track_legacy(
+        self,
+        progression: list[str],
+        bars: int,
+        bars_per_chord: int,
+        time_sig: tuple,
+        style: str,
+        key_root: str,
+        mode: str,
+        program: int = 33,
+    ) -> MIDITrack:
+        """Legacy bass track generation (fallback)."""
         notes = []
         beats_per_bar = time_sig[0]
         current_beat = 0
@@ -894,19 +987,36 @@ class AlgorithmicMIDIProvider(MIDIProvider):
         contour: str = "arch",
         density: float = 0.5,
         program: int = 0,
+        genre: str = "default",
     ) -> MIDITrack:
-        """Generate melody track with chord-tone awareness."""
+        """Generate melody track using genre-specific styles."""
+        from aether.providers.genre_patterns import get_melody_style, get_groove_template
+
         notes = []
         beats_per_bar = time_sig[0]
         total_beats = bars * beats_per_bar
 
+        # Get genre-specific style and groove
+        melody_style = get_melody_style(genre)
+        groove = get_groove_template(genre)
+
+        # Override density with genre-specific value
+        density = melody_style.note_density
+
         # Get scale
         root_midi = note_name_to_midi(key_root, 5)  # Melody in octave 5
-        scale_notes = get_scale_notes(root_midi, mode, 2)
+        scale_notes = get_scale_notes(root_midi, mode, 3)  # Extended range
+
+        # Adjust octave range based on genre
+        min_octave = melody_style.octave_range[0]
+        max_octave = melody_style.octave_range[1]
+        min_pitch = root_midi + (min_octave * 12)
+        max_pitch = root_midi + (max_octave * 12)
 
         # Generate melody
         current_beat = 0
-        prev_pitch = scale_notes[len(scale_notes) // 2]  # Start in middle
+        prev_pitch = root_midi  # Start on root
+        phrase_position = 0  # Track position in rhythmic phrase
 
         while current_beat < total_beats:
             # Get current chord
@@ -917,13 +1027,23 @@ class AlgorithmicMIDIProvider(MIDIProvider):
 
             # Get chord tones for current harmony
             chord_tones = get_chord_notes(chord_root, chord_quality)
-            # Extend to melody octave
             melody_chord_tones = []
             for ct in chord_tones:
-                for octave_shift in [-12, 0, 12]:
+                for octave_shift in [-12, 0, 12, 24]:
                     shifted = ct + octave_shift
-                    if root_midi - 12 <= shifted <= root_midi + 24:
+                    if min_pitch <= shifted <= max_pitch:
                         melody_chord_tones.append(shifted)
+
+            # Check for rest based on genre style
+            if self._rng.random() < melody_style.rest_probability:
+                # Rest - advance by a duration from the style
+                rest_dur = self._rng.choices(
+                    melody_style.preferred_durations,
+                    melody_style.duration_weights
+                )[0]
+                current_beat += rest_dur
+                phrase_position = 0
+                continue
 
             # Determine if we play a note based on density
             if self._rng.random() < density:
@@ -941,57 +1061,81 @@ class AlgorithmicMIDIProvider(MIDIProvider):
                 else:
                     target_height = 0.5
 
-                # Determine if this is a strong beat (chord tone priority)
+                # Determine if this is a strong beat
                 beat_in_bar = current_beat % beats_per_bar
                 is_strong_beat = beat_in_bar in [0, 2] if beats_per_bar == 4 else beat_in_bar == 0
 
+                # Decide on leap vs step
+                use_leap = self._rng.random() < melody_style.leap_probability
+
                 # Choose pitch
-                if is_strong_beat and melody_chord_tones and self._rng.random() < 0.8:
+                if is_strong_beat and melody_chord_tones and self._rng.random() < 0.75:
                     # Strong beats: prefer chord tones
-                    target_idx = int(target_height * (len(melody_chord_tones) - 1))
-                    target_idx = max(0, min(len(melody_chord_tones) - 1, target_idx))
-
-                    # Find chord tone closest to previous pitch for smooth motion
                     candidates = sorted(melody_chord_tones, key=lambda n: abs(n - prev_pitch))
-                    pitch = candidates[0] if abs(candidates[0] - prev_pitch) <= 7 else melody_chord_tones[target_idx]
+                    if use_leap and len(candidates) > 1:
+                        # Pick a more distant chord tone
+                        pitch = candidates[min(2, len(candidates) - 1)]
+                    else:
+                        pitch = candidates[0]
                 else:
-                    # Weak beats or passing: use scale tones
-                    target_idx = int(target_height * (len(scale_notes) - 1))
-                    target_idx = max(0, min(len(scale_notes) - 1, target_idx))
-
-                    # Smooth melodic motion
-                    step = self._rng.choice([-2, -1, 0, 1, 2])
+                    # Use scale tones with genre-appropriate motion
                     current_idx = min(range(len(scale_notes)), key=lambda i: abs(scale_notes[i] - prev_pitch))
-                    new_idx = max(0, min(len(scale_notes) - 1, current_idx + step))
 
-                    # Blend with contour target
-                    if abs(new_idx - target_idx) > 3:
-                        new_idx = new_idx + (1 if target_idx > new_idx else -1)
-
-                    pitch = scale_notes[new_idx]
+                    if use_leap:
+                        # Leap up to max_leap semitones
+                        leap = self._rng.randint(3, min(melody_style.max_leap, 7))
+                        leap = leap if self._rng.random() > 0.5 else -leap
+                        target_pitch = prev_pitch + leap
+                        pitch = snap_to_scale(target_pitch, scale_notes)
+                    else:
+                        # Stepwise motion
+                        step = self._rng.choice([-2, -1, 1, 2])
+                        new_idx = max(0, min(len(scale_notes) - 1, current_idx + step))
+                        pitch = scale_notes[new_idx]
 
                 # Ensure pitch is in valid range
-                pitch = max(root_midi - 12, min(root_midi + 24, pitch))
+                pitch = max(min_pitch, min(max_pitch, pitch))
                 prev_pitch = pitch
 
-                # Determine note duration
-                durations = [0.5, 1.0, 1.5, 2.0]
-                weights = [0.3, 0.4, 0.2, 0.1]
-                duration = self._rng.choices(durations, weights)[0]
+                # Determine note duration from genre style
+                duration = self._rng.choices(
+                    melody_style.preferred_durations,
+                    melody_style.duration_weights
+                )[0]
+
+                # Apply articulation
+                if melody_style.articulation == "staccato":
+                    note_duration = duration * 0.5
+                elif melody_style.articulation == "legato":
+                    note_duration = duration * 0.95
+                else:
+                    note_duration = duration * 0.8
+
+                # Velocity from genre style with humanization
+                velocity = self._rng.randint(
+                    melody_style.velocity_range[0],
+                    melody_style.velocity_range[1]
+                )
+                velocity += int(self._rng.gauss(0, groove.humanize_velocity * 15))
+                velocity = max(1, min(127, velocity))
+
+                # Apply timing humanization
+                beat_time = current_beat + self._rng.gauss(0, groove.humanize_timing)
 
                 notes.append(
                     MIDINote(
                         pitch=pitch,
-                        velocity=self._rng.randint(70, 100),
-                        start_time=current_beat,
-                        duration=duration * 0.9,
+                        velocity=velocity,
+                        start_time=max(0, beat_time),
+                        duration=note_duration,
                         channel=2,
                     )
                 )
 
                 current_beat += duration
+                phrase_position += 1
             else:
-                current_beat += 0.5  # Rest
+                current_beat += 0.5  # Small rest
 
         return MIDITrack(
             name="Melody",
@@ -1008,7 +1152,78 @@ class AlgorithmicMIDIProvider(MIDIProvider):
         swing: float = 0.0,
         genre: str = "default",
     ) -> MIDITrack:
-        """Generate drum track."""
+        """Generate drum track using genre-specific patterns."""
+        from aether.providers.genre_patterns import get_drum_patterns, get_groove_template
+
+        notes = []
+        beats_per_bar = time_sig[0]
+        current_beat = 0
+
+        # Get genre-specific patterns and groove
+        patterns = get_drum_patterns(genre)
+        groove = get_groove_template(genre)
+
+        if not patterns or not patterns[0].hits:
+            # No drums for this genre (ambient, etc.)
+            return MIDITrack(name="Drums", notes=[], program=0, channel=9)
+
+        for bar in range(bars):
+            # Select pattern (alternate between available patterns)
+            pattern = patterns[bar % len(patterns)]
+
+            for hit in pattern.hits:
+                # Apply groove timing
+                beat_time = current_beat + hit.beat
+
+                # Apply swing to off-beats
+                if hit.beat % 1.0 > 0.4 and hit.beat % 1.0 < 0.6:
+                    beat_time += groove.swing_amount * 0.33
+
+                # Apply push/pull
+                if hit.beat in groove.push_pull:
+                    beat_time += groove.push_pull[hit.beat]
+
+                # Apply humanization
+                beat_time += self._rng.gauss(0, groove.humanize_timing)
+
+                # Get velocity with accent and humanization
+                velocity = hit.velocity
+                accent = groove.velocity_accents.get(hit.beat % beats_per_bar, 1.0)
+                velocity = int(velocity * accent)
+                velocity += int(self._rng.gauss(0, groove.humanize_velocity * 20))
+                velocity = max(1, min(127, velocity))
+
+                # Map drum name to GM drum note
+                drum_note = GM_DRUMS.get(hit.drum, GM_DRUMS.get("kick", 36))
+
+                notes.append(
+                    MIDINote(
+                        pitch=drum_note,
+                        velocity=velocity,
+                        start_time=max(0, beat_time),
+                        duration=0.25,
+                        channel=9,
+                    )
+                )
+
+            current_beat += beats_per_bar
+
+        return MIDITrack(
+            name="Drums",
+            notes=notes,
+            program=0,
+            channel=9,
+        )
+
+    def _generate_drum_track_legacy(
+        self,
+        bars: int,
+        time_sig: tuple,
+        style: str = "standard",
+        swing: float = 0.0,
+        genre: str = "default",
+    ) -> MIDITrack:
+        """Legacy drum track generation (fallback)."""
         notes = []
         beats_per_bar = time_sig[0]
         current_beat = 0
