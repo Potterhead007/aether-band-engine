@@ -269,6 +269,14 @@ async function request<T>(
     } catch (err) {
       clearTimeout(timeoutId)
 
+      // Detailed error logging
+      console.error('[AETHER] Fetch error:', {
+        name: err instanceof Error ? err.name : 'Unknown',
+        message: err instanceof Error ? err.message : String(err),
+        url,
+        attempt: attempt + 1,
+      })
+
       if (err instanceof ApiError) {
         throw err
       }
