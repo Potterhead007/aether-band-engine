@@ -164,9 +164,10 @@ def create_app(
 
     # CORS - Security: restrict origins, no wildcard with credentials
     if enable_cors:
+        api_port = os.environ.get("AETHER_API_PORT", "8000")
         default_origins = os.environ.get(
             "AETHER_CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,http://localhost:8000",
+            f"http://localhost:3000,http://localhost:3001,http://localhost:{api_port}",
         ).split(",")
         app.add_middleware(
             CORSMiddleware,
@@ -251,12 +252,24 @@ def register_routes(app: FastAPI) -> None:
 
     @app.get("/health", response_model=HealthResponse, tags=["System"])
     async def health_check():
-        """Check system health."""
+        """Check system health with timeout protection."""
+        import asyncio
+
         runtime = get_runtime()
-        system_health = await runtime.health.check_all()
+        health_timeout = float(os.environ.get("AETHER_HEALTH_CHECK_TIMEOUT", "5.0"))
+
+        try:
+            system_health = await asyncio.wait_for(
+                runtime.health.check_all(),
+                timeout=health_timeout,
+            )
+            health_status = system_health.status.value
+        except asyncio.TimeoutError:
+            logger.warning(f"Health check timed out after {health_timeout}s")
+            health_status = "degraded"
 
         return HealthResponse(
-            status=system_health.status.value,
+            status=health_status,
             version=runtime.config.version,
             uptime_seconds=runtime.uptime_seconds,
             components={

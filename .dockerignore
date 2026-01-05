@@ -1,6 +1,11 @@
-# Git
+# =============================================================================
+# AETHER Band Engine - Docker Build Exclusions
+# =============================================================================
+
+# Git & GitHub
 .git
 .gitignore
+.github
 
 # Python
 __pycache__
@@ -70,3 +75,27 @@ Thumbs.db
 *.flac
 *.sf2
 *.sfz
+*.midi
+*.mid
+
+# Frontend (built separately)
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Tests (not needed in production)
+tests/
+pytest.ini
+.coveragerc
+.mypy_cache/
+.ruff_cache/
+
+# Deployment (metadata, not needed in image)
+deploy/
+AUDIT_REPORT.md
+*.md
+!README.md
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

@@ -145,12 +145,12 @@ ENV AETHER_LOG_FORMAT=json
 ENV AETHER_API_HOST=0.0.0.0
 ENV AETHER_API_PORT=8000
 
-# Health check
+# Health check - uses AETHER_API_PORT env var (default 8000)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${AETHER_API_PORT:-8000}/health || exit 1
 
 # Expose API port
-EXPOSE 8000
+EXPOSE ${AETHER_API_PORT:-8000}
 
-# Run API server
-CMD ["python", "-m", "uvicorn", "aether.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+# Run API server using environment variable for port
+ENTRYPOINT ["/bin/sh", "-c", "python -m uvicorn aether.api.app:create_app --factory --host ${AETHER_API_HOST:-0.0.0.0} --port ${AETHER_API_PORT:-8000}"]
