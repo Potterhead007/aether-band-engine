@@ -67,7 +67,28 @@ export interface Genre {
 }
 
 /**
- * Create a fetch request with timeout and request ID
+ * Generate a unique request ID for distributed tracing
+ */
+function generateRequestId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback for older environments
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+}
+
+/**
+ * Create headers with request ID for tracing
+ */
+function createHeaders(requestId: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'X-Request-ID': requestId,
+  }
+}
+
+/**
+ * Create a fetch request with timeout
  */
 async function fetchWithTimeout(
   url: string,
@@ -88,29 +109,11 @@ async function fetchWithTimeout(
   }
 }
 
-/**
- * Generate a unique request ID for distributed tracing
- */
-function generateRequestId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID()
-  }
-  // Fallback for older environments
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
-}
-
 class AetherAPI {
   private baseUrl: string
 
   constructor(baseUrl: string = API_URL) {
     this.baseUrl = baseUrl
-  }
-
-  private getHeaders(requestId: string): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      'X-Request-ID': requestId,
-    }
   }
 
   async health(): Promise<HealthResponse> {
@@ -143,7 +146,7 @@ class AetherAPI {
       `${this.baseUrl}/v1/generate`,
       {
         method: 'POST',
-        headers: this.getHeaders(requestId),
+        headers: createHeaders(requestId),
         body: JSON.stringify(request),
       },
       GENERATION_TIMEOUT
@@ -174,7 +177,7 @@ class AetherAPI {
       `${this.baseUrl}/v1/render`,
       {
         method: 'POST',
-        headers: this.getHeaders(requestId),
+        headers: createHeaders(requestId),
         body: JSON.stringify(request),
       },
       RENDER_TIMEOUT
