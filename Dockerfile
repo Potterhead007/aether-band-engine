@@ -1,5 +1,6 @@
 # AETHER Band Engine
 # Production Docker Image
+# Last rebuild: 2026-01-05
 #
 # Build full:  docker build -t aether-band-engine .
 # Build API:   docker build -t aether-api --target api .
