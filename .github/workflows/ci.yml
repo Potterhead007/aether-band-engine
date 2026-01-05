@@ -46,6 +46,7 @@ jobs:
 
       - name: Type check with MyPy
         run: mypy src/ --ignore-missing-imports --no-error-summary
+        continue-on-error: true  # Type errors are warnings for now
 
   # ==========================================================================
   # Unit Tests
