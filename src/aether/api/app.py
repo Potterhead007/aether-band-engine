@@ -8,9 +8,10 @@ authentication, rate limiting, and observability.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
@@ -19,6 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from aether.core import AetherRuntime, get_runtime
+from aether.api.auth import AuthMiddleware, JWTAuth, APIKeyAuth
 from aether.agents.creative_director import CreativeDirectorAgent, CreativeDirectorInput
 from aether.agents.composition import CompositionAgent, CompositionInput
 from aether.agents.arrangement import ArrangementAgent, ArrangementInput
@@ -111,7 +113,7 @@ def create_app(
         title: API title for documentation
         version: API version
         enable_cors: Enable CORS middleware
-        cors_origins: Allowed CORS origins (default: ["*"])
+        cors_origins: Allowed CORS origins (default: localhost only)
 
     Returns:
         Configured FastAPI application
@@ -155,14 +157,32 @@ def create_app(
         openapi_url="/openapi.json",
     )
 
-    # CORS
+    # CORS - Security: restrict origins, no wildcard with credentials
     if enable_cors:
+        default_origins = os.environ.get(
+            "AETHER_CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:3001,http://localhost:8000"
+        ).split(",")
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=cors_origins or ["*"],
+            allow_origins=cors_origins or default_origins,
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
+        )
+
+    # Authentication middleware
+    if os.environ.get("AETHER_AUTH_ENABLED", "false").lower() == "true":
+        auth_providers: List = []
+        jwt_secret = os.environ.get("AETHER_JWT_SECRET")
+        if jwt_secret:
+            auth_providers.append(JWTAuth(secret_key=jwt_secret))
+        auth_providers.append(APIKeyAuth())
+
+        app.add_middleware(
+            AuthMiddleware,
+            providers=auth_providers,
+            require_auth=True,
         )
 
     # Request tracking middleware

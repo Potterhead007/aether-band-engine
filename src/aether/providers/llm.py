@@ -34,7 +34,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from aether.core.exceptions import MissingConfigError
 from aether.core.resilience import BackoffStrategy, RetryPolicy

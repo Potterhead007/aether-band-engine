@@ -235,10 +235,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Attach context to request
         request.state.auth = auth_context
 
-        # Add audit header
         response = await call_next(request)
-        if auth_context:
-            response.headers["X-Authenticated-User"] = auth_context.user_id
+        # Note: User ID intentionally NOT exposed in headers for security
 
         return response
 

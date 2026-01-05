@@ -6,8 +6,9 @@ replicaCount: 3
 
 image:
   repository: ghcr.io/aether-band-engine/aether-engine
-  pullPolicy: Always
-  tag: "latest"
+  pullPolicy: IfNotPresent
+  # tag: Override in CI/CD with git SHA or semver (e.g., --set image.tag=v1.0.0)
+  tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
@@ -34,7 +35,8 @@ podSecurityContext:
 # Container security context
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
+  # readOnlyRootFilesystem: false required for audio file generation
+  readOnlyRootFilesystem: false
   capabilities:
     drop:
       - ALL
