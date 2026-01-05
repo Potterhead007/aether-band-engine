@@ -305,9 +305,9 @@ def register_routes(app: FastAPI) -> None:
                 {
                     "id": profile.genre_id,
                     "name": profile.name,
-                    "description": profile.description,
+                    "aliases": profile.aliases,
                 }
-                for profile in manager.list_all()
+                for profile in manager.list_profiles()
             ]
         }
 
