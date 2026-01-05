@@ -41,7 +41,9 @@ def get_generate_limiter() -> SlidingWindowCounter:
     if _generate_limiter is None:
         # 10 generations per hour per client
         max_per_hour = int(os.environ.get("AETHER_GENERATE_RATE_LIMIT", "10"))
-        _generate_limiter = SlidingWindowCounter(window_size_seconds=3600, max_requests=max_per_hour)
+        _generate_limiter = SlidingWindowCounter(
+            window_size_seconds=3600, max_requests=max_per_hour
+        )
     return _generate_limiter
 
 
@@ -57,7 +59,7 @@ def get_render_limiter() -> SlidingWindowCounter:
 
 def safe_path_component(value: str) -> str:
     """Sanitize path component to prevent directory traversal."""
-    if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", value):
         raise ValueError(f"Invalid path component: {value}")
     return value
 
@@ -247,9 +249,13 @@ def create_app(
         if jwt_secret:
             # Validate JWT secret strength
             if len(jwt_secret) < 32:
-                logger.warning("JWT secret is too short (< 32 chars) - consider using a stronger secret")
+                logger.warning(
+                    "JWT secret is too short (< 32 chars) - consider using a stronger secret"
+                )
             if jwt_secret.isalnum() and (jwt_secret.islower() or jwt_secret.isupper()):
-                logger.warning("JWT secret lacks complexity - consider adding mixed case and symbols")
+                logger.warning(
+                    "JWT secret lacks complexity - consider adding mixed case and symbols"
+                )
             auth_providers.append(JWTAuth(secret_key=jwt_secret))
 
         # API Key auth - disable query param in production

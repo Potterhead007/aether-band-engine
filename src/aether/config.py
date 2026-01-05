@@ -161,7 +161,12 @@ class AetherConfig(BaseSettings):
 
     # Patterns that indicate sensitive fields (convention-based detection)
     SENSITIVE_PATTERNS: ClassVar[tuple[str, ...]] = (
-        "_key", "_secret", "_token", "_password", "_credential", "_api_key"
+        "_key",
+        "_secret",
+        "_token",
+        "_password",
+        "_credential",
+        "_api_key",
     )
 
     @classmethod
