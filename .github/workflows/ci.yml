@@ -194,7 +194,7 @@ jobs:
 
       - name: Test Docker image
         run: |
-          docker run --rm aether-band-engine:${{ github.sha }} python -c "from aether.api.app import create_app; print('API OK')"
+          docker run --rm --entrypoint python aether-band-engine:${{ github.sha }} -c "from aether.api.app import create_app; print('API OK')"
 
   # ==========================================================================
   # Frontend Build

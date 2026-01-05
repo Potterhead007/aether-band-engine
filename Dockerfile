@@ -150,7 +150,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${AETHER_API_PORT:-8000}/health || exit 1
 
 # Expose API port
-EXPOSE ${AETHER_API_PORT:-8000}
+EXPOSE 8000
 
-# Run API server using environment variable for port
-ENTRYPOINT ["/bin/sh", "-c", "python -m uvicorn aether.api.app:create_app --factory --host ${AETHER_API_HOST:-0.0.0.0} --port ${AETHER_API_PORT:-8000}"]
+# Run API server - use shell form for env var expansion
+# Override with: docker run ... python -c "your command"
+CMD /bin/sh -c "python -m uvicorn aether.api.app:create_app --factory --host ${AETHER_API_HOST:-0.0.0.0} --port ${AETHER_API_PORT:-8000}"
