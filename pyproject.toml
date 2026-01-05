@@ -44,6 +44,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Professional audio encoding (MP3, effects processing)
+audio = [
+    "pedalboard>=0.8",  # Spotify's audio library - built-in MP3 encoder
+    "pydub>=0.25",      # Fallback MP3 via ffmpeg
+    "lameenc>=1.4",     # Direct LAME bindings
+]
+
 # Machine learning dependencies (heavy, ~500MB)
 ml = [
     "sentence-transformers>=2.2",
@@ -68,7 +75,7 @@ api = [
 
 # Full installation with all features
 full = [
-    "aether-band-engine[ml,llm,api]",
+    "aether-band-engine[audio,ml,llm,api]",
 ]
 
 dev = [

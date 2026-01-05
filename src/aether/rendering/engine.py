@@ -18,7 +18,7 @@ import logging
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
 import numpy as np
@@ -423,8 +423,11 @@ class RenderingEngine:
                     write_audio(master_path, master.data, master.sample_rate)
                     output_paths["master_wav"] = master_path
                 elif fmt == "mp3":
-                    # MP3 export requires additional library
-                    pass
+                    from aether.audio.io import AudioFormat, AudioFormatSpec
+                    mp3_path = output_dir / f"{safe_title}_master.mp3"
+                    mp3_spec = AudioFormatSpec.from_format(AudioFormat.MP3_320)
+                    write_audio(mp3_path, master.data, master.sample_rate, format_spec=mp3_spec)
+                    output_paths["master_mp3"] = mp3_path
 
             # Export stems if requested
             if self.config.render_stems and stems:

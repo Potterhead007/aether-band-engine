@@ -26,6 +26,7 @@ import wave
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -255,6 +256,129 @@ def write_wav(
     return path
 
 
+def _write_mp3(
+    path: Path,
+    audio: StereoBuffer,
+    sample_rate: int,
+    bitrate_kbps: int = 320,
+) -> Path:
+    """
+    Write audio to MP3 file.
+
+    Tries multiple backends in order of preference:
+    1. pedalboard (Spotify's library - no external dependencies)
+    2. pydub (requires ffmpeg)
+    3. lameenc (direct LAME bindings)
+
+    Args:
+        path: Output file path
+        audio: Stereo audio data (2, samples) in range [-1, 1]
+        sample_rate: Sample rate in Hz
+        bitrate_kbps: Bitrate in kbps (128, 192, 256, 320)
+
+    Returns:
+        Path to written file
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Ensure stereo format and clip to [-1, 1]
+    if audio.ndim == 1:
+        audio = np.array([audio, audio])
+    elif audio.shape[0] != 2:
+        audio = audio.T if audio.shape[1] == 2 else np.array([audio[0], audio[0]])
+
+    audio = np.clip(audio, -1.0, 1.0)
+
+    # Try pedalboard first (cleanest solution, no external deps)
+    try:
+        from pedalboard.io import AudioFile as PBFile
+
+        # pedalboard expects (samples, channels)
+        audio_t = audio.T.astype(np.float32)
+
+        with PBFile(
+            str(path),
+            "w",
+            samplerate=sample_rate,
+            num_channels=2,
+            quality=f"{bitrate_kbps}k",
+        ) as f:
+            f.write(audio_t)
+
+        logger.info(f"Wrote MP3 (pedalboard): {path} ({bitrate_kbps}kbps)")
+        return path
+
+    except ImportError:
+        pass
+
+    # Try pydub (requires ffmpeg)
+    try:
+        from pydub import AudioSegment
+        import tempfile
+
+        # Write temporary WAV
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        write_wav(tmp_path, audio, sample_rate, bit_depth=16)
+
+        # Convert to MP3
+        audio_seg = AudioSegment.from_wav(str(tmp_path))
+        audio_seg.export(
+            str(path),
+            format="mp3",
+            bitrate=f"{bitrate_kbps}k",
+            parameters=["-q:a", "0"],  # Highest quality VBR
+        )
+
+        # Cleanup temp file
+        tmp_path.unlink()
+
+        logger.info(f"Wrote MP3 (pydub/ffmpeg): {path} ({bitrate_kbps}kbps)")
+        return path
+
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"pydub MP3 encoding failed: {e}")
+
+    # Try lameenc (direct LAME bindings)
+    try:
+        import lameenc
+
+        encoder = lameenc.Encoder()
+        encoder.set_bit_rate(bitrate_kbps)
+        encoder.set_in_sample_rate(sample_rate)
+        encoder.set_channels(2)
+        encoder.set_quality(0)  # Highest quality
+
+        # Interleave and convert to int16
+        interleaved = np.zeros(audio.shape[1] * 2, dtype=np.int16)
+        interleaved[0::2] = (audio[0] * 32767).astype(np.int16)
+        interleaved[1::2] = (audio[1] * 32767).astype(np.int16)
+
+        mp3_data = encoder.encode(interleaved.tobytes())
+        mp3_data += encoder.flush()
+
+        with open(path, "wb") as f:
+            f.write(mp3_data)
+
+        logger.info(f"Wrote MP3 (lameenc): {path} ({bitrate_kbps}kbps)")
+        return path
+
+    except ImportError:
+        pass
+
+    # Final fallback: write WAV and warn user
+    logger.warning(
+        "No MP3 encoder available. Install one of: pedalboard, pydub+ffmpeg, or lameenc. "
+        "Falling back to WAV format."
+    )
+    wav_path = path.with_suffix(".wav")
+    return write_wav(wav_path, audio, sample_rate, bit_depth=16)
+
+
 def read_wav(path: str | Path) -> AudioFile:
     """
     Read audio from WAV file.
@@ -387,13 +511,12 @@ def write_audio(
             )
 
     elif format_spec.extension == "mp3":
-        # MP3 requires external encoder
-        logger.warning("MP3 encoding not implemented, falling back to WAV")
-        return write_wav(
-            output_path.with_suffix(".wav"),
+        # MP3 encoding via pydub (requires ffmpeg) or pedalboard
+        return _write_mp3(
+            output_path,
             audio,
             format_spec.sample_rate,
-            16,  # MP3 source is typically 16-bit
+            format_spec.bitrate_kbps or 320,
         )
 
     elif format_spec.extension == "aiff":

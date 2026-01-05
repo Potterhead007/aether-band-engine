@@ -6,13 +6,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
+      target: api
     ports:
       - "8000:8000"
     environment:
       - AETHER_ENVIRONMENT=development
       - AETHER_LOG_LEVEL=DEBUG
-      - AETHER_LLM_PROVIDER=mock
+      - AETHER_LLM_PROVIDER=${LLM_PROVIDER:-mock}
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -24,6 +24,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+    networks:
+      - aether-network
+
+  # AETHER Frontend
+  aether-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - aether-api
     restart: unless-stopped
     networks:
       - aether-network

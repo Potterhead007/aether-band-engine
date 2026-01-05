@@ -1,0 +1,17 @@
+# AETHER Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aether
+  labels:
+    name: aether
+---
+# Secrets (apply with: kubectl create secret generic aether-secrets --from-literal=anthropic-api-key=$ANTHROPIC_API_KEY -n aether)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aether-secrets
+  namespace: aether
+type: Opaque
+stringData:
+  anthropic-api-key: "placeholder-replace-me"

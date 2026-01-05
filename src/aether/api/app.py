@@ -54,6 +54,28 @@ class GenerateResponse(BaseModel):
     arrangement_spec: Optional[Dict[str, Any]] = None
 
 
+class RenderRequest(BaseModel):
+    """Request to render audio from specs."""
+
+    song_spec: Dict[str, Any] = Field(..., description="Song specification")
+    harmony_spec: Optional[Dict[str, Any]] = Field(None, description="Harmony specification")
+    melody_spec: Optional[Dict[str, Any]] = Field(None, description="Melody specification")
+    arrangement_spec: Optional[Dict[str, Any]] = Field(None, description="Arrangement specification")
+    output_formats: list[str] = Field(default=["wav", "mp3"], description="Output formats")
+    render_stems: bool = Field(default=False, description="Also export individual stems")
+
+
+class RenderResponse(BaseModel):
+    """Response from audio rendering."""
+
+    job_id: str
+    status: str
+    duration_seconds: float
+    loudness_lufs: Optional[float] = None
+    peak_db: Optional[float] = None
+    output_files: Dict[str, str] = Field(default_factory=dict, description="Paths to rendered files")
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -292,6 +314,77 @@ def register_routes(app: FastAPI) -> None:
             raise HTTPException(
                 status_code=500,
                 detail=f"Generation failed: {str(e)}",
+            )
+
+    @app.post(
+        "/v1/render",
+        response_model=RenderResponse,
+        tags=["Rendering"],
+        status_code=status.HTTP_200_OK,
+    )
+    async def render_audio(request: RenderRequest):
+        """
+        Render audio from music specifications.
+
+        Takes song/harmony/melody/arrangement specs and generates
+        actual WAV and MP3 audio files.
+        """
+        from pathlib import Path
+        from aether.rendering.engine import RenderingEngine, RenderingConfig
+
+        job_id = str(uuid4())
+
+        try:
+            # Configure rendering
+            output_dir = Path.home() / ".aether" / "output" / job_id
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            config = RenderingConfig(
+                sample_rate=48000,
+                bit_depth=24,
+                output_dir=output_dir,
+                render_stems=request.render_stems,
+                apply_mastering=True,
+                target_lufs=-14.0,
+                true_peak_ceiling=-1.0,
+                export_formats=request.output_formats,
+            )
+
+            # Prepare pipeline output
+            pipeline_output = {
+                "song_id": job_id,
+                "song_spec": request.song_spec,
+                "harmony_spec": request.harmony_spec or {},
+                "melody_spec": request.melody_spec or {},
+                "arrangement_spec": request.arrangement_spec or {},
+            }
+
+            # Render
+            engine = RenderingEngine(config)
+            result = await engine.render(pipeline_output)
+
+            if not result.success:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Rendering failed: {', '.join(result.errors)}",
+                )
+
+            return RenderResponse(
+                job_id=job_id,
+                status="completed",
+                duration_seconds=result.duration_seconds,
+                loudness_lufs=result.loudness_lufs if result.loudness_lufs else None,
+                peak_db=result.peak_db if result.peak_db else None,
+                output_files={k: str(v) for k, v in result.output_paths.items()},
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Rendering failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Rendering failed: {str(e)}",
             )
 
     @app.get("/v1/genres", tags=["Reference"])
