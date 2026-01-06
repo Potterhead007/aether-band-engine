@@ -7,8 +7,10 @@ authentication, rate limiting, and observability.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import signal
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -18,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, Field
+from typing import Literal
 
 import re
 from aether.core import AetherRuntime, get_runtime
@@ -85,30 +88,85 @@ def get_client_key(request: Request) -> str:
 
 
 # =============================================================================
-# Request/Response Models
+# Request/Response Models - Typed for Production
 # =============================================================================
+
+
+class SongSpec(BaseModel):
+    """Typed song specification."""
+    title: str
+    genre_id: str
+    bpm: int = Field(ge=40, le=300)
+    key: str
+    mode: str = "minor"
+    time_signature: List[int] = Field(default=[4, 4])
+    duration_seconds: int = Field(ge=30, le=600)
+    energy_curve: Optional[str] = None
+    mood: Optional[str] = None
+    creative_brief: Optional[str] = None
+
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+
+
+class HarmonySpec(BaseModel):
+    """Typed harmony specification."""
+    key: str
+    mode: str
+    chord_progression: Optional[List[str]] = None
+    harmonic_rhythm: Optional[float] = None
+    tension_profile: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+
+
+class MelodySpec(BaseModel):
+    """Typed melody specification."""
+    scale: Optional[str] = None
+    range_low: Optional[int] = None
+    range_high: Optional[int] = None
+    density: Optional[float] = None
+    motifs: Optional[List[Dict[str, Any]]] = None
+
+    class Config:
+        extra = "allow"
+
+
+class ArrangementSpec(BaseModel):
+    """Typed arrangement specification."""
+    sections: Optional[List[Dict[str, Any]]] = None
+    instrumentation: Optional[List[str]] = None
+    dynamics_curve: Optional[str] = None
+
+    class Config:
+        extra = "allow"
 
 
 class GenerateRequest(BaseModel):
     """Request to generate a new track."""
 
-    title: str = Field(..., description="Track title")
-    genre: str = Field(..., description="Genre ID (e.g., 'synthwave', 'lo-fi-hip-hop')")
-    brief: str = Field(..., description="Creative brief describing the track")
+    title: str = Field(..., description="Track title", min_length=1, max_length=200)
+    genre: str = Field(..., description="Genre ID (e.g., 'synthwave', 'lofi-hip-hop')")
+    brief: str = Field(..., description="Creative brief describing the track", min_length=1, max_length=2000)
     bpm: Optional[int] = Field(None, ge=40, le=300, description="Tempo in BPM")
-    key: Optional[str] = Field(None, description="Musical key (e.g., 'Am', 'C')")
+    key: Optional[str] = Field(None, description="Musical key (e.g., 'Am', 'C')", pattern=r"^[A-G][#b]?m?$")
     duration_seconds: Optional[int] = Field(None, ge=30, le=600)
 
 
 class GenerateResponse(BaseModel):
-    """Response from track generation."""
+    """Response from track generation with typed specs."""
 
     job_id: str
-    status: str
-    song_spec: Optional[Dict[str, Any]] = None
-    harmony_spec: Optional[Dict[str, Any]] = None
-    melody_spec: Optional[Dict[str, Any]] = None
-    arrangement_spec: Optional[Dict[str, Any]] = None
+    status: Literal["pending", "processing", "completed", "failed"]
+    song_spec: Optional[SongSpec] = None
+    harmony_spec: Optional[HarmonySpec] = None
+    melody_spec: Optional[MelodySpec] = None
+    arrangement_spec: Optional[ArrangementSpec] = None
+
+    class Config:
+        # Allow backwards compatibility with untyped dicts
+        extra = "allow"
 
 
 class RenderRequest(BaseModel):
@@ -125,15 +183,15 @@ class RenderRequest(BaseModel):
 
 
 class RenderResponse(BaseModel):
-    """Response from audio rendering."""
+    """Response from audio rendering with typed fields."""
 
     job_id: str
-    status: str
-    duration_seconds: float
-    loudness_lufs: Optional[float] = None
-    peak_db: Optional[float] = None
+    status: Literal["pending", "processing", "completed", "failed"]
+    duration_seconds: float = Field(ge=0)
+    loudness_lufs: Optional[float] = Field(None, description="Integrated loudness in LUFS")
+    peak_db: Optional[float] = Field(None, description="True peak in dB")
     output_files: Dict[str, str] = Field(
-        default_factory=dict, description="Paths to rendered files"
+        default_factory=dict, description="Map of format to download URL"
     )
 
 
@@ -204,7 +262,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        """Application lifespan handler."""
+        """Application lifespan handler with graceful shutdown."""
         logger.info("Starting AETHER API service...")
 
         # Initialize runtime
@@ -221,11 +279,50 @@ def create_app(
         app.state.provider_manager = ProviderManager(provider_config)
         await app.state.provider_manager.initialize()
 
+        # Track active requests for graceful shutdown
+        app.state.active_requests = 0
+        app.state.shutting_down = False
+
+        # Setup signal handlers for graceful shutdown
+        shutdown_event = asyncio.Event()
+
+        def handle_shutdown_signal(signum, frame):
+            """Handle SIGTERM/SIGINT for graceful shutdown."""
+            sig_name = signal.Signals(signum).name
+            logger.info(f"Received {sig_name}, initiating graceful shutdown...")
+            app.state.shutting_down = True
+            shutdown_event.set()
+
+        # Register signal handlers (only in main thread)
+        try:
+            signal.signal(signal.SIGTERM, handle_shutdown_signal)
+            signal.signal(signal.SIGINT, handle_shutdown_signal)
+        except ValueError:
+            # Signal handlers can only be set in main thread
+            pass
+
         logger.info("AETHER API service started")
         yield
 
-        # Shutdown
+        # Graceful shutdown sequence
         logger.info("Shutting down AETHER API service...")
+        app.state.shutting_down = True
+
+        # Wait for active requests to complete (max 30 seconds)
+        shutdown_timeout = float(os.environ.get("AETHER_SHUTDOWN_TIMEOUT", "30"))
+        wait_start = time.time()
+        while app.state.active_requests > 0:
+            elapsed = time.time() - wait_start
+            if elapsed >= shutdown_timeout:
+                logger.warning(
+                    f"Shutdown timeout ({shutdown_timeout}s) reached with "
+                    f"{app.state.active_requests} active requests"
+                )
+                break
+            logger.info(f"Waiting for {app.state.active_requests} active requests to complete...")
+            await asyncio.sleep(1)
+
+        # Shutdown providers
         await app.state.provider_manager.shutdown()
         await runtime.shutdown()
         logger.info("AETHER API service stopped")
@@ -261,6 +358,25 @@ def create_app(
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Accept", "Accept-Language", "Authorization", "Content-Language", "Content-Type", "X-API-Key", "X-Request-ID"],
         )
+
+    # Security headers middleware
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Prevent clickjacking
+        response.headers["X-Frame-Options"] = "DENY"
+        # XSS protection (legacy but still useful)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Referrer policy
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Content Security Policy (API-appropriate)
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        # Strict Transport Security (HTTPS)
+        if os.environ.get("AETHER_ENVIRONMENT") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
     # Rate limiting middleware
     if os.environ.get("AETHER_RATE_LIMIT_ENABLED", "true").lower() == "true":
@@ -308,28 +424,48 @@ def create_app(
             exclude_paths=public_paths,
         )
 
-    # Request tracking middleware
+    # Request tracking middleware with graceful shutdown support
     @app.middleware("http")
     async def request_tracking(request: Request, call_next):
+        # Reject new requests during shutdown (except health checks)
+        if (
+            hasattr(app.state, "shutting_down")
+            and app.state.shutting_down
+            and request.url.path not in ["/health", "/ready", "/live"]
+        ):
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Service shutting down", "retry_after": 30},
+                headers={"Retry-After": "30"},
+            )
+
         request_id = str(uuid4())
         request.state.request_id = request_id
         start_time = time.time()
 
-        response = await call_next(request)
+        # Track active requests for graceful shutdown
+        if hasattr(app.state, "active_requests"):
+            app.state.active_requests += 1
 
-        duration_ms = (time.time() - start_time) * 1000
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
+        try:
+            response = await call_next(request)
 
-        # Metrics
-        runtime = get_runtime()
-        runtime.metrics.counter(
-            "http_requests_total",
-            "Total HTTP requests",
-            labels={"method": request.method, "path": request.url.path},
-        ).inc()
+            duration_ms = (time.time() - start_time) * 1000
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
 
-        return response
+            # Metrics
+            runtime = get_runtime()
+            runtime.metrics.counter(
+                "http_requests_total",
+                "Total HTTP requests",
+                labels={"method": request.method, "path": request.url.path},
+            ).inc()
+
+            return response
+        finally:
+            if hasattr(app.state, "active_requests"):
+                app.state.active_requests -= 1
 
     # Exception handlers (RFC 7807 Problem Details format)
     @app.exception_handler(HTTPException)
@@ -349,17 +485,22 @@ def create_app(
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
-        logger.exception(f"Unhandled exception: {exc}")
-        # Always show error detail for debugging (TODO: disable in production)
+        request_id = getattr(request.state, "request_id", None)
+        logger.exception(f"Unhandled exception [request_id={request_id}]: {exc}")
+
+        # Security: Only expose error details in development mode
+        is_production = os.environ.get("AETHER_ENVIRONMENT", "development") == "production"
+        detail = None if is_production else str(exc)
+
         return JSONResponse(
             status_code=500,
             content=ErrorResponse(
                 type="https://aether.band/errors/internal",
                 title="Internal Server Error",
                 status=500,
-                detail=str(exc),
+                detail=detail,
                 instance=str(request.url.path),
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request_id,
             ).model_dump(exclude_none=True),
             media_type="application/problem+json",
         )
@@ -486,12 +627,13 @@ def register_routes(app: FastAPI) -> None:
             )
 
         except Exception as e:
-            import traceback
-            error_detail = f"Generation failed: {str(e)}\n{traceback.format_exc()}"
             logger.exception(f"Generation failed: {e}")
+            # Security: Don't expose internal details in production
+            is_production = os.environ.get("AETHER_ENVIRONMENT", "development") == "production"
+            detail = "Generation failed. Please try again." if is_production else f"Generation failed: {str(e)}"
             raise HTTPException(
                 status_code=500,
-                detail=error_detail,
+                detail=detail,
             )
 
     @app.post(

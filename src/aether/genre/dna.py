@@ -91,6 +91,149 @@ class DynamicRange(Enum):
     CINEMATIC = "cinematic"
 
 
+# =============================================================================
+# Deterministic Index Mappings for Vector Encoding
+# =============================================================================
+# These replace hash() for reproducible 48-dimensional genre fingerprints
+
+KICK_PATTERN_INDEX: dict[KickPattern, float] = {
+    KickPattern.FOUR_ON_FLOOR: 0.0,
+    KickPattern.BREAKBEAT: 0.1,
+    KickPattern.TRAP: 0.2,
+    KickPattern.BOOM_BAP: 0.3,
+    KickPattern.UK_DRILL: 0.4,
+    KickPattern.DEMBOW: 0.5,
+    KickPattern.AFROBEAT: 0.6,
+    KickPattern.HALFTIME: 0.7,
+    KickPattern.SPARSE: 0.8,
+    KickPattern.CINEMATIC: 0.9,
+}
+
+SNARE_POSITION_INDEX: dict[SnarePosition, float] = {
+    SnarePosition.TWO_FOUR: 0.0,
+    SnarePosition.THREE: 0.2,
+    SnarePosition.OFFBEAT: 0.4,
+    SnarePosition.ROLLING: 0.6,
+    SnarePosition.SPARSE: 0.8,
+    SnarePosition.POLYRHYTHMIC: 1.0,
+}
+
+TIME_FEEL_INDEX: dict[TimeFeel, float] = {
+    TimeFeel.STRAIGHT: 0.0,
+    TimeFeel.SWING: 0.2,
+    TimeFeel.SHUFFLE: 0.4,
+    TimeFeel.TRIPLET: 0.6,
+    TimeFeel.BEHIND: 0.8,
+    TimeFeel.AHEAD: 1.0,
+}
+
+TENSION_PROFILE_INDEX: dict[TensionProfile, float] = {
+    TensionProfile.RESOLVE_QUICK: 0.0,
+    TensionProfile.SUSPEND: 0.15,
+    TensionProfile.CHROMATIC: 0.30,
+    TensionProfile.STATIC: 0.45,
+    TensionProfile.DARK_UNRESOLVED: 0.60,
+    TensionProfile.EUPHORIC_RELEASE: 0.75,
+    TensionProfile.GENTLE_SUSPEND: 0.90,
+}
+
+VOICING_STYLE_INDEX: dict[VoicingStyle, float] = {
+    VoicingStyle.CLOSE: 0.0,
+    VoicingStyle.DROP2: 0.125,
+    VoicingStyle.DROP3: 0.25,
+    VoicingStyle.SPREAD: 0.375,
+    VoicingStyle.SHELL: 0.5,
+    VoicingStyle.ROOTLESS: 0.625,
+    VoicingStyle.POWER: 0.75,
+    VoicingStyle.STAB: 0.875,
+}
+
+CONTOUR_TYPE_INDEX: dict[ContourType, float] = {
+    ContourType.ARCH: 0.0,
+    ContourType.DESCENT: 0.2,
+    ContourType.ASCENT: 0.4,
+    ContourType.WAVE: 0.6,
+    ContourType.STATIC: 0.8,
+    ContourType.QUESTION_ANSWER: 1.0,
+}
+
+DYNAMIC_RANGE_INDEX: dict[DynamicRange, float] = {
+    DynamicRange.COMPRESSED: 0.0,
+    DynamicRange.MODERATE: 0.33,
+    DynamicRange.WIDE: 0.66,
+    DynamicRange.CINEMATIC: 1.0,
+}
+
+# String-based indices for non-enum fields
+GROOVE_TEMPLATE_INDEX: dict[str, float] = {
+    "lofi_lazy": 0.0,
+    "trap_bounce": 0.1,
+    "drill_slide": 0.2,
+    "boom_bap_swing": 0.3,
+    "synthwave_drive": 0.4,
+    "house_groove": 0.5,
+    "techno_hypnotic": 0.6,
+    "amen_break": 0.7,
+    "dembow": 0.8,
+    "afrobeat_12_8": 0.85,
+    "pop_standard": 0.9,
+    "cinematic_rubato": 1.0,
+}
+
+BASS_BEHAVIOR_INDEX: dict[str, float] = {
+    "root": 0.0,
+    "walking": 0.25,
+    "pedal": 0.5,
+    "glide": 0.75,
+}
+
+RHYTHMIC_MOTIF_INDEX: dict[str, float] = {
+    "on_beat": 0.0,
+    "syncopated": 0.5,
+    "triplet": 1.0,
+}
+
+TARGET_NOTES_INDEX: dict[str, float] = {
+    "chord_tones": 0.0,
+    "tensions": 0.5,
+    "chromatic": 0.75,
+    "root": 1.0,
+}
+
+ARTICULATION_INDEX: dict[str, float] = {
+    "legato": 0.0,
+    "staccato": 0.5,
+    "mixed": 1.0,
+}
+
+FREQUENCY_BALANCE_INDEX: dict[str, float] = {
+    "bass_heavy": 0.0,
+    "mid_focus": 0.33,
+    "balanced": 0.66,
+    "bright": 1.0,
+}
+
+REVERB_CHARACTER_INDEX: dict[str, float] = {
+    "dry": 0.0,
+    "room": 0.33,
+    "hall": 0.66,
+    "infinite": 1.0,
+}
+
+INTRO_STYLE_INDEX: dict[str, float] = {
+    "ambient": 0.0,
+    "drop": 0.25,
+    "buildup": 0.5,
+    "direct": 0.75,
+}
+
+ARRANGEMENT_CURVE_INDEX: dict[str, float] = {
+    "flat": 0.0,
+    "build": 0.5,
+    "wave": 1.0,
+}
+
+
 @dataclass
 class RhythmDNA:
     """Rhythm characteristics (12 dimensions)."""
@@ -215,33 +358,38 @@ class GenreDNA:
     compatible_genres: list[str] = field(default_factory=list)
 
     def to_vector(self) -> list[float]:
-        """Convert DNA to 48-dimensional float vector for ML."""
+        """
+        Convert DNA to deterministic 48-dimensional float vector.
+
+        Uses explicit index mappings instead of hash() for reproducibility
+        across Python versions and runs.
+        """
         vector = []
 
-        # Rhythm (12)
+        # Rhythm (12 dimensions)
         vector.extend([
             self.rhythm.tempo_center / 200,  # Normalize to 0-1
             self.rhythm.tempo_variance / 30,
             self.rhythm.swing_amount,
             self.rhythm.syncopation_density,
             self.rhythm.hihat_subdivision / 32,
-            hash(self.rhythm.kick_pattern.value) % 100 / 100,
-            hash(self.rhythm.snare_position.value) % 100 / 100,
+            KICK_PATTERN_INDEX.get(self.rhythm.kick_pattern, 0.5),
+            SNARE_POSITION_INDEX.get(self.rhythm.snare_position, 0.5),
             self.rhythm.ghost_note_density,
             self.rhythm.polyrhythm_layers / 4,
-            hash(self.rhythm.groove_template) % 100 / 100,
-            hash(self.rhythm.time_feel.value) % 100 / 100,
+            GROOVE_TEMPLATE_INDEX.get(self.rhythm.groove_template, 0.5),
+            TIME_FEEL_INDEX.get(self.rhythm.time_feel, 0.5),
             self.rhythm.rhythmic_complexity,
         ])
 
-        # Harmony (12)
+        # Harmony (12 dimensions)
         vector.extend([
             len(self.harmony.mode_preferences) / 5,
             self.harmony.chord_complexity,
             self.harmony.harmonic_rhythm / 2,
-            hash(self.harmony.tension_profile.value) % 100 / 100,
-            hash(self.harmony.bass_behavior) % 100 / 100,
-            hash(self.harmony.voicing_style.value) % 100 / 100,
+            TENSION_PROFILE_INDEX.get(self.harmony.tension_profile, 0.5),
+            BASS_BEHAVIOR_INDEX.get(self.harmony.bass_behavior, 0.5),
+            VOICING_STYLE_INDEX.get(self.harmony.voicing_style, 0.5),
             len(self.harmony.primary_cadences) / 5,
             len(self.harmony.avoid_cadences) / 5,
             len(self.harmony.borrowed_chords) / 5,
@@ -250,7 +398,7 @@ class GenreDNA:
             len(self.harmony.common_progressions) / 5,
         ])
 
-        # Melody (12)
+        # Melody (12 dimensions)
         vector.extend([
             len(self.melody.scale_preferences) / 5,
             self.melody.note_density / 2,
@@ -260,30 +408,30 @@ class GenreDNA:
             float(self.melody.use_call_response),
             self.melody.motif_repetition,
             len(self.melody.ornamentation) / 5,
-            hash(self.melody.rhythmic_motif) % 100 / 100,
-            hash(self.melody.contour_type.value) % 100 / 100,
-            hash(self.melody.target_notes) % 100 / 100,
-            hash(self.melody.articulation) % 100 / 100,
+            RHYTHMIC_MOTIF_INDEX.get(self.melody.rhythmic_motif, 0.5),
+            CONTOUR_TYPE_INDEX.get(self.melody.contour_type, 0.5),
+            TARGET_NOTES_INDEX.get(self.melody.target_notes, 0.5),
+            ARTICULATION_INDEX.get(self.melody.articulation, 0.5),
         ])
 
-        # Timbre (6)
+        # Timbre (6 dimensions)
         vector.extend([
             len(self.timbre.primary_instruments) / 8,
             len(self.timbre.secondary_instruments) / 8,
             self.timbre.texture_density,
-            hash(self.timbre.frequency_balance) % 100 / 100,
+            FREQUENCY_BALANCE_INDEX.get(self.timbre.frequency_balance, 0.5),
             self.timbre.stereo_width,
-            hash(self.timbre.reverb_character) % 100 / 100,
+            REVERB_CHARACTER_INDEX.get(self.timbre.reverb_character, 0.5),
         ])
 
-        # Structure (6)
+        # Structure (6 dimensions)
         vector.extend([
             len(self.structure.section_types) / 8,
             self.structure.typical_length_bars / 256,
-            hash(self.structure.intro_style) % 100 / 100,
+            INTRO_STYLE_INDEX.get(self.structure.intro_style, 0.5),
             float(self.structure.use_build_release),
-            hash(self.structure.dynamic_range.value) % 100 / 100,
-            hash(self.structure.arrangement_curve) % 100 / 100,
+            DYNAMIC_RANGE_INDEX.get(self.structure.dynamic_range, 0.5),
+            ARRANGEMENT_CURVE_INDEX.get(self.structure.arrangement_curve, 0.5),
         ])
 
         return vector

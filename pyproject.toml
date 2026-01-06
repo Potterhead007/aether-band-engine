@@ -68,7 +68,6 @@ api = [
     "python-multipart>=0.0.6",
     "httpx>=0.26",
     "pyjwt>=2.8",
-    "redis>=5.0",
     "pedalboard>=0.8",  # MP3 encoding for render endpoint
 ]
 
