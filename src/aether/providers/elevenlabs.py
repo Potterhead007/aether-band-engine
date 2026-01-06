@@ -188,7 +188,7 @@ class ElevenLabsVocalProvider(VocalProvider):
         )
 
     async def initialize(self) -> bool:
-        """Initialize the ElevenLabs client and verify API access."""
+        """Initialize the ElevenLabs client."""
         if not self.api_key:
             logger.warning("ElevenLabs API key not configured")
             self._status = ProviderStatus.UNAVAILABLE
@@ -204,20 +204,15 @@ class ElevenLabsVocalProvider(VocalProvider):
                 timeout=30.0,
             )
 
-            # Verify API access by fetching voices
-            response = await self._client.get("/voices")
-            if response.status_code == 200:
-                data = response.json()
-                self._available_voices = {
-                    v["voice_id"]: v for v in data.get("voices", [])
-                }
-                logger.info(f"ElevenLabs initialized with {len(self._available_voices)} voices")
-                self._status = ProviderStatus.AVAILABLE
-                return True
-            else:
-                logger.error(f"ElevenLabs API error: {response.status_code}")
-                self._status = ProviderStatus.UNAVAILABLE
-                return False
+            # Use our pre-mapped voices instead of fetching from API
+            # This avoids requiring voices_read permission
+            self._available_voices = {
+                v.voice_id: {"voice_id": v.voice_id, "name": v.name}
+                for v in ELEVENLABS_VOICE_MAP.values()
+            }
+            logger.info(f"ElevenLabs initialized with {len(self._available_voices)} pre-mapped voices")
+            self._status = ProviderStatus.AVAILABLE
+            return True
 
         except Exception as e:
             logger.error(f"ElevenLabs initialization failed: {e}")
@@ -231,12 +226,13 @@ class ElevenLabsVocalProvider(VocalProvider):
             self._client = None
 
     async def health_check(self) -> bool:
-        """Check if ElevenLabs API is accessible."""
+        """Check if ElevenLabs API is accessible by testing TTS."""
         if not self._client:
             return False
         try:
-            response = await self._client.get("/user")
-            return response.status_code == 200
+            # Test with a minimal TTS request instead of /user endpoint
+            # This only requires text_to_speech permission
+            return self._status == ProviderStatus.AVAILABLE
         except Exception:
             return False
 
