@@ -97,6 +97,72 @@ export interface Genre {
   aliases: string[]
 }
 
+// Voice Management Types
+export interface VoiceTimbreParams {
+  brightness: number
+  breathiness: number
+  grit: number
+  nasality: number
+  chest_resonance: number
+  head_voice_blend: number
+}
+
+export interface VoiceEmotionParams {
+  warmth: number
+  control: number
+  intimacy: number
+  power_reserve: number
+  sincerity: number
+  engagement: number
+}
+
+export interface VoiceVibratoParams {
+  rate_min: number
+  rate_max: number
+  onset_delay_min: number
+  onset_delay_max: number
+}
+
+export interface Voice {
+  name: string
+  classification: string
+  range_low: number
+  range_high: number
+  tessitura_low: number
+  tessitura_high: number
+  character: string
+  timbre: VoiceTimbreParams
+  emotion: VoiceEmotionParams
+  vibrato: VoiceVibratoParams
+}
+
+export interface VoiceListResponse {
+  voices: Voice[]
+  total: number
+}
+
+export interface CustomVoiceRequest {
+  name: string
+  base_voice: string
+  timbre?: Partial<VoiceTimbreParams>
+  emotion?: Partial<VoiceEmotionParams>
+  vibrato?: Partial<VoiceVibratoParams>
+}
+
+export interface CustomVoiceResponse {
+  voice_id: string
+  name: string
+  base_voice: string
+  message: string
+}
+
+export interface VoicePreviewResponse {
+  voice: string
+  text: string
+  description: string
+  audio_url: string | null
+}
+
 export interface ApiErrorDetails {
   type?: string
   title?: string
@@ -380,6 +446,51 @@ export const aetherApi = {
   getDownloadUrl(path: string): string {
     // Path is like "/v1/download/{job_id}/{filename}"
     return `${API_BASE_URL}${path}`
+  },
+
+  // =========================================================================
+  // Voice Management
+  // =========================================================================
+
+  /**
+   * List all available voices
+   */
+  async listVoices(): Promise<VoiceListResponse> {
+    return request<VoiceListResponse>('/v1/voices')
+  },
+
+  /**
+   * Get a specific voice by name
+   */
+  async getVoice(name: string): Promise<Voice> {
+    return request<Voice>(`/v1/voices/${encodeURIComponent(name)}`)
+  },
+
+  /**
+   * Create a custom voice preset
+   */
+  async createCustomVoice(params: CustomVoiceRequest): Promise<CustomVoiceResponse> {
+    return request<CustomVoiceResponse>('/v1/voices/custom', {
+      method: 'POST',
+      body: params,
+    })
+  },
+
+  /**
+   * Delete a custom voice preset
+   */
+  async deleteCustomVoice(voiceId: string): Promise<{ message: string }> {
+    return request<{ message: string }>(`/v1/voices/custom/${encodeURIComponent(voiceId)}`, {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Get a voice preview description
+   */
+  async previewVoice(name: string, text?: string): Promise<VoicePreviewResponse> {
+    const params = text ? `?text=${encodeURIComponent(text)}` : ''
+    return request<VoicePreviewResponse>(`/v1/voices/${encodeURIComponent(name)}/preview${params}`)
   },
 }
 

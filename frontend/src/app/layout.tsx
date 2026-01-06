@@ -33,6 +33,7 @@ export default function RootLayout({
                   </div>
                   <div className="flex items-center space-x-4">
                     <a href="/generate" className="text-slate-300 hover:text-white transition-colors">Generate</a>
+                    <a href="/voices" className="text-slate-300 hover:text-white transition-colors">Voices</a>
                     <a href="/history" className="text-slate-300 hover:text-white transition-colors">History</a>
                     <a href="/docs" className="text-slate-300 hover:text-white transition-colors">API Docs</a>
                   </div>

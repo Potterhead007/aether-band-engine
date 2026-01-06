@@ -216,6 +216,76 @@ class FLStudioExportResponse(BaseModel):
     pyflp_available: bool = Field(description="Whether native .flp export was used")
 
 
+# =============================================================================
+# Voice Management Models
+# =============================================================================
+
+
+class VoiceTimbreParams(BaseModel):
+    """Adjustable timbre parameters for voice fine-tuning."""
+    brightness: float = Field(0.5, ge=0.0, le=1.0, description="Tone brightness (0=dark, 1=bright)")
+    breathiness: float = Field(0.2, ge=0.0, le=1.0, description="Air in tone")
+    grit: float = Field(0.1, ge=0.0, le=1.0, description="Raspiness/grit")
+    nasality: float = Field(0.15, ge=0.0, le=1.0, description="Nasal resonance")
+    chest_resonance: float = Field(0.6, ge=0.0, le=1.0, description="Chest voice strength")
+    head_voice_blend: float = Field(0.5, ge=0.0, le=1.0, description="Head voice mix")
+
+
+class VoiceEmotionParams(BaseModel):
+    """Adjustable emotional baseline for voice."""
+    warmth: float = Field(0.6, ge=0.0, le=1.0, description="Vocal warmth")
+    control: float = Field(0.7, ge=0.0, le=1.0, description="Technical control")
+    intimacy: float = Field(0.6, ge=0.0, le=1.0, description="Closeness/intimacy")
+    power_reserve: float = Field(0.65, ge=0.0, le=1.0, description="Dynamic headroom")
+    sincerity: float = Field(0.75, ge=0.0, le=1.0, description="Authenticity")
+    engagement: float = Field(0.8, ge=0.0, le=1.0, description="Listener engagement")
+
+
+class VoiceVibratoParams(BaseModel):
+    """Adjustable vibrato parameters."""
+    rate_min: float = Field(5.0, ge=3.0, le=8.0, description="Min vibrato rate (Hz)")
+    rate_max: float = Field(6.0, ge=3.0, le=8.0, description="Max vibrato rate (Hz)")
+    onset_delay_min: float = Field(150, ge=50, le=500, description="Min onset delay (ms)")
+    onset_delay_max: float = Field(280, ge=50, le=500, description="Max onset delay (ms)")
+
+
+class VoiceResponse(BaseModel):
+    """Voice identity response."""
+    name: str
+    classification: str
+    range_low: int = Field(description="Comfortable low (MIDI)")
+    range_high: int = Field(description="Comfortable high (MIDI)")
+    tessitura_low: int
+    tessitura_high: int
+    character: str = Field(description="Voice character description")
+    timbre: VoiceTimbreParams
+    emotion: VoiceEmotionParams
+    vibrato: VoiceVibratoParams
+
+
+class VoiceListResponse(BaseModel):
+    """List of available voices."""
+    voices: List[VoiceResponse]
+    total: int
+
+
+class CustomVoiceRequest(BaseModel):
+    """Request to create a custom voice preset."""
+    name: str = Field(..., min_length=1, max_length=50, description="Custom voice name")
+    base_voice: str = Field(..., description="Base voice to derive from (AVU-1, AVU-2, etc.)")
+    timbre: Optional[VoiceTimbreParams] = None
+    emotion: Optional[VoiceEmotionParams] = None
+    vibrato: Optional[VoiceVibratoParams] = None
+
+
+class CustomVoiceResponse(BaseModel):
+    """Response from custom voice creation."""
+    voice_id: str
+    name: str
+    base_voice: str
+    message: str
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -839,6 +909,286 @@ def register_routes(app: FastAPI) -> None:
         except Exception as e:
             logger.error(f"Failed to list genres: {e}", exc_info=True)
             raise
+
+    # =========================================================================
+    # Voice Management Endpoints
+    # =========================================================================
+
+    # In-memory store for custom voice presets (would be DB in production)
+    _custom_voices: Dict[str, Dict[str, Any]] = {}
+
+    def _voice_to_response(voice) -> VoiceResponse:
+        """Convert VocalIdentity to API response."""
+        # Generate character description
+        traits = []
+        if voice.timbre.brightness > 0.65:
+            traits.append("bright")
+        elif voice.timbre.brightness < 0.5:
+            traits.append("dark")
+        if voice.timbre.breathiness > 0.25:
+            traits.append("breathy")
+        if voice.timbre.grit > 0.18:
+            traits.append("gritty")
+        if voice.emotional_baseline.warmth > 0.68:
+            traits.append("warm")
+        if voice.emotional_baseline.power_reserve > 0.70:
+            traits.append("powerful")
+        character = ", ".join(traits) if traits else "balanced"
+
+        return VoiceResponse(
+            name=voice.name,
+            classification=voice.classification.value,
+            range_low=voice.vocal_range.comfortable_low,
+            range_high=voice.vocal_range.comfortable_high,
+            tessitura_low=voice.vocal_range.tessitura_low,
+            tessitura_high=voice.vocal_range.tessitura_high,
+            character=character,
+            timbre=VoiceTimbreParams(
+                brightness=voice.timbre.brightness,
+                breathiness=voice.timbre.breathiness,
+                grit=voice.timbre.grit,
+                nasality=voice.timbre.nasality,
+                chest_resonance=voice.timbre.chest_resonance,
+                head_voice_blend=voice.timbre.head_voice_blend,
+            ),
+            emotion=VoiceEmotionParams(
+                warmth=voice.emotional_baseline.warmth,
+                control=voice.emotional_baseline.control,
+                intimacy=voice.emotional_baseline.intimacy,
+                power_reserve=voice.emotional_baseline.power_reserve,
+                sincerity=voice.emotional_baseline.sincerity,
+                engagement=voice.emotional_baseline.engagement,
+            ),
+            vibrato=VoiceVibratoParams(
+                rate_min=voice.vibrato_rate_hz[0],
+                rate_max=voice.vibrato_rate_hz[1],
+                onset_delay_min=voice.vibrato_onset_delay_ms[0],
+                onset_delay_max=voice.vibrato_onset_delay_ms[1],
+            ),
+        )
+
+    @app.get("/v1/voices", response_model=VoiceListResponse, tags=["Voice"])
+    async def list_voices():
+        """
+        List all available voice identities.
+
+        Returns both built-in voices (AVU-1 through AVU-4) and any custom presets.
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+
+            voices = [_voice_to_response(v) for v in VOICE_REGISTRY.values()]
+
+            # Add custom voices
+            for voice_id, custom in _custom_voices.items():
+                voices.append(VoiceResponse(
+                    name=custom["name"],
+                    classification=custom["classification"],
+                    range_low=custom["range_low"],
+                    range_high=custom["range_high"],
+                    tessitura_low=custom["tessitura_low"],
+                    tessitura_high=custom["tessitura_high"],
+                    character=f"Custom (based on {custom['base_voice']})",
+                    timbre=VoiceTimbreParams(**custom["timbre"]),
+                    emotion=VoiceEmotionParams(**custom["emotion"]),
+                    vibrato=VoiceVibratoParams(**custom["vibrato"]),
+                ))
+
+            return VoiceListResponse(voices=voices, total=len(voices))
+        except Exception as e:
+            logger.error(f"Failed to list voices: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to list voices")
+
+    @app.get("/v1/voices/{voice_name}", response_model=VoiceResponse, tags=["Voice"])
+    async def get_voice(voice_name: str):
+        """
+        Get details for a specific voice identity.
+
+        Args:
+            voice_name: Voice identifier (e.g., "AVU-1", "AVU-2")
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+
+            # Check built-in voices
+            if voice_name in VOICE_REGISTRY:
+                return _voice_to_response(VOICE_REGISTRY[voice_name])
+
+            # Check custom voices
+            if voice_name in _custom_voices:
+                custom = _custom_voices[voice_name]
+                return VoiceResponse(
+                    name=custom["name"],
+                    classification=custom["classification"],
+                    range_low=custom["range_low"],
+                    range_high=custom["range_high"],
+                    tessitura_low=custom["tessitura_low"],
+                    tessitura_high=custom["tessitura_high"],
+                    character=f"Custom (based on {custom['base_voice']})",
+                    timbre=VoiceTimbreParams(**custom["timbre"]),
+                    emotion=VoiceEmotionParams(**custom["emotion"]),
+                    vibrato=VoiceVibratoParams(**custom["vibrato"]),
+                )
+
+            raise HTTPException(
+                status_code=404,
+                detail=f"Voice '{voice_name}' not found. Available: {', '.join(VOICE_REGISTRY.keys())}"
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get voice {voice_name}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to get voice")
+
+    @app.post("/v1/voices/custom", response_model=CustomVoiceResponse, tags=["Voice"])
+    async def create_custom_voice(request: CustomVoiceRequest):
+        """
+        Create a custom voice preset based on an existing voice.
+
+        Fine-tune timbre, emotion, and vibrato parameters to create
+        a personalized voice character.
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+
+            # Validate base voice exists
+            if request.base_voice not in VOICE_REGISTRY:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Base voice '{request.base_voice}' not found"
+                )
+
+            base = VOICE_REGISTRY[request.base_voice]
+            voice_id = f"custom-{request.name.lower().replace(' ', '-')}-{str(uuid4())[:8]}"
+
+            # Merge with base voice parameters
+            custom_timbre = request.timbre.model_dump() if request.timbre else {
+                "brightness": base.timbre.brightness,
+                "breathiness": base.timbre.breathiness,
+                "grit": base.timbre.grit,
+                "nasality": base.timbre.nasality,
+                "chest_resonance": base.timbre.chest_resonance,
+                "head_voice_blend": base.timbre.head_voice_blend,
+            }
+
+            custom_emotion = request.emotion.model_dump() if request.emotion else {
+                "warmth": base.emotional_baseline.warmth,
+                "control": base.emotional_baseline.control,
+                "intimacy": base.emotional_baseline.intimacy,
+                "power_reserve": base.emotional_baseline.power_reserve,
+                "sincerity": base.emotional_baseline.sincerity,
+                "engagement": base.emotional_baseline.engagement,
+            }
+
+            custom_vibrato = request.vibrato.model_dump() if request.vibrato else {
+                "rate_min": base.vibrato_rate_hz[0],
+                "rate_max": base.vibrato_rate_hz[1],
+                "onset_delay_min": base.vibrato_onset_delay_ms[0],
+                "onset_delay_max": base.vibrato_onset_delay_ms[1],
+            }
+
+            # Store custom voice
+            _custom_voices[voice_id] = {
+                "name": request.name,
+                "base_voice": request.base_voice,
+                "classification": base.classification.value,
+                "range_low": base.vocal_range.comfortable_low,
+                "range_high": base.vocal_range.comfortable_high,
+                "tessitura_low": base.vocal_range.tessitura_low,
+                "tessitura_high": base.vocal_range.tessitura_high,
+                "timbre": custom_timbre,
+                "emotion": custom_emotion,
+                "vibrato": custom_vibrato,
+            }
+
+            return CustomVoiceResponse(
+                voice_id=voice_id,
+                name=request.name,
+                base_voice=request.base_voice,
+                message=f"Custom voice '{request.name}' created successfully"
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to create custom voice: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to create custom voice")
+
+    @app.delete("/v1/voices/custom/{voice_id}", tags=["Voice"])
+    async def delete_custom_voice(voice_id: str):
+        """Delete a custom voice preset."""
+        if voice_id not in _custom_voices:
+            raise HTTPException(status_code=404, detail=f"Custom voice '{voice_id}' not found")
+
+        del _custom_voices[voice_id]
+        return {"message": f"Custom voice '{voice_id}' deleted"}
+
+    @app.get("/v1/voices/{voice_name}/preview", tags=["Voice"])
+    async def preview_voice(voice_name: str, text: str = "Hello, this is a voice preview"):
+        """
+        Get a preview description of what this voice sounds like.
+
+        In production, this would return an audio sample. Currently returns
+        a detailed description of the voice characteristics.
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+
+            if voice_name in VOICE_REGISTRY:
+                voice = VOICE_REGISTRY[voice_name]
+            elif voice_name in _custom_voices:
+                # Return description for custom voice
+                custom = _custom_voices[voice_name]
+                return {
+                    "voice": voice_name,
+                    "text": text,
+                    "description": (
+                        f"{custom['name']} is a custom {custom['classification']} voice "
+                        f"based on {custom['base_voice']}. "
+                        f"Brightness: {custom['timbre']['brightness']:.0%}, "
+                        f"Warmth: {custom['emotion']['warmth']:.0%}, "
+                        f"Vibrato: {custom['vibrato']['rate_min']:.1f}-{custom['vibrato']['rate_max']:.1f} Hz"
+                    ),
+                    "audio_url": None,  # Would be synthesized audio in production
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
+
+            # Generate description for built-in voice
+            desc_parts = [
+                f"{voice.name} is a {voice.classification.value}",
+                f"with a comfortable range of MIDI {voice.vocal_range.comfortable_low}-{voice.vocal_range.comfortable_high}.",
+            ]
+
+            # Timbre description
+            if voice.timbre.brightness > 0.65:
+                desc_parts.append("The tone is bright and present.")
+            elif voice.timbre.brightness < 0.5:
+                desc_parts.append("The tone is dark and warm.")
+
+            if voice.timbre.breathiness > 0.25:
+                desc_parts.append("There's a breathy, intimate quality.")
+
+            if voice.timbre.grit > 0.18:
+                desc_parts.append("The voice has character and grit.")
+
+            # Vibrato description
+            avg_rate = (voice.vibrato_rate_hz[0] + voice.vibrato_rate_hz[1]) / 2
+            if avg_rate > 6:
+                desc_parts.append("Vibrato is quick and light.")
+            elif avg_rate < 5.2:
+                desc_parts.append("Vibrato is slow and expressive.")
+
+            return {
+                "voice": voice_name,
+                "text": text,
+                "description": " ".join(desc_parts),
+                "audio_url": None,  # Would be synthesized audio in production
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to preview voice: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to preview voice")
 
     @app.post(
         "/v1/export/flstudio",
