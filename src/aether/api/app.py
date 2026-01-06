@@ -617,13 +617,42 @@ def register_routes(app: FastAPI) -> None:
             )
             arr_result = await arr_agent.process(arr_input, context={})
 
-            return GenerateResponse(
-                job_id=job_id,
-                status="completed",
-                song_spec=cd_result.song_spec,
-                harmony_spec=comp_result.harmony_spec,
-                melody_spec=comp_result.melody_spec,
-                arrangement_spec=arr_result.arrangement_spec,
+            # Convert internal schemas to dicts for API response
+            # Handle both Pydantic models, plain dicts, and nested datetime/enums
+            import json
+            from datetime import datetime
+            from enum import Enum
+            from uuid import UUID
+
+            def json_encoder(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                if isinstance(obj, Enum):
+                    return obj.value
+                if isinstance(obj, UUID):
+                    return str(obj)
+                if hasattr(obj, "model_dump"):
+                    return obj.model_dump(mode="json")
+                raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+            def to_serializable(obj):
+                if obj is None:
+                    return None
+                if hasattr(obj, "model_dump"):
+                    return obj.model_dump(mode="json")
+                # For dicts, recursively serialize all values
+                return json.loads(json.dumps(obj, default=json_encoder))
+
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content={
+                    "job_id": job_id,
+                    "status": "completed",
+                    "song_spec": to_serializable(cd_result.song_spec),
+                    "harmony_spec": to_serializable(comp_result.harmony_spec),
+                    "melody_spec": to_serializable(comp_result.melody_spec),
+                    "arrangement_spec": to_serializable(arr_result.arrangement_spec),
+                },
             )
 
         except Exception as e:
