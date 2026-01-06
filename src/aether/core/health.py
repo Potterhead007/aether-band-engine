@@ -500,6 +500,14 @@ class ProbeManager:
         """Add a health check to liveness probe."""
         self._live_checks.append(check_name)
 
+    def is_ready(self) -> bool:
+        """Synchronous readiness check (uses cached state)."""
+        return self._ready and self._live
+
+    def is_live(self) -> bool:
+        """Synchronous liveness check (uses cached state)."""
+        return self._live
+
     async def check_liveness(self) -> ProbeResult:
         """
         Check if application is live.
