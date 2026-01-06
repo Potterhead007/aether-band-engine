@@ -32,8 +32,9 @@ class PreviewBackend(str, Enum):
     """Available preview backends."""
     SELF_HOSTED = "self_hosted"  # XTTS + RVC (highest quality, no API costs)
     ELEVENLABS = "elevenlabs"    # External API (high quality, requires key)
+    EDGE_TTS = "edge_tts"        # Microsoft Edge TTS (free, no API key, human voice)
     MIDI = "midi"                # Instrumental approximation (always available)
-    AUTO = "auto"                # Try SELF_HOSTED -> ELEVENLABS -> MIDI
+    AUTO = "auto"                # Try SELF_HOSTED -> EDGE_TTS -> ELEVENLABS -> MIDI
 
 
 # Cache directory for generated previews
@@ -76,9 +77,10 @@ async def generate_voice_preview(
     backends_to_try = []
 
     if backend == PreviewBackend.AUTO:
-        # Fallback chain: Self-hosted (best) -> ElevenLabs -> MIDI (always works)
+        # Fallback chain: Self-hosted (best) -> Edge TTS (free human) -> ElevenLabs -> MIDI
         backends_to_try = [
             PreviewBackend.SELF_HOSTED,
+            PreviewBackend.EDGE_TTS,
             PreviewBackend.ELEVENLABS,
             PreviewBackend.MIDI,
         ]
@@ -107,6 +109,10 @@ async def _generate_with_backend(
 
     if backend == PreviewBackend.SELF_HOSTED:
         return await _generate_selfhosted_preview(
+            voice_name, preview_type, custom_params
+        )
+    elif backend == PreviewBackend.EDGE_TTS:
+        return await _generate_edge_tts_preview(
             voice_name, preview_type, custom_params
         )
     elif backend == PreviewBackend.ELEVENLABS:
@@ -163,6 +169,51 @@ async def _generate_selfhosted_preview(
         return None
     except Exception as e:
         logger.warning(f"Self-hosted preview generation failed: {e}")
+        return None
+
+
+# =============================================================================
+# Edge TTS Backend (Free Microsoft TTS)
+# =============================================================================
+
+async def _generate_edge_tts_preview(
+    voice_name: str,
+    preview_type: str,
+    custom_params: Optional[dict],
+) -> Optional[str]:
+    """Generate preview using Edge TTS (free, no API key)."""
+    try:
+        from aether.providers.edge_tts import get_edge_tts_provider
+
+        provider = await get_edge_tts_provider()
+        if not provider or not provider.is_available():
+            logger.debug("Edge TTS provider not available")
+            return None
+
+        # Map custom_params to Edge TTS format
+        edge_params = None
+        if custom_params:
+            edge_params = {}
+            timbre = custom_params.get("timbre", {})
+            emotion = custom_params.get("emotion", {})
+            if "brightness" in timbre:
+                edge_params["brightness"] = timbre["brightness"]
+            if "warmth" in emotion:
+                edge_params["warmth"] = emotion["warmth"]
+
+        result = await provider.generate_preview(
+            voice_name=voice_name,
+            preview_type=preview_type,
+            custom_params=edge_params,
+        )
+
+        return str(result) if result else None
+
+    except ImportError:
+        logger.debug("Edge TTS not installed")
+        return None
+    except Exception as e:
+        logger.warning(f"Edge TTS preview generation failed: {e}")
         return None
 
 
@@ -482,6 +533,13 @@ def get_available_backends() -> list[str]:
     # Check if ElevenLabs is configured
     if os.environ.get("ELEVENLABS_API_KEY"):
         backends.insert(0, "elevenlabs")
+
+    # Check if Edge TTS is available (always, since it's free)
+    try:
+        import edge_tts
+        backends.insert(0, "edge_tts")
+    except ImportError:
+        pass
 
     # Check if self-hosted is configured (without loading models)
     try:

@@ -1291,6 +1291,7 @@ def register_routes(app: FastAPI) -> None:
                 "auto": PreviewBackend.AUTO,
                 "self_hosted": PreviewBackend.SELF_HOSTED,
                 "elevenlabs": PreviewBackend.ELEVENLABS,
+                "edge_tts": PreviewBackend.EDGE_TTS,
                 "midi": PreviewBackend.MIDI,
             }
             if backend not in backend_map:
@@ -1336,7 +1337,7 @@ def register_routes(app: FastAPI) -> None:
             audio_path, backend_used = result
 
             # Determine media type based on backend
-            if backend_used == "elevenlabs":
+            if backend_used in ("elevenlabs", "edge_tts"):
                 media_type = "audio/mpeg"
                 extension = "mp3"
             else:
@@ -1961,6 +1962,7 @@ def register_routes(app: FastAPI) -> None:
                 "auto": PreviewBackend.AUTO,
                 "self_hosted": PreviewBackend.SELF_HOSTED,
                 "elevenlabs": PreviewBackend.ELEVENLABS,
+                "edge_tts": PreviewBackend.EDGE_TTS,
                 "midi": PreviewBackend.MIDI,
             }
             if body.backend not in backend_map:
@@ -1995,7 +1997,7 @@ def register_routes(app: FastAPI) -> None:
             audio_path, backend_used = result
 
             # Determine media type
-            if backend_used == "elevenlabs":
+            if backend_used in ("elevenlabs", "edge_tts"):
                 media_type = "audio/mpeg"
                 extension = "mp3"
             else:
