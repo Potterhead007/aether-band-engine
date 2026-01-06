@@ -83,7 +83,7 @@ class EdgeTTSProvider:
         preview_type: str = "default",
         custom_params: Optional[dict] = None,
     ) -> Optional[Path]:
-        """Generate voice preview using Edge TTS."""
+        """Generate voice preview using Edge TTS with enhanced parameter mapping."""
         import edge_tts
 
         mapping = EDGE_VOICE_MAP.get(voice_name)
@@ -116,31 +116,84 @@ class EdgeTTSProvider:
             return output_path
 
         try:
-            # Configure voice settings
+            # Configure voice settings with enhanced parameter mapping
             voice = mapping.voice_id
             rate = "+0%"
             pitch = "+0Hz"
+            volume = "+0%"
 
             # Apply custom voice parameters if provided
             if custom_params:
-                # Map timbre brightness to rate (-50% to +50%)
+                # --- Timbre Parameters ---
+                # Brightness: Higher = faster, more energetic speech
                 if "brightness" in custom_params:
                     brightness = float(custom_params["brightness"])
-                    rate_adj = int((brightness - 0.5) * 40)  # -20% to +20%
+                    # Range: -30% to +30% (more pronounced effect)
+                    rate_adj = int((brightness - 0.5) * 60)
                     rate = f"{rate_adj:+d}%"
-
-                # Map emotion to pitch adjustment
-                if "warmth" in custom_params:
-                    warmth = float(custom_params["warmth"])
-                    pitch_adj = int((warmth - 0.5) * 20)  # -10Hz to +10Hz
+                    # Also affects pitch slightly (brighter = higher)
+                    pitch_adj = int((brightness - 0.5) * 30)  # -15Hz to +15Hz
                     pitch = f"{pitch_adj:+d}Hz"
 
-            # Generate speech
+                # Breathiness: Softer, more intimate (lower volume, slower)
+                if "breathiness" in custom_params:
+                    breathiness = float(custom_params["breathiness"])
+                    # Reduce volume for breathy effect
+                    vol_adj = int((0.5 - breathiness) * 30)  # -15% to +15%
+                    volume = f"{vol_adj:+d}%"
+                    # Slow down slightly for intimacy
+                    if breathiness > 0.5:
+                        rate_val = int(rate.replace('%', '').replace('+', ''))
+                        rate_val -= int((breathiness - 0.5) * 20)
+                        rate = f"{rate_val:+d}%"
+
+                # Grit: More aggressive, louder, slightly faster
+                if "grit" in custom_params:
+                    grit = float(custom_params["grit"])
+                    if grit > 0.3:
+                        vol_val = int(volume.replace('%', '').replace('+', ''))
+                        vol_val += int((grit - 0.3) * 30)  # Up to +21%
+                        volume = f"{vol_val:+d}%"
+                        rate_val = int(rate.replace('%', '').replace('+', ''))
+                        rate_val += int((grit - 0.3) * 15)  # Slightly faster
+                        rate = f"{rate_val:+d}%"
+
+                # --- Emotion Parameters ---
+                # Warmth: Lower pitch, slower rate
+                if "warmth" in custom_params:
+                    warmth = float(custom_params["warmth"])
+                    # More pronounced pitch shift: -25Hz to +25Hz
+                    pitch_val = int(pitch.replace('Hz', '').replace('+', ''))
+                    pitch_val += int((0.5 - warmth) * 50)  # Warmer = lower pitch
+                    pitch = f"{pitch_val:+d}Hz"
+
+                # Power: Louder, more emphatic
+                if "power" in custom_params:
+                    power = float(custom_params["power"])
+                    vol_val = int(volume.replace('%', '').replace('+', ''))
+                    vol_val += int((power - 0.5) * 40)  # -20% to +20%
+                    volume = f"{vol_val:+d}%"
+
+                # Intimacy: Softer, slower
+                if "intimacy" in custom_params:
+                    intimacy = float(custom_params["intimacy"])
+                    if intimacy > 0.5:
+                        rate_val = int(rate.replace('%', '').replace('+', ''))
+                        rate_val -= int((intimacy - 0.5) * 30)
+                        rate = f"{rate_val:+d}%"
+                        vol_val = int(volume.replace('%', '').replace('+', ''))
+                        vol_val -= int((intimacy - 0.5) * 20)
+                        volume = f"{vol_val:+d}%"
+
+            logger.info(f"Edge TTS params: rate={rate}, pitch={pitch}, volume={volume}")
+
+            # Generate speech with SSML for more control
             communicate = edge_tts.Communicate(
                 text=text,
                 voice=voice,
                 rate=rate,
                 pitch=pitch,
+                volume=volume,
             )
 
             await communicate.save(str(output_path))

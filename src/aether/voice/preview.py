@@ -190,16 +190,30 @@ async def _generate_edge_tts_preview(
             logger.debug("Edge TTS provider not available")
             return None
 
-        # Map custom_params to Edge TTS format
+        # Map custom_params to Edge TTS format (pass all relevant params)
         edge_params = None
         if custom_params:
             edge_params = {}
             timbre = custom_params.get("timbre", {})
             emotion = custom_params.get("emotion", {})
+
+            # Timbre parameters
             if "brightness" in timbre:
                 edge_params["brightness"] = timbre["brightness"]
+            if "breathiness" in timbre:
+                edge_params["breathiness"] = timbre["breathiness"]
+            if "grit" in timbre:
+                edge_params["grit"] = timbre["grit"]
+
+            # Emotion parameters
             if "warmth" in emotion:
                 edge_params["warmth"] = emotion["warmth"]
+            if "power_reserve" in emotion:
+                edge_params["power"] = emotion["power_reserve"]
+            if "intimacy" in emotion:
+                edge_params["intimacy"] = emotion["intimacy"]
+            if "control" in emotion:
+                edge_params["control"] = emotion["control"]
 
         result = await provider.generate_preview(
             voice_name=voice_name,
