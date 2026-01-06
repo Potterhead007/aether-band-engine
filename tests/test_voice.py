@@ -13,6 +13,12 @@ from aether.voice.identity.blueprint import (
     FormantProfile,
     VocalClassification,
     AVU1Identity,
+    AVU2Identity,
+    AVU3Identity,
+    AVU4Identity,
+    VOICE_REGISTRY,
+    get_voice,
+    list_voices,
 )
 from aether.voice.identity.invariants import (
     IdentityInvariants,
@@ -106,6 +112,87 @@ class TestVocalIdentity:
         assert len(formants.f2_range) == 2
         assert formants.f1_range[0] < formants.f1_range[1]
         assert formants.f2_range[0] < formants.f2_range[1]
+
+
+class TestMultipleVoices:
+    """Tests for multiple voice identities."""
+
+    def test_all_voices_exist(self):
+        """All four voice identities should be defined."""
+        assert AVU1Identity is not None
+        assert AVU2Identity is not None
+        assert AVU3Identity is not None
+        assert AVU4Identity is not None
+
+    def test_voice_registry(self):
+        """Voice registry should contain all voices."""
+        assert len(VOICE_REGISTRY) == 4
+        assert "AVU-1" in VOICE_REGISTRY
+        assert "AVU-2" in VOICE_REGISTRY
+        assert "AVU-3" in VOICE_REGISTRY
+        assert "AVU-4" in VOICE_REGISTRY
+
+    def test_get_voice(self):
+        """Should retrieve voices by name."""
+        voice = get_voice("AVU-1")
+        assert voice.name == "AVU-1"
+        voice2 = get_voice("AVU-2")
+        assert voice2.name == "AVU-2"
+
+    def test_get_voice_invalid(self):
+        """Should raise error for invalid voice name."""
+        with pytest.raises(ValueError):
+            get_voice("AVU-99")
+
+    def test_list_voices(self):
+        """Should list all available voices."""
+        voices = list_voices()
+        assert len(voices) == 4
+        names = [v["name"] for v in voices]
+        assert "AVU-1" in names
+        assert "AVU-2" in names
+        assert "AVU-3" in names
+        assert "AVU-4" in names
+
+    def test_voice_classifications(self):
+        """Each voice should have correct classification."""
+        assert AVU1Identity.classification == VocalClassification.LYRIC_TENOR
+        assert AVU2Identity.classification == VocalClassification.MEZZO_SOPRANO
+        assert AVU3Identity.classification == VocalClassification.BARITONE
+        assert AVU4Identity.classification == VocalClassification.SOPRANO
+
+    def test_voice_ranges_distinct(self):
+        """Voice ranges should be appropriately different."""
+        # Soprano highest, Baritone lowest
+        assert AVU4Identity.vocal_range.tessitura_high > AVU1Identity.vocal_range.tessitura_high
+        assert AVU3Identity.vocal_range.tessitura_low < AVU1Identity.vocal_range.tessitura_low
+        # Mezzo between soprano and tenor
+        assert AVU2Identity.vocal_range.tessitura_low > AVU1Identity.vocal_range.tessitura_low
+
+    def test_identity_vectors_unique(self):
+        """Each voice should have a unique identity vector."""
+        v1 = AVU1Identity.get_identity_vector()
+        v2 = AVU2Identity.get_identity_vector()
+        v3 = AVU3Identity.get_identity_vector()
+        v4 = AVU4Identity.get_identity_vector()
+
+        # Vectors should be different
+        assert not np.allclose(v1, v2)
+        assert not np.allclose(v1, v3)
+        assert not np.allclose(v1, v4)
+        assert not np.allclose(v2, v3)
+
+    def test_all_voices_valid(self):
+        """All voice identities should have valid parameters."""
+        for name, voice in VOICE_REGISTRY.items():
+            # Range validation
+            assert voice.vocal_range.comfortable_low < voice.vocal_range.comfortable_high
+            assert voice.vocal_range.extended_low <= voice.vocal_range.comfortable_low
+            # Timbre validation
+            assert 0 <= voice.timbre.brightness <= 1
+            assert 0 <= voice.timbre.breathiness <= 1
+            # Formant validation
+            assert voice.formants.f1_range[0] < voice.formants.f1_range[1]
 
 
 class TestIdentityInvariants:

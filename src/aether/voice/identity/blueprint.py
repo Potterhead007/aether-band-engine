@@ -246,6 +246,210 @@ AVU1Identity = VocalIdentity(
 )
 
 
+# =============================================================================
+# AVU-2: AETHER Voice Unit 2 - Mezzo-Soprano (Versatile Female)
+# =============================================================================
+
+AVU2Identity = VocalIdentity(
+    name="AVU-2",
+    classification=VocalClassification.MEZZO_SOPRANO,
+
+    vocal_range=VocalRange(
+        comfortable_low=55,   # G3
+        comfortable_high=79,  # G5
+        extended_low=52,      # E3
+        extended_high=84,     # C6
+        tessitura_low=58,     # A#3
+        tessitura_high=74,    # D5
+    ),
+
+    formants=FormantProfile(
+        f1_range=(550, 800),    # Slightly higher F1 for female voice
+        f2_range=(1600, 2100),  # Forward placement
+        f3_range=(2600, 3100),  # Brighter upper harmonics
+        singers_formant=(3000, 3500),
+    ),
+
+    timbre=TimbreCharacteristics(
+        brightness=0.68,       # Bright but not piercing
+        breathiness=0.30,      # Slightly breathy, warm
+        grit=0.08,             # Smooth, minimal grit
+        nasality=0.12,         # Low nasality
+        chest_resonance=0.55,  # Balanced chest/head
+        head_voice_blend=0.65, # Favors head voice slightly
+    ),
+
+    emotional_baseline=EmotionalBaseline(
+        warmth=0.72,           # Very warm
+        control=0.68,          # Good control
+        intimacy=0.70,         # Intimate quality
+        power_reserve=0.60,    # Moderate power
+        sincerity=0.78,        # High sincerity
+        engagement=0.75,       # Engaging
+    ),
+
+    vibrato_rate_hz=(5.5, 6.2),        # Slightly faster female vibrato
+    vibrato_onset_delay_ms=(150, 250),
+    breath_sound_profile="soft_warm",
+    transition_smoothness=0.88,
+    consonant_clarity=0.68,
+    sibilance_brightness=0.52,
+)
+
+
+# =============================================================================
+# AVU-3: AETHER Voice Unit 3 - Baritone (Rich Male)
+# =============================================================================
+
+AVU3Identity = VocalIdentity(
+    name="AVU-3",
+    classification=VocalClassification.BARITONE,
+
+    vocal_range=VocalRange(
+        comfortable_low=38,   # D2
+        comfortable_high=64,  # E4
+        extended_low=35,      # B1
+        extended_high=69,     # A4
+        tessitura_low=43,     # G2
+        tessitura_high=60,    # C4
+    ),
+
+    formants=FormantProfile(
+        f1_range=(450, 650),    # Lower F1 for deeper voice
+        f2_range=(1200, 1600),  # Back placement
+        f3_range=(2200, 2600),  # Darker harmonics
+        singers_formant=(2600, 3000),
+    ),
+
+    timbre=TimbreCharacteristics(
+        brightness=0.45,       # Darker tone
+        breathiness=0.18,      # Minimal breathiness
+        grit=0.22,             # Some character/grit
+        nasality=0.15,         # Low nasality
+        chest_resonance=0.82,  # Strong chest voice
+        head_voice_blend=0.35, # Primarily chest
+    ),
+
+    emotional_baseline=EmotionalBaseline(
+        warmth=0.70,           # Warm and rich
+        control=0.75,          # Strong control
+        intimacy=0.55,         # Moderate intimacy
+        power_reserve=0.80,    # High power reserve
+        sincerity=0.72,        # Sincere
+        engagement=0.68,       # Solid engagement
+    ),
+
+    vibrato_rate_hz=(4.8, 5.4),        # Slower, wider vibrato
+    vibrato_onset_delay_ms=(200, 320),
+    breath_sound_profile="deep_resonant",
+    transition_smoothness=0.78,
+    consonant_clarity=0.75,
+    sibilance_brightness=0.40,
+)
+
+
+# =============================================================================
+# AVU-4: AETHER Voice Unit 4 - Soprano (Bright Female)
+# =============================================================================
+
+AVU4Identity = VocalIdentity(
+    name="AVU-4",
+    classification=VocalClassification.SOPRANO,
+
+    vocal_range=VocalRange(
+        comfortable_low=60,   # C4 (middle C)
+        comfortable_high=84,  # C6
+        extended_low=57,      # A3
+        extended_high=88,     # E6
+        tessitura_low=64,     # E4
+        tessitura_high=79,    # G5
+    ),
+
+    formants=FormantProfile(
+        f1_range=(600, 900),    # High F1 for soprano
+        f2_range=(1800, 2300),  # Very forward
+        f3_range=(2800, 3300),  # Brilliant upper partials
+        singers_formant=(3200, 3800),
+    ),
+
+    timbre=TimbreCharacteristics(
+        brightness=0.78,       # Very bright, crystalline
+        breathiness=0.22,      # Light breathiness
+        grit=0.05,             # Very clean tone
+        nasality=0.10,         # Minimal nasality
+        chest_resonance=0.40,  # Light chest
+        head_voice_blend=0.80, # Primarily head voice
+    ),
+
+    emotional_baseline=EmotionalBaseline(
+        warmth=0.58,           # Bright over warm
+        control=0.72,          # Good control
+        intimacy=0.65,         # Moderately intimate
+        power_reserve=0.55,    # Agile over powerful
+        sincerity=0.70,        # Sincere
+        engagement=0.82,       # Very engaging
+    ),
+
+    vibrato_rate_hz=(5.8, 6.5),        # Fast, light vibrato
+    vibrato_onset_delay_ms=(120, 220),
+    breath_sound_profile="light_airy",
+    transition_smoothness=0.90,        # Very smooth transitions
+    consonant_clarity=0.65,
+    sibilance_brightness=0.58,
+)
+
+
+# =============================================================================
+# Voice Registry - All available voice identities
+# =============================================================================
+
+VOICE_REGISTRY = {
+    "AVU-1": AVU1Identity,
+    "AVU-2": AVU2Identity,
+    "AVU-3": AVU3Identity,
+    "AVU-4": AVU4Identity,
+}
+
+
+def get_voice(name: str) -> VocalIdentity:
+    """Get a voice identity by name."""
+    if name not in VOICE_REGISTRY:
+        available = ", ".join(VOICE_REGISTRY.keys())
+        raise ValueError(f"Unknown voice '{name}'. Available: {available}")
+    return VOICE_REGISTRY[name]
+
+
+def list_voices() -> list:
+    """List all available voice identities."""
+    return [
+        {
+            "name": v.name,
+            "classification": v.classification.value,
+            "range": f"{v.vocal_range.comfortable_low}-{v.vocal_range.comfortable_high}",
+            "character": _describe_voice(v),
+        }
+        for v in VOICE_REGISTRY.values()
+    ]
+
+
+def _describe_voice(v: VocalIdentity) -> str:
+    """Generate a brief description of a voice."""
+    traits = []
+    if v.timbre.brightness > 0.65:
+        traits.append("bright")
+    elif v.timbre.brightness < 0.5:
+        traits.append("dark")
+    if v.timbre.breathiness > 0.25:
+        traits.append("breathy")
+    if v.timbre.grit > 0.18:
+        traits.append("gritty")
+    if v.emotional_baseline.warmth > 0.68:
+        traits.append("warm")
+    if v.emotional_baseline.power_reserve > 0.70:
+        traits.append("powerful")
+    return ", ".join(traits) if traits else "balanced"
+
+
 def create_identity_from_params(
     name: str,
     classification: str,
