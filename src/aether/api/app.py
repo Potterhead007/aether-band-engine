@@ -1182,13 +1182,66 @@ def register_routes(app: FastAPI) -> None:
                 "voice": voice_name,
                 "text": text,
                 "description": " ".join(desc_parts),
-                "audio_url": None,  # Would be synthesized audio in production
+                "audio_url": f"/v1/voices/{voice_name}/audio",
             }
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Failed to preview voice: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to preview voice")
+
+    @app.get("/v1/voices/{voice_name}/audio", tags=["Voice"])
+    async def get_voice_audio(voice_name: str):
+        """
+        Get audio preview for a voice.
+
+        Returns a WAV audio file with a short melodic phrase
+        demonstrating the voice's range and character.
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+            from aether.voice.preview import render_preview_audio, get_preview_for_voice
+
+            # Check built-in voices
+            if voice_name in VOICE_REGISTRY:
+                voice = VOICE_REGISTRY[voice_name]
+                info = get_preview_for_voice(voice)
+            elif voice_name in _custom_voices:
+                # Custom voice - use base voice range with custom params
+                custom = _custom_voices[voice_name]
+                info = {
+                    "voice_name": voice_name,
+                    "classification": custom["classification"],
+                    "tessitura_low": custom["tessitura_low"],
+                    "tessitura_high": custom["tessitura_high"],
+                    "brightness": custom["timbre"]["brightness"],
+                    "vibrato_rate": (custom["vibrato"]["rate_min"] + custom["vibrato"]["rate_max"]) / 2,
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
+
+            # Render audio preview
+            audio_path = await render_preview_audio(**info)
+
+            if not audio_path:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Audio preview not available. Ensure FluidSynth and a SoundFont are installed."
+                )
+
+            return FileResponse(
+                audio_path,
+                media_type="audio/wav",
+                filename=f"{voice_name}_preview.wav",
+                headers={
+                    "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                }
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to generate voice audio: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to generate voice audio")
 
     @app.post(
         "/v1/export/flstudio",

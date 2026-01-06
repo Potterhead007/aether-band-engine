@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2,
@@ -13,6 +13,9 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
+  Play,
+  Pause,
+  Square,
 } from 'lucide-react'
 import {
   aetherApi,
@@ -22,6 +25,9 @@ import {
   VoiceVibratoParams,
   CustomVoiceRequest,
 } from '@/lib/api'
+
+// API base URL for audio
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // =============================================================================
 // Types
@@ -126,26 +132,186 @@ function ParameterSlider({
   )
 }
 
+function AudioPlayer({
+  voiceName,
+  onPlay,
+}: {
+  voiceName: string
+  onPlay?: () => void
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
+
+  const audioUrl = `${API_BASE_URL}/v1/voices/${encodeURIComponent(voiceName)}/audio`
+
+  useEffect(() => {
+    // Reset state when voice changes
+    setIsPlaying(false)
+    setProgress(0)
+    setError(null)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+  }, [voiceName])
+
+  const handlePlay = async () => {
+    if (!audioRef.current) return
+
+    if (isPlaying) {
+      audioRef.current.pause()
+      setIsPlaying(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Load and play
+      audioRef.current.src = audioUrl
+      await audioRef.current.play()
+      setIsPlaying(true)
+      onPlay?.()
+    } catch (err) {
+      console.error('Audio playback error:', err)
+      setError('Failed to play audio')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleStop = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setIsPlaying(false)
+      setProgress(0)
+    }
+  }
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current && audioRef.current.duration) {
+      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)
+    }
+  }
+
+  const handleEnded = () => {
+    setIsPlaying(false)
+    setProgress(0)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
+        onError={() => setError('Audio unavailable')}
+      />
+
+      <button
+        onClick={handlePlay}
+        disabled={isLoading}
+        className={`p-2 rounded-full transition-colors ${
+          isPlaying
+            ? 'bg-purple-500 text-white'
+            : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+        } disabled:opacity-50`}
+        title={isPlaying ? 'Pause' : 'Play preview'}
+      >
+        {isLoading ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="w-4 h-4" />
+        ) : (
+          <Play className="w-4 h-4" />
+        )}
+      </button>
+
+      {isPlaying && (
+        <button
+          onClick={handleStop}
+          className="p-2 rounded-full bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+          title="Stop"
+        >
+          <Square className="w-4 h-4" />
+        </button>
+      )}
+
+      {isPlaying && (
+        <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-purple-500 transition-all duration-100"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      {error && (
+        <span className="text-xs text-red-400">{error}</span>
+      )}
+    </div>
+  )
+}
+
 function VoiceCard({
   voice,
   isSelected,
   onSelect,
+  onPlayPreview,
+  isCurrentlyPlaying,
 }: {
   voice: Voice
   isSelected: boolean
   onSelect: () => void
+  onPlayPreview: (name: string) => void
+  isCurrentlyPlaying: boolean
 }) {
   const isCustom = voice.name.startsWith('custom-') || voice.character.includes('Custom')
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handlePlayClick = async (e: React.MouseEvent) => {
+    e.stopPropagation() // Don't trigger card selection
+
+    if (!audioRef.current) return
+
+    if (isCurrentlyPlaying) {
+      audioRef.current.pause()
+      onPlayPreview('')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      audioRef.current.src = `${API_BASE_URL}/v1/voices/${encodeURIComponent(voice.name)}/audio`
+      await audioRef.current.play()
+      onPlayPreview(voice.name)
+    } catch (err) {
+      console.error('Playback failed:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <button
+    <div
       onClick={onSelect}
-      className={`w-full p-4 rounded-xl border transition-all text-left
+      className={`w-full p-4 rounded-xl border transition-all text-left cursor-pointer
         ${isSelected
           ? 'border-purple-500 bg-purple-500/10'
           : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
         }`}
     >
+      <audio
+        ref={audioRef}
+        onEnded={() => onPlayPreview('')}
+      />
+
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center
@@ -157,9 +323,24 @@ function VoiceCard({
             <p className="text-sm text-zinc-400">{voice.classification}</p>
           </div>
         </div>
-        {isSelected && (
-          <div className="w-2 h-2 rounded-full bg-purple-500" />
-        )}
+
+        <button
+          onClick={handlePlayClick}
+          className={`p-2 rounded-full transition-colors ${
+            isCurrentlyPlaying
+              ? 'bg-purple-500 text-white'
+              : 'bg-zinc-600 text-zinc-300 hover:bg-zinc-500'
+          }`}
+          title={isCurrentlyPlaying ? 'Stop' : 'Play preview'}
+        >
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : isCurrentlyPlaying ? (
+            <Square className="w-4 h-4" />
+          ) : (
+            <Play className="w-4 h-4" />
+          )}
+        </button>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -172,7 +353,7 @@ function VoiceCard({
           </span>
         ))}
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -219,6 +400,7 @@ export default function VoicesPage() {
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null)
   const [isCreatingCustom, setIsCreatingCustom] = useState(false)
   const [customName, setCustomName] = useState('')
+  const [playingVoice, setPlayingVoice] = useState<string>('')
 
   // Edited parameters (for fine-tuning)
   const [editedTimbre, setEditedTimbre] = useState<VoiceTimbreParams | null>(null)
@@ -340,6 +522,8 @@ export default function VoicesPage() {
                   voice={voice}
                   isSelected={selectedVoice?.name === voice.name}
                   onSelect={() => handleSelectVoice(voice)}
+                  onPlayPreview={setPlayingVoice}
+                  isCurrentlyPlaying={playingVoice === voice.name}
                 />
               ))}
             </div>
@@ -367,16 +551,19 @@ export default function VoicesPage() {
                     )}
                   </div>
 
-                  {/* Preview */}
-                  {previewMutation.data && (
-                    <div className="bg-zinc-900 rounded-lg p-4 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
+                  {/* Audio Preview */}
+                  <div className="bg-zinc-900 rounded-lg p-4 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
                         <Volume2 className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-medium">Voice Description</span>
+                        <span className="text-sm font-medium">Voice Preview</span>
                       </div>
-                      <p className="text-zinc-300 text-sm">{previewMutation.data.description}</p>
+                      <AudioPlayer voiceName={selectedVoice.name} />
                     </div>
-                  )}
+                    {previewMutation.data && (
+                      <p className="text-zinc-400 text-sm">{previewMutation.data.description}</p>
+                    )}
+                  </div>
 
                   {/* Range info */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
