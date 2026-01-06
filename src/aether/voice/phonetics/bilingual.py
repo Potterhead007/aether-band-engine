@@ -39,6 +39,10 @@ class TransitionParams:
     adapt_to_target_prosody: bool = True  # Apply target language prosody
 
 
+# Alias for backwards compatibility
+LanguageTransition = TransitionParams
+
+
 @dataclass
 class LanguageSpan:
     """A span of text in a single language."""
@@ -79,6 +83,36 @@ class BilingualController:
             "baby", "love", "party", "cool", "yeah", "okay",
             "sorry", "please", "thanks", "hello", "bye",
         }
+
+    def detect_language(self, word: str) -> str:
+        """
+        Detect the language of a single word.
+
+        Args:
+            word: The word to detect
+
+        Returns:
+            Language code ("en" or "es")
+        """
+        # Check for Spanish-specific characters
+        if any(c in word for c in "ñáéíóúü¿¡"):
+            return "es"
+
+        # Check Spanish loan words
+        if word.lower() in self.spanish_loan_words:
+            return "es"
+
+        # Check English loan words
+        if word.lower() in self.english_loan_words:
+            return "en"
+
+        # Check common Spanish patterns
+        spanish_patterns = ["ción", "mente", "oso", "osa", "ito", "ita"]
+        if any(word.lower().endswith(p) for p in spanish_patterns):
+            return "es"
+
+        # Default to English
+        return "en"
 
     def detect_language_spans(
         self,

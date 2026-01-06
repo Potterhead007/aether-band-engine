@@ -99,10 +99,13 @@ class TestVocalIdentity:
         assert 0 <= timbre.nasality <= 1
 
     def test_formant_profile_has_vowels(self):
-        """Formant profile should have common vowels."""
-        formants = AVU1Identity.formant_profile
-        assert "a" in formants.formant_targets or "ɑ" in formants.formant_targets
-        assert len(formants.formant_targets) >= 5
+        """Formant profile should have valid F1/F2 ranges."""
+        formants = AVU1Identity.formants
+        # Check formant ranges are defined
+        assert len(formants.f1_range) == 2  # (min, max)
+        assert len(formants.f2_range) == 2
+        assert formants.f1_range[0] < formants.f1_range[1]
+        assert formants.f2_range[0] < formants.f2_range[1]
 
 
 class TestIdentityInvariants:
@@ -115,20 +118,27 @@ class TestIdentityInvariants:
 
     def test_invariant_validation(self):
         """Invariant validation should work."""
-        # Test with AVU-1 identity (should pass)
-        violations = AVU1_INVARIANTS.validate(AVU1Identity)
-        # Most invariants should pass for properly configured identity
-        assert len([v for v in violations if v.severity == "critical"]) == 0
+        # Test with AVU-1 identity (should pass all invariants)
+        results = AVU1_INVARIANTS.validate(AVU1Identity)
+        # Results is a dict mapping invariant name to (deviation, passed)
+        # All invariants should pass for the reference identity
+        for name, (deviation, passed) in results.items():
+            assert passed, f"Invariant {name} failed with deviation {deviation}"
 
-    def test_controlled_flexibility_genre_scaling(self):
-        """Flexibility should vary by genre."""
-        flex = ControlledFlexibility()
-        pop_flex = flex.get_genre_flexibility("pop")
-        rock_flex = flex.get_genre_flexibility("rock")
+    def test_controlled_flexibility_trait_access(self):
+        """Flexibility traits should be accessible and clampable."""
+        # Test getting traits
+        vibrato_trait = ControlledFlexibility.get_trait("vibrato_depth")
+        assert vibrato_trait is not None
+        assert vibrato_trait.min_value < vibrato_trait.max_value
 
-        # Different genres should have different flexibility
-        assert pop_flex is not None
-        assert rock_flex is not None
+        # Test value validation
+        assert ControlledFlexibility.validate_value("vibrato_depth", 0.4)
+        assert not ControlledFlexibility.validate_value("vibrato_depth", 2.0)
+
+        # Test value clamping
+        clamped = ControlledFlexibility.clamp_value("vibrato_depth", 2.0)
+        assert clamped == vibrato_trait.max_value
 
 
 class TestDriftMonitor:
@@ -141,9 +151,10 @@ class TestDriftMonitor:
 
     def test_drift_tracker_creation(self):
         """Should create drift tracker."""
-        tracker = IdentityDriftTracker(AVU1_INVARIANTS, AVU1Identity)
+        tracker = IdentityDriftTracker(AVU1Identity)
         assert tracker is not None
-        assert tracker.cumulative_drift == 0.0
+        # No drift history means cumulative drift is zero
+        assert len(tracker.drift_history) == 0
 
 
 class TestEnglishPhonetics:

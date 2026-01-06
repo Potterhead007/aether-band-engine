@@ -16,19 +16,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlignedUnit:
     """A unit of aligned lyrics and melody."""
-    # From lyrics
+    # Required fields (no defaults) must come first
     text: str
     phonemes: List[str]
-    language: str = "en"
-    stress: float = 0.5
-
-    # From melody
     pitch: int  # MIDI note
     start_beat: float
     duration_beats: float
-    velocity: int = 100
 
-    # Alignment metadata
+    # Optional fields (with defaults)
+    language: str = "en"
+    stress: float = 0.5
+    velocity: int = 100
     is_melisma: bool = False  # Multiple notes per syllable
     extend_from: Optional[int] = None  # Index of syllable this extends
     is_phrase_start: bool = False

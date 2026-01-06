@@ -285,6 +285,37 @@ class ControlledFlexibility:
         return max(trait.min_value, min(trait.max_value, value))
 
 
+# Pre-configured invariants for AVU-1 identity
+# Note: This is a lazy-loaded singleton to avoid circular imports
+_avu1_invariants_instance: Optional[IdentityInvariants] = None
+
+
+def get_avu1_invariants() -> IdentityInvariants:
+    """Get the AVU-1 identity invariants (lazy-loaded)."""
+    global _avu1_invariants_instance
+    if _avu1_invariants_instance is None:
+        from aether.voice.identity.blueprint import AVU1Identity
+        _avu1_invariants_instance = IdentityInvariants(AVU1Identity)
+    return _avu1_invariants_instance
+
+
+class _AVU1InvariantsAccessor:
+    """Lazy accessor for AVU1_INVARIANTS to avoid circular imports."""
+
+    @property
+    def invariants(self) -> List[InvariantSpec]:
+        return get_avu1_invariants().INVARIANTS
+
+    def validate(self, identity: VocalIdentity) -> List:
+        return get_avu1_invariants().check_invariants(identity)[1]
+
+    def __getattr__(self, name):
+        return getattr(get_avu1_invariants(), name)
+
+
+AVU1_INVARIANTS = _AVU1InvariantsAccessor()
+
+
 def validate_identity(
     identity: VocalIdentity,
     reference: VocalIdentity,

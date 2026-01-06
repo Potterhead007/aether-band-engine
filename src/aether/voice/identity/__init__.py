@@ -11,7 +11,7 @@ from aether.voice.identity.blueprint import (
 from aether.voice.identity.invariants import (
     IdentityInvariants,
     ControlledFlexibility,
-    InvariantViolation,
+    InvariantSpec,
     AVU1_INVARIANTS,
 )
 from aether.voice.identity.drift_monitor import (
@@ -29,7 +29,7 @@ __all__ = [
     "AVU1Identity",
     "IdentityInvariants",
     "ControlledFlexibility",
-    "InvariantViolation",
+    "InvariantSpec",
     "AVU1_INVARIANTS",
     "VoiceConsistencyMonitor",
     "IdentityDriftTracker",
