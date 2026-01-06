@@ -286,6 +286,16 @@ class CustomVoiceResponse(BaseModel):
     message: str
 
 
+class CustomPreviewRequest(BaseModel):
+    """Request for custom parameter voice preview."""
+    base_voice: str = Field(..., description="Base voice (AVU-1, AVU-2, etc.)")
+    timbre: Optional[VoiceTimbreParams] = None
+    emotion: Optional[VoiceEmotionParams] = None
+    vibrato: Optional[VoiceVibratoParams] = None
+    preview_type: str = Field("default", description="Preview type: default, emotional, range")
+    backend: str = Field("auto", description="Backend: auto, elevenlabs, midi")
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -1310,6 +1320,94 @@ def register_routes(app: FastAPI) -> None:
             "elevenlabs_configured": "elevenlabs" in backends,
             "midi_available": "midi" in backends,
         }
+
+    @app.post("/v1/voices/preview-custom", tags=["Voice"])
+    async def preview_custom_params(body: CustomPreviewRequest):
+        """
+        Generate audio preview with custom parameters.
+
+        This endpoint allows real-time preview of voice parameter changes
+        without saving a custom voice preset. Perfect for A/B testing and
+        fine-tuning before committing to a custom voice.
+
+        The custom parameters are mapped to ElevenLabs settings:
+        - brightness → style (expressiveness)
+        - breathiness → 1 - stability
+        - warmth → similarity_boost
+        """
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+            from aether.voice.preview import (
+                generate_voice_preview,
+                PreviewBackend,
+            )
+
+            # Validate base voice
+            if body.base_voice not in VOICE_REGISTRY:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Base voice '{body.base_voice}' not found"
+                )
+
+            # Map backend
+            backend_map = {
+                "auto": PreviewBackend.AUTO,
+                "elevenlabs": PreviewBackend.ELEVENLABS,
+                "midi": PreviewBackend.MIDI,
+            }
+            if body.backend not in backend_map:
+                raise HTTPException(status_code=400, detail="Invalid backend")
+
+            # Build custom params
+            custom_params = {}
+            if body.timbre:
+                custom_params["timbre"] = body.timbre.model_dump()
+            if body.emotion:
+                custom_params["emotion"] = body.emotion.model_dump()
+            if body.vibrato:
+                custom_params["vibrato"] = {
+                    "rate_min": body.vibrato.rate_min,
+                    "rate_max": body.vibrato.rate_max,
+                }
+
+            # Generate preview
+            result = await generate_voice_preview(
+                voice_name=body.base_voice,
+                preview_type=body.preview_type,
+                backend=backend_map[body.backend],
+                custom_params=custom_params if custom_params else None,
+            )
+
+            if not result:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Audio preview generation failed"
+                )
+
+            audio_path, backend_used = result
+
+            # Determine media type
+            if backend_used == "elevenlabs":
+                media_type = "audio/mpeg"
+                extension = "mp3"
+            else:
+                media_type = "audio/wav"
+                extension = "wav"
+
+            return FileResponse(
+                str(audio_path),
+                media_type=media_type,
+                filename=f"{body.base_voice}_custom_preview.{extension}",
+                headers={
+                    "Cache-Control": "no-cache",  # Don't cache custom previews
+                    "X-Preview-Backend": backend_used,
+                }
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Custom preview failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Custom preview generation failed")
 
     @app.post(
         "/v1/export/flstudio",
