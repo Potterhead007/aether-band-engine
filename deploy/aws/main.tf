@@ -59,16 +59,16 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
-variable "api_image" {
-  description = "API Docker image"
+variable "api_image_tag" {
+  description = "API Docker image tag (never use 'latest' in production)"
   type        = string
-  default     = "aether-api:latest"
+  default     = "v1.0.0"
 }
 
-variable "frontend_image" {
-  description = "Frontend Docker image"
+variable "frontend_image_tag" {
+  description = "Frontend Docker image tag (never use 'latest' in production)"
   type        = string
-  default     = "aether-frontend:latest"
+  default     = "v1.0.0"
 }
 
 # =============================================================================
@@ -376,7 +376,7 @@ resource "aws_ecs_task_definition" "api" {
 
   container_definitions = jsonencode([{
     name  = "api"
-    image = "${aws_ecr_repository.api.repository_url}:latest"
+    image = "${aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
 
     portMappings = [{
       containerPort = 8000
@@ -424,7 +424,7 @@ resource "aws_ecs_task_definition" "frontend" {
 
   container_definitions = jsonencode([{
     name  = "frontend"
-    image = "${aws_ecr_repository.frontend.repository_url}:latest"
+    image = "${aws_ecr_repository.frontend.repository_url}:${var.frontend_image_tag}"
 
     portMappings = [{
       containerPort = 3000

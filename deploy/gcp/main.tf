@@ -49,6 +49,18 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
+variable "api_image_tag" {
+  description = "API Docker image tag (never use 'latest' in production)"
+  type        = string
+  default     = "v1.0.0"
+}
+
+variable "frontend_image_tag" {
+  description = "Frontend Docker image tag (never use 'latest' in production)"
+  type        = string
+  default     = "v1.0.0"
+}
+
 # =============================================================================
 # Provider
 # =============================================================================
@@ -138,7 +150,7 @@ resource "google_cloud_run_v2_service" "api" {
     service_account = google_service_account.api.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/aether/api:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/aether/api:${var.api_image_tag}"
 
       ports {
         container_port = 8000
@@ -221,7 +233,7 @@ resource "google_cloud_run_v2_service" "frontend" {
     service_account = google_service_account.frontend.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/aether/frontend:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/aether/frontend:${var.frontend_image_tag}"
 
       ports {
         container_port = 3000

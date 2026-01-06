@@ -21,6 +21,35 @@ env:
 
 jobs:
   # ==========================================================================
+  # Security Scanning
+  # ==========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety pip-audit
+
+      - name: Run Bandit security scan
+        run: bandit -r src/ -ll -ii --skip B101
+
+      - name: Check dependencies for vulnerabilities
+        run: pip-audit --strict --ignore-vuln GHSA-xxxx-xxxx-xxxx || true
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities with Safety
+        run: safety check --full-report || true
+        continue-on-error: true
+
+  # ==========================================================================
   # Lint and Format Check
   # ==========================================================================
   lint:

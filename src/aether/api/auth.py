@@ -141,7 +141,14 @@ class JWTAuth(AuthProvider):
     - RS256 and HS256 algorithms
     - Token validation and expiry
     - Custom claims extraction
+
+    Security:
+    - Explicitly validates algorithm to prevent "none" algorithm attacks
+    - Requires matching algorithm from token header
     """
+
+    # Allowed algorithms - "none" is explicitly excluded for security
+    ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512"}
 
     def __init__(
         self,
@@ -150,8 +157,12 @@ class JWTAuth(AuthProvider):
         issuer: Optional[str] = None,
         audience: Optional[str] = None,
     ):
+        # Security: Validate algorithm is allowed
+        if algorithm.upper() not in self.ALLOWED_ALGORITHMS:
+            raise ValueError(f"Unsupported JWT algorithm: {algorithm}. Allowed: {self.ALLOWED_ALGORITHMS}")
+
         self.secret_key = secret_key
-        self.algorithm = algorithm
+        self.algorithm = algorithm.upper()
         self.issuer = issuer
         self.audience = audience
         self._bearer_scheme = HTTPBearer(auto_error=False)
@@ -165,10 +176,9 @@ class JWTAuth(AuthProvider):
         token = auth_header[7:]
 
         try:
-            # In production, use PyJWT or python-jose
-            # This is a placeholder for the JWT verification logic
             import jwt
 
+            # Security: Explicitly specify allowed algorithms (no "none" attack)
             payload = jwt.decode(
                 token,
                 self.secret_key,
@@ -316,3 +326,32 @@ def require_role(role: str) -> Callable:
         return wrapper
 
     return decorator
+
+
+class SSOAuth(AuthProvider):
+    """
+    SSO/SAML authentication provider placeholder.
+
+    This class is a placeholder for enterprise SSO integration.
+    Implement in a production environment with proper SAML/OIDC library.
+
+    For production implementation, consider:
+    - python3-saml: https://github.com/onelogin/python3-saml
+    - python-social-auth: https://github.com/python-social-auth
+    - authlib: https://github.com/lepture/authlib
+    """
+
+    def __init__(
+        self,
+        idp_metadata_url: Optional[str] = None,
+        sp_entity_id: Optional[str] = None,
+    ):
+        raise NotImplementedError(
+            "SSO authentication is not yet implemented. "
+            "For production SSO/SAML integration, implement this class using "
+            "python3-saml, authlib, or similar SAML/OIDC library."
+        )
+
+    async def authenticate(self, request: Request) -> Optional[AuthContext]:
+        """Authenticate via SSO - not implemented."""
+        raise NotImplementedError("SSO authentication not implemented")
