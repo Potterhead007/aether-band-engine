@@ -61,6 +61,23 @@ llm = [
     "openai>=1.0",
 ]
 
+# Self-hosted voice synthesis (XTTS + RVC pipeline)
+# Requires significant disk space (~2GB) and GPU recommended
+voice = [
+    "TTS>=0.22.0",           # Coqui TTS (includes XTTS v2)
+    "torch>=2.0",            # PyTorch
+    "torchaudio>=2.0",       # Audio processing
+    "pytsmod>=0.3.0",        # Time-stretch for pitch manipulation
+    "praat-parselmouth>=0.4", # Pitch detection (F0 extraction)
+    "faiss-cpu>=1.7.0",      # FAISS index (CPU fallback)
+]
+
+# GPU-accelerated voice synthesis (recommended for production)
+voice-gpu = [
+    "aether-band-engine[voice]",
+    "faiss-gpu>=1.7.0",      # GPU-accelerated FAISS
+]
+
 # API server dependencies (includes audio for rendering)
 api = [
     "fastapi>=0.109",
@@ -73,7 +90,7 @@ api = [
 
 # Full installation with all features
 full = [
-    "aether-band-engine[audio,ml,llm,api]",
+    "aether-band-engine[audio,ml,llm,api,voice]",
 ]
 
 dev = [

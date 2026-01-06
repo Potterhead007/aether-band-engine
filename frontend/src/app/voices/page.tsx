@@ -23,6 +23,9 @@ import {
   Check,
   Music,
   Zap,
+  Cpu,
+  Cloud,
+  Server,
 } from 'lucide-react'
 import {
   aetherApi,
@@ -515,6 +518,117 @@ function ParameterSection({
 }
 
 // =============================================================================
+// Backend Selector
+// =============================================================================
+
+interface BackendOption {
+  id: string
+  name: string
+  description: string
+  icon: React.ElementType
+  features: string[]
+}
+
+const BACKEND_OPTIONS: BackendOption[] = [
+  {
+    id: 'auto',
+    name: 'Auto',
+    description: 'Best available backend',
+    icon: Sparkles,
+    features: ['Automatic fallback', 'Always works'],
+  },
+  {
+    id: 'self_hosted',
+    name: 'Self-Hosted',
+    description: 'XTTS + RVC (Local GPU)',
+    icon: Cpu,
+    features: ['Highest quality', 'No API costs', 'Singing synthesis'],
+  },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    description: 'External API',
+    icon: Cloud,
+    features: ['High quality', 'Voice cloning', 'Requires API key'],
+  },
+  {
+    id: 'midi',
+    name: 'MIDI',
+    description: 'Instrumental preview',
+    icon: Music,
+    features: ['Always available', 'No GPU required'],
+  },
+]
+
+function BackendSelector({
+  selected,
+  onChange,
+  availableBackends,
+}: {
+  selected: string
+  onChange: (backend: string) => void
+  availableBackends: string[]
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+          <Server className="w-4 h-4" />
+          Synthesis Backend
+        </h4>
+        {availableBackends.length > 0 && (
+          <span className="text-xs text-zinc-500">
+            {availableBackends.length} available
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {BACKEND_OPTIONS.map((option) => {
+          const isAvailable = option.id === 'auto' || availableBackends.includes(option.id)
+          const isSelected = selected === option.id
+
+          return (
+            <button
+              key={option.id}
+              onClick={() => isAvailable && onChange(option.id)}
+              disabled={!isAvailable}
+              className={`p-3 rounded-lg border transition-all text-left ${
+                isSelected
+                  ? 'border-purple-500 bg-purple-500/10'
+                  : isAvailable
+                    ? 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                    : 'border-zinc-800 bg-zinc-900/50 opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <option.icon className={`w-4 h-4 ${isSelected ? 'text-purple-400' : 'text-zinc-500'}`} />
+                <span className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-zinc-300'}`}>
+                  {option.name}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">{option.description}</p>
+              {isSelected && isAvailable && option.id !== 'auto' && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {option.features.slice(0, 2).map((feature) => (
+                    <span key={feature} className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {!isAvailable && (
+                <span className="text-[10px] text-red-400 mt-1 block">Not configured</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
 // Preset Selector
 // =============================================================================
 
@@ -554,6 +668,7 @@ export default function VoicesPage() {
   const [isPreviewingChanges, setIsPreviewingChanges] = useState(false)
   const [customPreviewUrl, setCustomPreviewUrl] = useState<string | null>(null)
   const [activePlayer, setActivePlayer] = useState<'original' | 'modified' | null>(null)
+  const [selectedBackend, setSelectedBackend] = useState<string>('auto')
 
   // Edited parameters
   const [editedTimbre, setEditedTimbre] = useState<VoiceTimbreParams | null>(null)
@@ -565,6 +680,19 @@ export default function VoicesPage() {
     queryKey: ['voices'],
     queryFn: () => aetherApi.listVoices(),
   })
+
+  // Fetch available backends
+  const { data: backendsData } = useQuery({
+    queryKey: ['voice-backends'],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/v1/voice-backends`)
+      if (!response.ok) throw new Error('Failed to fetch backends')
+      return response.json()
+    },
+    staleTime: 60000, // Cache for 1 minute
+  })
+
+  const availableBackends = backendsData?.available || ['midi']
 
   // Create custom voice mutation
   const createCustomMutation = useMutation({
@@ -629,7 +757,7 @@ export default function VoicesPage() {
           timbre: editedTimbre,
           emotion: editedEmotion,
           vibrato: editedVibrato,
-          backend: 'auto',
+          backend: selectedBackend,
         }),
       })
 
@@ -644,7 +772,7 @@ export default function VoicesPage() {
     } finally {
       setIsPreviewingChanges(false)
     }
-  }, [selectedVoice, editedTimbre, editedEmotion, editedVibrato])
+  }, [selectedVoice, editedTimbre, editedEmotion, editedVibrato, selectedBackend])
 
   // Save custom voice
   const handleSaveCustom = useCallback(() => {
@@ -852,6 +980,16 @@ export default function VoicesPage() {
                   </h3>
                   <PresetSelector onApply={applyPreset} />
                 </div>
+
+                {/* Backend Selector */}
+                <BackendSelector
+                  selected={selectedBackend}
+                  onChange={(backend) => {
+                    setSelectedBackend(backend)
+                    setCustomPreviewUrl(null) // Clear preview when backend changes
+                  }}
+                  availableBackends={availableBackends}
+                />
 
                 {/* Fine-tuning Controls */}
                 <div className="space-y-4">

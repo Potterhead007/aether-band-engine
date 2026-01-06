@@ -38,11 +38,23 @@ class PipelineStage(Enum):
     MELODY_ALIGNMENT = "melody_alignment"
     PERFORMANCE_PLANNING = "performance_planning"
     VOICE_SYNTHESIS = "voice_synthesis"
+    # Self-hosted backend stages
+    XTTS_GENERATION = "xtts_generation"
+    RVC_CONVERSION = "rvc_conversion"
+    # Continue stages
     HARMONY_GENERATION = "harmony_generation"
     ARRANGEMENT = "arrangement"
     MIXING = "mixing"
     QUALITY_CHECK = "quality_check"
     OUTPUT = "output"
+
+
+class SynthesisBackend(Enum):
+    """Voice synthesis backend options."""
+    INTERNAL = "internal"       # Built-in SingingEngine (default)
+    SELF_HOSTED = "self_hosted" # XTTS + RVC pipeline
+    ELEVENLABS = "elevenlabs"   # ElevenLabs API
+    AUTO = "auto"               # Auto-select best available
 
 
 @dataclass
@@ -69,6 +81,11 @@ class VoiceSynthesisInput:
     language: str = "en"
     emotion: Optional[str] = None
     emotion_intensity: float = 0.5
+
+    # Backend selection
+    backend: str = "auto"  # "internal", "self_hosted", "elevenlabs", "auto"
+    voice_name: str = "AVU-1"  # Voice identity for self-hosted/elevenlabs
+    pitch_shift: Optional[int] = None  # Pitch shift in semitones
 
     # Arrangement
     generate_harmonies: bool = False
@@ -110,7 +127,7 @@ class VoiceSynthesisPipeline:
     - Text processing and phonetics
     - Melody alignment
     - Performance planning
-    - Voice synthesis
+    - Voice synthesis (internal, self-hosted, or external API)
     - Harmony generation
     - Arrangement and mixing
     - Quality evaluation
@@ -120,6 +137,7 @@ class VoiceSynthesisPipeline:
         self,
         identity: Optional[VocalIdentity] = None,
         sample_rate: int = 48000,
+        default_backend: str = "auto",
     ):
         """
         Initialize pipeline.
@@ -127,12 +145,16 @@ class VoiceSynthesisPipeline:
         Args:
             identity: Vocal identity (defaults to AVU-1)
             sample_rate: Output sample rate
+            default_backend: Default synthesis backend
         """
         self.identity = identity or AVU1Identity
         self.sample_rate = sample_rate
+        self.default_backend = default_backend
 
         # Initialize components (lazy-loaded for performance)
         self._engine: Optional[SingingEngine] = None
+        self._selfhosted_provider = None
+        self._elevenlabs_provider = None
         self._english_phonetics: Optional[EnglishPhonetics] = None
         self._spanish_phonetics: Optional[SpanishPhonetics] = None
         self._bilingual: Optional[BilingualController] = None
@@ -145,6 +167,9 @@ class VoiceSynthesisPipeline:
 
         # Progress callback
         self._progress_callback: Optional[callable] = None
+
+        # Backend availability cache
+        self._backend_availability: Dict[str, bool] = {}
 
     @property
     def engine(self) -> SingingEngine:
@@ -219,6 +244,78 @@ class VoiceSynthesisPipeline:
             )
         return self._drift_tracker
 
+    async def get_selfhosted_provider(self):
+        """Get or create self-hosted provider."""
+        if self._selfhosted_provider is None:
+            try:
+                from aether.providers.selfhosted import get_selfhosted_provider
+                self._selfhosted_provider = await get_selfhosted_provider()
+            except ImportError:
+                logger.debug("Self-hosted provider not installed")
+                return None
+            except Exception as e:
+                logger.warning(f"Failed to initialize self-hosted provider: {e}")
+                return None
+        return self._selfhosted_provider
+
+    async def get_elevenlabs_provider(self):
+        """Get or create ElevenLabs provider."""
+        if self._elevenlabs_provider is None:
+            try:
+                from aether.providers.elevenlabs import get_elevenlabs_provider
+                self._elevenlabs_provider = await get_elevenlabs_provider()
+            except ImportError:
+                logger.debug("ElevenLabs provider not installed")
+                return None
+            except Exception as e:
+                logger.warning(f"Failed to initialize ElevenLabs provider: {e}")
+                return None
+        return self._elevenlabs_provider
+
+    async def _determine_backend(self, requested: str) -> str:
+        """
+        Determine which backend to use.
+
+        Args:
+            requested: Requested backend ("auto", "internal", "self_hosted", "elevenlabs")
+
+        Returns:
+            Resolved backend name
+        """
+        if requested == "internal":
+            return "internal"
+
+        if requested == "self_hosted":
+            provider = await self.get_selfhosted_provider()
+            if provider and provider.is_available():
+                return "self_hosted"
+            logger.warning("Self-hosted backend requested but not available, falling back")
+            return "internal"
+
+        if requested == "elevenlabs":
+            provider = await self.get_elevenlabs_provider()
+            if provider:
+                return "elevenlabs"
+            logger.warning("ElevenLabs backend requested but not available, falling back")
+            return "internal"
+
+        # Auto mode - try best available
+        if requested == "auto":
+            # Prefer self-hosted (highest quality, no API costs)
+            provider = await self.get_selfhosted_provider()
+            if provider and provider.is_available():
+                return "self_hosted"
+
+            # Try ElevenLabs
+            provider = await self.get_elevenlabs_provider()
+            if provider:
+                return "elevenlabs"
+
+            # Fall back to internal
+            return "internal"
+
+        return "internal"
+
     def set_progress_callback(self, callback: callable) -> None:
         """Set callback for progress updates."""
         self._progress_callback = callback
@@ -277,17 +374,27 @@ class VoiceSynthesisPipeline:
             )
             expression_params = self.expression_mapper.map_emotion(emotion_vector)
 
-        # Stage 4: Voice Synthesis (main stage)
-        self._report_progress(PipelineStage.VOICE_SYNTHESIS, 40, "Synthesizing voice...")
+        # Determine backend
+        backend = await self._determine_backend(input_spec.backend)
+        logger.info(f"Using synthesis backend: {backend}")
 
-        engine_input = SingingEngineInput(
-            lyrics=lyric_tokens,
-            melody=self._convert_melody(input_spec.melody),
-            tempo=input_spec.tempo,
-            genre=input_spec.genre,
-        )
+        # Stage 4: Voice Synthesis (main stage) - route to appropriate backend
+        if backend == "self_hosted":
+            engine_output = await self._synthesize_selfhosted(input_spec, lyric_tokens)
+        elif backend == "elevenlabs":
+            engine_output = await self._synthesize_elevenlabs(input_spec, lyric_tokens)
+        else:
+            # Internal engine (default)
+            self._report_progress(PipelineStage.VOICE_SYNTHESIS, 40, "Synthesizing voice...")
 
-        engine_output = await self.engine.synthesize(engine_input)
+            engine_input = SingingEngineInput(
+                lyrics=lyric_tokens,
+                melody=self._convert_melody(input_spec.melody),
+                tempo=input_spec.tempo,
+                genre=input_spec.genre,
+            )
+
+            engine_output = await self.engine.synthesize(engine_input)
 
         # Stage 5: Harmony Generation (if requested)
         harmony_audio = None
@@ -516,6 +623,174 @@ class VoiceSynthesisPipeline:
             mixed = mixed * (0.95 / max_val)
 
         return mixed
+
+    async def _synthesize_selfhosted(
+        self,
+        input_spec: VoiceSynthesisInput,
+        lyric_tokens: List[dict],
+    ):
+        """
+        Synthesize using self-hosted XTTS + RVC pipeline.
+
+        This provides the highest quality synthesis with full
+        voice conversion to match AVU identities.
+        """
+        from dataclasses import dataclass
+
+        @dataclass
+        class EngineOutput:
+            audio: np.ndarray
+            pitch_contour: Optional[np.ndarray] = None
+            phoneme_sequence: Optional[List[str]] = None
+
+        provider = await self.get_selfhosted_provider()
+        if not provider:
+            raise RuntimeError("Self-hosted provider not available")
+
+        # Stage: XTTS Generation
+        self._report_progress(
+            PipelineStage.XTTS_GENERATION, 40,
+            f"Generating speech with XTTS for {input_spec.voice_name}..."
+        )
+
+        # Convert lyric tokens to text
+        text = " ".join([t.get("text", "") for t in lyric_tokens])
+
+        # Define progress callback for provider
+        def progress_callback(progress: float, stage: str, message: str):
+            if stage == "xtts":
+                self._report_progress(
+                    PipelineStage.XTTS_GENERATION,
+                    40 + (progress * 0.15),  # 40-55%
+                    message,
+                )
+            elif stage == "rvc":
+                self._report_progress(
+                    PipelineStage.RVC_CONVERSION,
+                    55 + (progress * 0.15),  # 55-70%
+                    message,
+                )
+
+        provider.set_progress_callback(progress_callback)
+
+        # Run synthesis
+        result = await provider.synthesize(
+            text=text,
+            voice_name=input_spec.voice_name,
+            language=input_spec.language,
+            pitch_shift=input_spec.pitch_shift,
+            speed=1.0,  # Speed is typically handled by melody alignment
+        )
+
+        # Stage: RVC Conversion (completed by provider)
+        self._report_progress(
+            PipelineStage.RVC_CONVERSION, 70,
+            "Voice conversion complete"
+        )
+
+        # Load audio from result
+        if result and result.audio_path:
+            import soundfile as sf
+            audio_data, sr = sf.read(str(result.audio_path))
+
+            # Resample if needed
+            if sr != self.sample_rate:
+                import scipy.signal as signal
+                num_samples = int(len(audio_data) * self.sample_rate / sr)
+                audio_data = signal.resample(audio_data, num_samples)
+
+            # Ensure mono and float32
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data.mean(axis=1)
+            audio_data = audio_data.astype(np.float32)
+
+            return EngineOutput(
+                audio=audio_data,
+                pitch_contour=None,  # Self-hosted doesn't provide this yet
+                phoneme_sequence=[t.get("text", "") for t in lyric_tokens],
+            )
+
+        # Fallback: generate placeholder if result failed
+        logger.warning("Self-hosted synthesis returned no audio, using placeholder")
+        duration_samples = int(5.0 * self.sample_rate)
+        return EngineOutput(
+            audio=np.zeros(duration_samples, dtype=np.float32),
+            pitch_contour=None,
+            phoneme_sequence=[t.get("text", "") for t in lyric_tokens],
+        )
+
+    async def _synthesize_elevenlabs(
+        self,
+        input_spec: VoiceSynthesisInput,
+        lyric_tokens: List[dict],
+    ):
+        """
+        Synthesize using ElevenLabs API.
+
+        High-quality text-to-speech with voice matching.
+        """
+        from dataclasses import dataclass
+
+        @dataclass
+        class EngineOutput:
+            audio: np.ndarray
+            pitch_contour: Optional[np.ndarray] = None
+            phoneme_sequence: Optional[List[str]] = None
+
+        provider = await self.get_elevenlabs_provider()
+        if not provider:
+            raise RuntimeError("ElevenLabs provider not available")
+
+        # Stage: Voice Synthesis
+        self._report_progress(
+            PipelineStage.VOICE_SYNTHESIS, 40,
+            f"Synthesizing with ElevenLabs for {input_spec.voice_name}..."
+        )
+
+        # Convert lyric tokens to text
+        text = " ".join([t.get("text", "") for t in lyric_tokens])
+
+        # Run synthesis
+        result = await provider.synthesize_text(
+            text=text,
+            voice_name=input_spec.voice_name,
+        )
+
+        self._report_progress(
+            PipelineStage.VOICE_SYNTHESIS, 70,
+            "ElevenLabs synthesis complete"
+        )
+
+        # Load audio from result
+        if result:
+            import soundfile as sf
+            audio_data, sr = sf.read(str(result))
+
+            # Resample if needed
+            if sr != self.sample_rate:
+                import scipy.signal as signal
+                num_samples = int(len(audio_data) * self.sample_rate / sr)
+                audio_data = signal.resample(audio_data, num_samples)
+
+            # Ensure mono and float32
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data.mean(axis=1)
+            audio_data = audio_data.astype(np.float32)
+
+            return EngineOutput(
+                audio=audio_data,
+                pitch_contour=None,
+                phoneme_sequence=[t.get("text", "") for t in lyric_tokens],
+            )
+
+        # Fallback
+        logger.warning("ElevenLabs synthesis returned no audio, using placeholder")
+        duration_samples = int(5.0 * self.sample_rate)
+        return EngineOutput(
+            audio=np.zeros(duration_samples, dtype=np.float32),
+            pitch_contour=None,
+            phoneme_sequence=[t.get("text", "") for t in lyric_tokens],
+        )
 
 
 class BatchSynthesisPipeline:

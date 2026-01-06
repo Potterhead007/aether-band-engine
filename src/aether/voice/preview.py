@@ -30,9 +30,10 @@ logger = logging.getLogger(__name__)
 
 class PreviewBackend(str, Enum):
     """Available preview backends."""
-    ELEVENLABS = "elevenlabs"
-    MIDI = "midi"
-    AUTO = "auto"  # Try ElevenLabs first, fallback to MIDI
+    SELF_HOSTED = "self_hosted"  # XTTS + RVC (highest quality, no API costs)
+    ELEVENLABS = "elevenlabs"    # External API (high quality, requires key)
+    MIDI = "midi"                # Instrumental approximation (always available)
+    AUTO = "auto"                # Try SELF_HOSTED -> ELEVENLABS -> MIDI
 
 
 # Cache directory for generated previews
@@ -75,7 +76,12 @@ async def generate_voice_preview(
     backends_to_try = []
 
     if backend == PreviewBackend.AUTO:
-        backends_to_try = [PreviewBackend.ELEVENLABS, PreviewBackend.MIDI]
+        # Fallback chain: Self-hosted (best) -> ElevenLabs -> MIDI (always works)
+        backends_to_try = [
+            PreviewBackend.SELF_HOSTED,
+            PreviewBackend.ELEVENLABS,
+            PreviewBackend.MIDI,
+        ]
     else:
         backends_to_try = [backend]
 
@@ -99,7 +105,11 @@ async def _generate_with_backend(
 ) -> Optional[str]:
     """Generate preview with a specific backend."""
 
-    if backend == PreviewBackend.ELEVENLABS:
+    if backend == PreviewBackend.SELF_HOSTED:
+        return await _generate_selfhosted_preview(
+            voice_name, preview_type, custom_params
+        )
+    elif backend == PreviewBackend.ELEVENLABS:
         return await _generate_elevenlabs_preview(
             voice_name, preview_type, custom_params
         )
@@ -107,6 +117,53 @@ async def _generate_with_backend(
         return await _generate_midi_preview(voice, custom_params)
 
     return None
+
+
+# =============================================================================
+# Self-Hosted Backend (XTTS + RVC)
+# =============================================================================
+
+async def _generate_selfhosted_preview(
+    voice_name: str,
+    preview_type: str,
+    custom_params: Optional[dict],
+) -> Optional[str]:
+    """Generate preview using self-hosted XTTS + RVC pipeline."""
+    try:
+        from aether.providers.selfhosted import (
+            get_selfhosted_provider,
+            is_selfhosted_configured,
+        )
+
+        # Quick check if configured (without loading models)
+        if not is_selfhosted_configured():
+            logger.debug("Self-hosted provider not configured")
+            return None
+
+        provider = await get_selfhosted_provider()
+        if not provider:
+            logger.debug("Self-hosted provider not available")
+            return None
+
+        if not provider.is_available():
+            logger.debug("Self-hosted provider not ready")
+            return None
+
+        # Generate preview
+        result = await provider.generate_preview(
+            voice_name=voice_name,
+            preview_type=preview_type,
+            custom_params=custom_params,
+        )
+
+        return str(result) if result else None
+
+    except ImportError:
+        logger.debug("Self-hosted provider not installed")
+        return None
+    except Exception as e:
+        logger.warning(f"Self-hosted preview generation failed: {e}")
+        return None
 
 
 # =============================================================================
@@ -425,6 +482,16 @@ def get_available_backends() -> list[str]:
     # Check if ElevenLabs is configured
     if os.environ.get("ELEVENLABS_API_KEY"):
         backends.insert(0, "elevenlabs")
+
+    # Check if self-hosted is configured (without loading models)
+    try:
+        from aether.providers.selfhosted import is_selfhosted_configured
+
+        if is_selfhosted_configured():
+            # Insert at beginning (highest priority)
+            backends.insert(0, "self_hosted")
+    except ImportError:
+        pass
 
     return backends
 

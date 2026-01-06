@@ -296,6 +296,58 @@ class CustomPreviewRequest(BaseModel):
     backend: str = Field("auto", description="Backend: auto, elevenlabs, midi")
 
 
+# =============================================================================
+# Voice Synthesis Models (Async Jobs)
+# =============================================================================
+
+
+class VoiceSynthesisRequest(BaseModel):
+    """Request for async voice synthesis."""
+    text: str = Field(..., min_length=1, max_length=5000, description="Text or lyrics to synthesize")
+    voice_name: str = Field(..., description="Voice identity (AVU-1, AVU-2, etc.)")
+    backend: str = Field("auto", description="Backend: auto, self_hosted, elevenlabs, midi")
+    language: str = Field("en", description="Language code (en, es, etc.)")
+    pitch_shift: Optional[int] = Field(None, ge=-12, le=12, description="Pitch shift in semitones")
+    speed: float = Field(1.0, ge=0.5, le=2.0, description="Speech speed multiplier")
+    emotion: Optional[str] = Field(None, description="Emotional tone (neutral, happy, sad, etc.)")
+    output_format: str = Field("wav", description="Output format: wav, mp3, flac")
+
+
+class SynthesisStageInfo(BaseModel):
+    """Information about a synthesis stage."""
+    name: str
+    status: Literal["pending", "in_progress", "completed", "failed"]
+    progress: float = Field(ge=0.0, le=100.0)
+    message: Optional[str] = None
+
+
+class VoiceSynthesisJobResponse(BaseModel):
+    """Response for voice synthesis job."""
+    job_id: str
+    status: Literal["pending", "processing", "completed", "failed"]
+    voice_name: str
+    backend: Optional[str] = None
+    progress: float = Field(0.0, ge=0.0, le=100.0)
+    current_stage: Optional[str] = None
+    stages: Optional[List[SynthesisStageInfo]] = None
+    audio_url: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    error: Optional[str] = None
+    created_at: str
+    completed_at: Optional[str] = None
+
+
+class VoiceBackendStatus(BaseModel):
+    """Status information for a voice backend."""
+    name: str
+    available: bool
+    status: Literal["ready", "loading", "unavailable", "error"]
+    features: List[str]
+    models_loaded: Optional[int] = None
+    gpu_available: Optional[bool] = None
+    error: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -927,6 +979,9 @@ def register_routes(app: FastAPI) -> None:
     # In-memory store for custom voice presets (would be DB in production)
     _custom_voices: Dict[str, Dict[str, Any]] = {}
 
+    # In-memory store for voice synthesis jobs
+    _synthesis_jobs: Dict[str, Dict[str, Any]] = {}
+
     def _voice_to_response(voice) -> VoiceResponse:
         """Convert VocalIdentity to API response."""
         # Generate character description
@@ -1234,6 +1289,7 @@ def register_routes(app: FastAPI) -> None:
             # Map backend string to enum
             backend_map = {
                 "auto": PreviewBackend.AUTO,
+                "self_hosted": PreviewBackend.SELF_HOSTED,
                 "elevenlabs": PreviewBackend.ELEVENLABS,
                 "midi": PreviewBackend.MIDI,
             }
@@ -1305,21 +1361,572 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/v1/voice-backends", tags=["Voice"])
     async def list_voice_backends():
         """
-        List available voice preview backends.
+        List available voice preview backends with detailed status.
 
         Returns which backends are configured and available:
+        - self_hosted: Local XTTS + RVC (highest quality, no API costs)
         - elevenlabs: Requires ELEVENLABS_API_KEY environment variable
         - midi: Always available (requires FluidSynth + SoundFont)
         """
         from aether.voice.preview import get_available_backends
+
         backends = get_available_backends()
+        backend_details = []
+
+        # Self-hosted backend status
+        self_hosted_status = {
+            "name": "self_hosted",
+            "available": "self_hosted" in backends,
+            "status": "unavailable",
+            "features": ["singing_synthesis", "voice_conversion", "pitch_control", "multilingual"],
+            "models_loaded": None,
+            "gpu_available": None,
+            "error": None,
+        }
+        try:
+            from aether.providers.selfhosted import is_selfhosted_configured, get_selfhosted_provider
+
+            if is_selfhosted_configured():
+                self_hosted_status["status"] = "ready"
+                # Try to get more details without blocking
+                provider = await get_selfhosted_provider()
+                if provider and provider.is_available():
+                    self_hosted_status["models_loaded"] = len(provider.list_voices())
+                    self_hosted_status["gpu_available"] = provider.config.device in ("cuda", "mps")
+        except ImportError:
+            self_hosted_status["error"] = "selfhosted provider not installed"
+        except Exception as e:
+            self_hosted_status["error"] = str(e)
+        backend_details.append(self_hosted_status)
+
+        # ElevenLabs backend status
+        elevenlabs_status = {
+            "name": "elevenlabs",
+            "available": "elevenlabs" in backends,
+            "status": "ready" if "elevenlabs" in backends else "unavailable",
+            "features": ["text_to_speech", "voice_cloning", "multilingual"],
+            "error": None if "elevenlabs" in backends else "ELEVENLABS_API_KEY not set",
+        }
+        backend_details.append(elevenlabs_status)
+
+        # MIDI backend status
+        midi_status = {
+            "name": "midi",
+            "available": "midi" in backends,
+            "status": "ready" if "midi" in backends else "unavailable",
+            "features": ["instrumental_approximation", "always_available"],
+        }
+        backend_details.append(midi_status)
 
         return {
             "available": backends,
             "recommended": backends[0] if backends else None,
+            "backends": backend_details,
+            "self_hosted_configured": "self_hosted" in backends,
             "elevenlabs_configured": "elevenlabs" in backends,
             "midi_available": "midi" in backends,
         }
+
+    # =========================================================================
+    # Voice Synthesis Async Jobs
+    # =========================================================================
+
+    @app.post(
+        "/v1/voice-synthesis/async",
+        response_model=VoiceSynthesisJobResponse,
+        tags=["Voice Synthesis"],
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def start_voice_synthesis(request: VoiceSynthesisRequest):
+        """
+        Start an async voice synthesis job.
+
+        For long-running synthesis operations, this endpoint starts a background
+        job and returns immediately with a job_id. Poll the job status endpoint
+        to track progress and retrieve the result.
+
+        Backends:
+        - self_hosted: Local XTTS + RVC pipeline (highest quality, requires GPU)
+        - elevenlabs: ElevenLabs API (high quality, requires API key)
+        - midi: MIDI + FluidSynth (instrumental approximation, always available)
+        """
+        from datetime import datetime
+
+        try:
+            from aether.voice.identity import VOICE_REGISTRY
+
+            # Validate voice
+            if request.voice_name not in VOICE_REGISTRY:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Voice '{request.voice_name}' not found. Available: {list(VOICE_REGISTRY.keys())}"
+                )
+
+            # Validate backend
+            valid_backends = ["auto", "self_hosted", "elevenlabs", "midi"]
+            if request.backend not in valid_backends:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid backend. Choose from: {valid_backends}"
+                )
+
+            # Validate output format
+            valid_formats = ["wav", "mp3", "flac"]
+            if request.output_format not in valid_formats:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid output_format. Choose from: {valid_formats}"
+                )
+
+            # Create job
+            job_id = str(uuid4())
+            now = datetime.utcnow().isoformat() + "Z"
+
+            job = {
+                "job_id": job_id,
+                "status": "pending",
+                "voice_name": request.voice_name,
+                "backend": None,  # Will be set when synthesis starts
+                "text": request.text,
+                "language": request.language,
+                "pitch_shift": request.pitch_shift,
+                "speed": request.speed,
+                "emotion": request.emotion,
+                "output_format": request.output_format,
+                "progress": 0.0,
+                "current_stage": None,
+                "stages": [
+                    {"name": "initialization", "status": "pending", "progress": 0.0, "message": None},
+                    {"name": "text_processing", "status": "pending", "progress": 0.0, "message": None},
+                    {"name": "xtts_generation", "status": "pending", "progress": 0.0, "message": None},
+                    {"name": "rvc_conversion", "status": "pending", "progress": 0.0, "message": None},
+                    {"name": "post_processing", "status": "pending", "progress": 0.0, "message": None},
+                ],
+                "audio_path": None,
+                "audio_url": None,
+                "duration_seconds": None,
+                "error": None,
+                "created_at": now,
+                "completed_at": None,
+                "requested_backend": request.backend,
+            }
+            _synthesis_jobs[job_id] = job
+
+            # Start background synthesis task
+            asyncio.create_task(_run_synthesis_job(job_id))
+
+            return VoiceSynthesisJobResponse(
+                job_id=job_id,
+                status="pending",
+                voice_name=request.voice_name,
+                progress=0.0,
+                stages=[SynthesisStageInfo(**s) for s in job["stages"]],
+                created_at=now,
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Failed to start synthesis job: {e}")
+            raise HTTPException(status_code=500, detail="Failed to start synthesis job")
+
+    async def _run_synthesis_job(job_id: str) -> None:
+        """Background task to run voice synthesis."""
+        from datetime import datetime
+        from pathlib import Path
+
+        job = _synthesis_jobs.get(job_id)
+        if not job:
+            return
+
+        try:
+            # Update status to processing
+            job["status"] = "processing"
+            job["current_stage"] = "initialization"
+            job["stages"][0]["status"] = "in_progress"
+
+            # Determine which backend to use
+            requested_backend = job.get("requested_backend", "auto")
+
+            from aether.voice.preview import PreviewBackend, get_available_backends
+
+            available = get_available_backends()
+
+            if requested_backend == "auto":
+                # Use fallback chain
+                if "self_hosted" in available:
+                    backend = "self_hosted"
+                elif "elevenlabs" in available:
+                    backend = "elevenlabs"
+                else:
+                    backend = "midi"
+            else:
+                backend = requested_backend
+                if backend not in available and backend != "midi":
+                    job["status"] = "failed"
+                    job["error"] = f"Requested backend '{backend}' is not available"
+                    return
+
+            job["backend"] = backend
+            job["stages"][0]["status"] = "completed"
+            job["stages"][0]["progress"] = 100.0
+            job["progress"] = 10.0
+
+            # Text processing stage
+            job["current_stage"] = "text_processing"
+            job["stages"][1]["status"] = "in_progress"
+            job["stages"][1]["message"] = "Processing input text..."
+
+            # Simple text processing (expand in production)
+            text = job["text"]
+            language = job.get("language", "en")
+
+            job["stages"][1]["status"] = "completed"
+            job["stages"][1]["progress"] = 100.0
+            job["progress"] = 20.0
+
+            # Synthesis based on backend
+            if backend == "self_hosted":
+                await _run_selfhosted_synthesis(job)
+            elif backend == "elevenlabs":
+                await _run_elevenlabs_synthesis(job)
+            else:
+                await _run_midi_synthesis(job)
+
+            # Post-processing stage
+            job["current_stage"] = "post_processing"
+            job["stages"][4]["status"] = "in_progress"
+            job["stages"][4]["message"] = "Finalizing audio..."
+
+            # Set up download URL if we have audio
+            if job.get("audio_path"):
+                audio_path = Path(job["audio_path"])
+                if audio_path.exists():
+                    # Copy to download directory
+                    safe_job_id = safe_path_component(job_id)
+                    output_dir = Path.home() / ".aether" / "output" / safe_job_id
+                    output_dir.mkdir(parents=True, exist_ok=True)
+
+                    import shutil
+                    dest_path = output_dir / audio_path.name
+                    shutil.copy2(audio_path, dest_path)
+
+                    job["audio_url"] = f"/v1/download/{job_id}/{audio_path.name}"
+
+            job["stages"][4]["status"] = "completed"
+            job["stages"][4]["progress"] = 100.0
+            job["progress"] = 100.0
+
+            # Mark completed
+            job["status"] = "completed"
+            job["current_stage"] = None
+            job["completed_at"] = datetime.utcnow().isoformat() + "Z"
+
+        except Exception as e:
+            logger.exception(f"Synthesis job {job_id} failed: {e}")
+            job["status"] = "failed"
+            job["error"] = str(e)
+            job["completed_at"] = datetime.utcnow().isoformat() + "Z"
+
+    async def _run_selfhosted_synthesis(job: dict) -> None:
+        """Run synthesis using self-hosted XTTS + RVC pipeline."""
+        try:
+            from aether.providers.selfhosted import get_selfhosted_provider
+
+            # XTTS generation stage
+            job["current_stage"] = "xtts_generation"
+            job["stages"][2]["status"] = "in_progress"
+            job["stages"][2]["message"] = "Generating speech with XTTS..."
+
+            provider = await get_selfhosted_provider()
+            if not provider:
+                raise RuntimeError("Self-hosted provider not available")
+
+            # Define progress callback
+            def progress_callback(progress: float, stage: str, message: str):
+                if stage == "xtts":
+                    job["stages"][2]["progress"] = progress
+                    job["stages"][2]["message"] = message
+                    job["progress"] = 20 + (progress * 0.4)  # 20-60%
+                elif stage == "rvc":
+                    job["stages"][3]["progress"] = progress
+                    job["stages"][3]["message"] = message
+                    job["progress"] = 60 + (progress * 0.3)  # 60-90%
+
+            provider.set_progress_callback(progress_callback)
+
+            # Run synthesis
+            result = await provider.synthesize(
+                text=job["text"],
+                voice_name=job["voice_name"],
+                language=job.get("language", "en"),
+                pitch_shift=job.get("pitch_shift"),
+                speed=job.get("speed", 1.0),
+            )
+
+            job["stages"][2]["status"] = "completed"
+            job["stages"][2]["progress"] = 100.0
+
+            # RVC conversion stage
+            job["current_stage"] = "rvc_conversion"
+            job["stages"][3]["status"] = "completed"
+            job["stages"][3]["progress"] = 100.0
+            job["stages"][3]["message"] = "Voice conversion complete"
+
+            if result and result.audio_path:
+                job["audio_path"] = str(result.audio_path)
+                job["duration_seconds"] = result.duration_seconds
+
+            job["progress"] = 90.0
+
+        except Exception as e:
+            logger.error(f"Self-hosted synthesis failed: {e}")
+            # Mark failed stages
+            if job["stages"][2]["status"] == "in_progress":
+                job["stages"][2]["status"] = "failed"
+                job["stages"][2]["message"] = str(e)
+            raise
+
+    async def _run_elevenlabs_synthesis(job: dict) -> None:
+        """Run synthesis using ElevenLabs API."""
+        try:
+            from aether.providers.elevenlabs import get_elevenlabs_provider
+
+            # Skip XTTS stage (not used)
+            job["stages"][2]["status"] = "completed"
+            job["stages"][2]["progress"] = 100.0
+            job["stages"][2]["message"] = "Using ElevenLabs API"
+
+            # RVC stage (voice matching happens in ElevenLabs)
+            job["current_stage"] = "rvc_conversion"
+            job["stages"][3]["status"] = "in_progress"
+            job["stages"][3]["message"] = "Synthesizing with ElevenLabs..."
+
+            provider = await get_elevenlabs_provider()
+            if not provider:
+                raise RuntimeError("ElevenLabs provider not available")
+
+            result = await provider.synthesize_text(
+                text=job["text"],
+                voice_name=job["voice_name"],
+            )
+
+            job["stages"][3]["status"] = "completed"
+            job["stages"][3]["progress"] = 100.0
+
+            if result:
+                job["audio_path"] = str(result)
+
+            job["progress"] = 90.0
+
+        except Exception as e:
+            logger.error(f"ElevenLabs synthesis failed: {e}")
+            if job["stages"][3]["status"] == "in_progress":
+                job["stages"][3]["status"] = "failed"
+                job["stages"][3]["message"] = str(e)
+            raise
+
+    async def _run_midi_synthesis(job: dict) -> None:
+        """Run synthesis using MIDI + FluidSynth (instrumental approximation)."""
+        try:
+            from aether.voice.preview import generate_voice_preview, PreviewBackend
+
+            # Skip XTTS/RVC stages (not applicable for MIDI)
+            job["stages"][2]["status"] = "completed"
+            job["stages"][2]["progress"] = 100.0
+            job["stages"][2]["message"] = "Using MIDI backend"
+
+            job["current_stage"] = "rvc_conversion"
+            job["stages"][3]["status"] = "in_progress"
+            job["stages"][3]["message"] = "Generating MIDI preview..."
+
+            # Use MIDI preview system
+            result = await generate_voice_preview(
+                voice_name=job["voice_name"],
+                preview_type="default",
+                backend=PreviewBackend.MIDI,
+            )
+
+            job["stages"][3]["status"] = "completed"
+            job["stages"][3]["progress"] = 100.0
+
+            if result:
+                audio_path, _ = result
+                job["audio_path"] = str(audio_path)
+
+            job["progress"] = 90.0
+
+        except Exception as e:
+            logger.error(f"MIDI synthesis failed: {e}")
+            if job["stages"][3]["status"] == "in_progress":
+                job["stages"][3]["status"] = "failed"
+                job["stages"][3]["message"] = str(e)
+            raise
+
+    @app.get(
+        "/v1/voice-synthesis/jobs/{job_id}",
+        response_model=VoiceSynthesisJobResponse,
+        tags=["Voice Synthesis"],
+    )
+    async def get_synthesis_job(job_id: str):
+        """
+        Get the status of a voice synthesis job.
+
+        Poll this endpoint to track the progress of a synthesis job.
+        Once status is "completed", the audio_url field will contain
+        the download link.
+        """
+        if job_id not in _synthesis_jobs:
+            raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+        job = _synthesis_jobs[job_id]
+
+        return VoiceSynthesisJobResponse(
+            job_id=job["job_id"],
+            status=job["status"],
+            voice_name=job["voice_name"],
+            backend=job.get("backend"),
+            progress=job["progress"],
+            current_stage=job.get("current_stage"),
+            stages=[SynthesisStageInfo(**s) for s in job.get("stages", [])],
+            audio_url=job.get("audio_url"),
+            duration_seconds=job.get("duration_seconds"),
+            error=job.get("error"),
+            created_at=job["created_at"],
+            completed_at=job.get("completed_at"),
+        )
+
+    @app.get(
+        "/v1/voice-synthesis/jobs/{job_id}/audio",
+        tags=["Voice Synthesis"],
+        response_class=FileResponse,
+    )
+    async def download_synthesis_audio(job_id: str):
+        """
+        Download the audio from a completed synthesis job.
+
+        The job must be in "completed" status. Returns the synthesized
+        audio file in the requested format (wav, mp3, or flac).
+        """
+        from pathlib import Path
+
+        if job_id not in _synthesis_jobs:
+            raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+        job = _synthesis_jobs[job_id]
+
+        if job["status"] != "completed":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Job is not completed. Current status: {job['status']}"
+            )
+
+        if not job.get("audio_path"):
+            raise HTTPException(status_code=404, detail="No audio file available for this job")
+
+        audio_path = Path(job["audio_path"])
+        if not audio_path.exists():
+            # Try the download directory
+            safe_job_id = safe_path_component(job_id)
+            alt_path = Path.home() / ".aether" / "output" / safe_job_id / audio_path.name
+            if alt_path.exists():
+                audio_path = alt_path
+            else:
+                raise HTTPException(status_code=404, detail="Audio file not found")
+
+        # Determine media type
+        ext = audio_path.suffix.lower()
+        media_types = {
+            ".wav": "audio/wav",
+            ".mp3": "audio/mpeg",
+            ".flac": "audio/flac",
+        }
+        media_type = media_types.get(ext, "audio/wav")
+
+        return FileResponse(
+            path=audio_path,
+            media_type=media_type,
+            filename=f"{job['voice_name']}_synthesis{ext}",
+        )
+
+    @app.get("/v1/voice-synthesis/jobs", tags=["Voice Synthesis"])
+    async def list_synthesis_jobs(
+        status_filter: Optional[str] = None,
+        limit: int = 20,
+    ):
+        """
+        List recent voice synthesis jobs.
+
+        Query Parameters:
+        - status: Filter by status (pending, processing, completed, failed)
+        - limit: Maximum number of jobs to return (default: 20)
+        """
+        jobs = list(_synthesis_jobs.values())
+
+        # Filter by status if specified
+        if status_filter:
+            jobs = [j for j in jobs if j["status"] == status_filter]
+
+        # Sort by created_at descending
+        jobs.sort(key=lambda j: j["created_at"], reverse=True)
+
+        # Limit results
+        jobs = jobs[:limit]
+
+        return {
+            "jobs": [
+                VoiceSynthesisJobResponse(
+                    job_id=j["job_id"],
+                    status=j["status"],
+                    voice_name=j["voice_name"],
+                    backend=j.get("backend"),
+                    progress=j["progress"],
+                    current_stage=j.get("current_stage"),
+                    audio_url=j.get("audio_url"),
+                    duration_seconds=j.get("duration_seconds"),
+                    error=j.get("error"),
+                    created_at=j["created_at"],
+                    completed_at=j.get("completed_at"),
+                )
+                for j in jobs
+            ],
+            "total": len(_synthesis_jobs),
+            "returned": len(jobs),
+        }
+
+    @app.delete("/v1/voice-synthesis/jobs/{job_id}", tags=["Voice Synthesis"])
+    async def delete_synthesis_job(job_id: str):
+        """
+        Delete a synthesis job and its associated audio file.
+
+        Only completed or failed jobs can be deleted.
+        """
+        from pathlib import Path
+
+        if job_id not in _synthesis_jobs:
+            raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+        job = _synthesis_jobs[job_id]
+
+        if job["status"] in ("pending", "processing"):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete a job that is still running"
+            )
+
+        # Delete audio file if exists
+        if job.get("audio_path"):
+            try:
+                audio_path = Path(job["audio_path"])
+                if audio_path.exists():
+                    audio_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete audio file: {e}")
+
+        # Delete from job store
+        del _synthesis_jobs[job_id]
+
+        return {"message": f"Job '{job_id}' deleted"}
 
     @app.post("/v1/voices/preview-custom", tags=["Voice"])
     async def preview_custom_params(body: CustomPreviewRequest):
@@ -1352,6 +1959,7 @@ def register_routes(app: FastAPI) -> None:
             # Map backend
             backend_map = {
                 "auto": PreviewBackend.AUTO,
+                "self_hosted": PreviewBackend.SELF_HOSTED,
                 "elevenlabs": PreviewBackend.ELEVENLABS,
                 "midi": PreviewBackend.MIDI,
             }
