@@ -1191,50 +1191,99 @@ def register_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=500, detail="Failed to preview voice")
 
     @app.get("/v1/voices/{voice_name}/audio", tags=["Voice"])
-    async def get_voice_audio(voice_name: str):
+    async def get_voice_audio(
+        voice_name: str,
+        backend: str = "auto",
+        preview_type: str = "default",
+    ):
         """
         Get audio preview for a voice.
 
-        Returns a WAV audio file with a short melodic phrase
-        demonstrating the voice's range and character.
+        Professional-grade voice preview with multiple backends:
+        - ElevenLabs (primary): Realistic human voice synthesis
+        - MIDI (fallback): Instrumental approximation
+
+        Query Parameters:
+        - backend: "auto" (default), "elevenlabs", or "midi"
+        - preview_type: "default", "emotional", or "range"
+
+        Returns MP3 (ElevenLabs) or WAV (MIDI) audio file.
         """
         try:
             from aether.voice.identity import VOICE_REGISTRY
-            from aether.voice.preview import render_preview_audio, get_preview_for_voice
+            from aether.voice.preview import (
+                generate_voice_preview,
+                PreviewBackend,
+                get_available_backends,
+            )
 
-            # Check built-in voices
-            if voice_name in VOICE_REGISTRY:
-                voice = VOICE_REGISTRY[voice_name]
-                info = get_preview_for_voice(voice)
-            elif voice_name in _custom_voices:
-                # Custom voice - use base voice range with custom params
-                custom = _custom_voices[voice_name]
-                info = {
-                    "voice_name": voice_name,
-                    "classification": custom["classification"],
-                    "tessitura_low": custom["tessitura_low"],
-                    "tessitura_high": custom["tessitura_high"],
-                    "brightness": custom["timbre"]["brightness"],
-                    "vibrato_rate": (custom["vibrato"]["rate_min"] + custom["vibrato"]["rate_max"]) / 2,
-                }
-            else:
+            # Validate voice exists
+            if voice_name not in VOICE_REGISTRY and voice_name not in _custom_voices:
                 raise HTTPException(status_code=404, detail=f"Voice '{voice_name}' not found")
 
-            # Render audio preview
-            audio_path = await render_preview_audio(**info)
-
-            if not audio_path:
+            # Map backend string to enum
+            backend_map = {
+                "auto": PreviewBackend.AUTO,
+                "elevenlabs": PreviewBackend.ELEVENLABS,
+                "midi": PreviewBackend.MIDI,
+            }
+            if backend not in backend_map:
                 raise HTTPException(
-                    status_code=503,
-                    detail="Audio preview not available. Ensure FluidSynth and a SoundFont are installed."
+                    status_code=400,
+                    detail=f"Invalid backend. Choose from: {list(backend_map.keys())}"
                 )
 
+            # Validate preview type
+            valid_types = ["default", "emotional", "range"]
+            if preview_type not in valid_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid preview_type. Choose from: {valid_types}"
+                )
+
+            # Build custom params if this is a custom voice
+            custom_params = None
+            if voice_name in _custom_voices:
+                custom = _custom_voices[voice_name]
+                custom_params = {
+                    "timbre": custom.get("timbre", {}),
+                    "emotion": custom.get("emotion", {}),
+                    "vibrato": custom.get("vibrato", {}),
+                }
+
+            # Generate preview using the unified interface
+            result = await generate_voice_preview(
+                voice_name=voice_name if voice_name in VOICE_REGISTRY else custom.get("base_voice", "AVU-1"),
+                preview_type=preview_type,
+                backend=backend_map[backend],
+                custom_params=custom_params,
+            )
+
+            if not result:
+                available = get_available_backends()
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Audio preview generation failed. Available backends: {available}. "
+                           f"Set ELEVENLABS_API_KEY for professional voice quality."
+                )
+
+            audio_path, backend_used = result
+
+            # Determine media type based on backend
+            if backend_used == "elevenlabs":
+                media_type = "audio/mpeg"
+                extension = "mp3"
+            else:
+                media_type = "audio/wav"
+                extension = "wav"
+
             return FileResponse(
-                audio_path,
-                media_type="audio/wav",
-                filename=f"{voice_name}_preview.wav",
+                str(audio_path),
+                media_type=media_type,
+                filename=f"{voice_name}_preview.{extension}",
                 headers={
-                    "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                    "Cache-Control": "public, max-age=3600",
+                    "X-Preview-Backend": backend_used,
                 }
             )
         except HTTPException:
@@ -1242,6 +1291,25 @@ def register_routes(app: FastAPI) -> None:
         except Exception as e:
             logger.error(f"Failed to generate voice audio: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to generate voice audio")
+
+    @app.get("/v1/voice-backends", tags=["Voice"])
+    async def list_voice_backends():
+        """
+        List available voice preview backends.
+
+        Returns which backends are configured and available:
+        - elevenlabs: Requires ELEVENLABS_API_KEY environment variable
+        - midi: Always available (requires FluidSynth + SoundFont)
+        """
+        from aether.voice.preview import get_available_backends
+        backends = get_available_backends()
+
+        return {
+            "available": backends,
+            "recommended": backends[0] if backends else None,
+            "elevenlabs_configured": "elevenlabs" in backends,
+            "midi_available": "midi" in backends,
+        }
 
     @app.post(
         "/v1/export/flstudio",

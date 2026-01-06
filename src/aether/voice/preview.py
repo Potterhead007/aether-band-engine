@@ -1,8 +1,11 @@
 """
 Voice Preview Generator
 
-Generates audio previews for voice identities using MIDI synthesis.
-Creates short melodic phrases in each voice's range to demonstrate character.
+Professional voice preview system with multiple backends:
+1. ElevenLabs (Primary) - High-quality realistic human voices
+2. MIDI/FluidSynth (Fallback) - Instrumental approximation
+
+Automatically selects the best available provider based on configuration.
 """
 
 from __future__ import annotations
@@ -10,28 +13,158 @@ from __future__ import annotations
 import os
 import tempfile
 import hashlib
+import asyncio
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Literal
+from enum import Enum
 import logging
 
 from midiutil import MIDIFile
 
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+class PreviewBackend(str, Enum):
+    """Available preview backends."""
+    ELEVENLABS = "elevenlabs"
+    MIDI = "midi"
+    AUTO = "auto"  # Try ElevenLabs first, fallback to MIDI
+
+
 # Cache directory for generated previews
 PREVIEW_CACHE_DIR = Path(tempfile.gettempdir()) / "aether_voice_previews"
 PREVIEW_CACHE_DIR.mkdir(exist_ok=True)
 
+
+# =============================================================================
+# Unified Preview Interface
+# =============================================================================
+
+async def generate_voice_preview(
+    voice_name: str,
+    preview_type: Literal["default", "emotional", "range"] = "default",
+    backend: PreviewBackend = PreviewBackend.AUTO,
+    custom_params: Optional[dict] = None,
+) -> Optional[Tuple[Path, str]]:
+    """
+    Generate a professional voice preview.
+
+    Args:
+        voice_name: AVU voice identifier (e.g., "AVU-1")
+        preview_type: Type of preview to generate
+        backend: Which backend to use (auto, elevenlabs, midi)
+        custom_params: Optional custom voice parameters for fine-tuning
+
+    Returns:
+        Tuple of (audio_path, backend_used) or None if all backends fail
+    """
+    from aether.voice.identity import VOICE_REGISTRY
+
+    # Validate voice
+    if voice_name not in VOICE_REGISTRY:
+        logger.error(f"Unknown voice: {voice_name}")
+        return None
+
+    voice = VOICE_REGISTRY[voice_name]
+
+    # Try backends in order
+    backends_to_try = []
+
+    if backend == PreviewBackend.AUTO:
+        backends_to_try = [PreviewBackend.ELEVENLABS, PreviewBackend.MIDI]
+    else:
+        backends_to_try = [backend]
+
+    for try_backend in backends_to_try:
+        result = await _generate_with_backend(
+            voice_name, voice, preview_type, try_backend, custom_params
+        )
+        if result:
+            return (Path(result), try_backend.value)
+
+    logger.error(f"All backends failed for voice preview: {voice_name}")
+    return None
+
+
+async def _generate_with_backend(
+    voice_name: str,
+    voice,
+    preview_type: str,
+    backend: PreviewBackend,
+    custom_params: Optional[dict],
+) -> Optional[str]:
+    """Generate preview with a specific backend."""
+
+    if backend == PreviewBackend.ELEVENLABS:
+        return await _generate_elevenlabs_preview(
+            voice_name, preview_type, custom_params
+        )
+    elif backend == PreviewBackend.MIDI:
+        return await _generate_midi_preview(voice, custom_params)
+
+    return None
+
+
+# =============================================================================
+# ElevenLabs Backend
+# =============================================================================
+
+async def _generate_elevenlabs_preview(
+    voice_name: str,
+    preview_type: str,
+    custom_params: Optional[dict],
+) -> Optional[str]:
+    """Generate preview using ElevenLabs API."""
+    try:
+        from aether.providers.elevenlabs import get_elevenlabs_provider
+
+        provider = await get_elevenlabs_provider()
+        if not provider:
+            logger.debug("ElevenLabs provider not available")
+            return None
+
+        if custom_params:
+            # Generate with custom parameters
+            result = await provider.generate_custom_preview(
+                voice_name=voice_name,
+                timbre_params=custom_params.get("timbre", {}),
+                emotion_params=custom_params.get("emotion", {}),
+                vibrato_params=custom_params.get("vibrato", {}),
+            )
+        else:
+            result = await provider.generate_preview(
+                voice_name=voice_name,
+                preview_type=preview_type,
+            )
+
+        return str(result) if result else None
+
+    except ImportError:
+        logger.debug("ElevenLabs provider not installed")
+        return None
+    except Exception as e:
+        logger.warning(f"ElevenLabs preview generation failed: {e}")
+        return None
+
+
+# =============================================================================
+# MIDI Backend (Fallback)
+# =============================================================================
+
 # General MIDI voice/choir patches
 GM_PATCHES = {
-    "soprano": 52,      # Choir Aahs
+    "soprano": 52,        # Choir Aahs
     "mezzo_soprano": 52,  # Choir Aahs
-    "alto": 53,         # Voice Oohs
-    "tenor": 52,        # Choir Aahs
-    "lyric_tenor": 52,  # Choir Aahs
-    "baritone": 53,     # Voice Oohs
-    "bass": 53,         # Voice Oohs
-    "default": 52,      # Choir Aahs
+    "alto": 53,           # Voice Oohs
+    "tenor": 52,          # Choir Aahs
+    "lyric_tenor": 52,    # Choir Aahs
+    "baritone": 53,       # Voice Oohs
+    "bass": 53,           # Voice Oohs
+    "default": 52,        # Choir Aahs
 }
 
 
@@ -56,23 +189,20 @@ def generate_preview_melody(
     range_span = tessitura_high - tessitura_low
 
     # Create a simple ascending/descending phrase
-    # Adjust complexity based on range
     if range_span >= 12:  # Octave or more
-        # Full arpeggio pattern
         notes = [
-            (mid - 4, 0.0, 0.75, 90),      # Start below middle
-            (mid, 0.75, 0.75, 100),         # Middle
-            (mid + 3, 1.5, 0.5, 95),        # Third above
-            (mid + 5, 2.0, 0.5, 100),       # Fifth above
-            (mid + 7, 2.5, 0.75, 105),      # Seventh (peak)
-            (mid + 5, 3.25, 0.5, 95),       # Back down
+            (mid - 4, 0.0, 0.75, 90),
+            (mid, 0.75, 0.75, 100),
+            (mid + 3, 1.5, 0.5, 95),
+            (mid + 5, 2.0, 0.5, 100),
+            (mid + 7, 2.5, 0.75, 105),
+            (mid + 5, 3.25, 0.5, 95),
             (mid + 3, 3.75, 0.5, 90),
-            (mid, 4.25, 1.0, 100),          # Resolve to middle
-            (mid - 2, 5.25, 0.75, 85),      # Step down
-            (mid - 4, 6.0, 1.5, 90),        # Final note
+            (mid, 4.25, 1.0, 100),
+            (mid - 2, 5.25, 0.75, 85),
+            (mid - 4, 6.0, 1.5, 90),
         ]
     else:
-        # Simpler pattern for smaller ranges
         notes = [
             (mid - 2, 0.0, 1.0, 90),
             (mid, 1.0, 1.0, 100),
@@ -99,52 +229,61 @@ def create_preview_midi(
     brightness: float = 0.5,
     vibrato_rate: float = 5.5,
 ) -> Tuple[bytes, str]:
-    """
-    Create a MIDI file for voice preview.
-
-    Returns:
-        Tuple of (midi_bytes, cache_path)
-    """
-    # Generate cache key
+    """Create a MIDI file for voice preview."""
     cache_key = hashlib.md5(
         f"{voice_name}:{classification}:{tessitura_low}:{tessitura_high}:{brightness}".encode()
     ).hexdigest()[:12]
 
     midi_path = PREVIEW_CACHE_DIR / f"preview_{cache_key}.mid"
 
-    # Check cache
     if midi_path.exists():
         logger.debug(f"Using cached MIDI preview: {midi_path}")
         return midi_path.read_bytes(), str(midi_path)
 
-    # Create MIDI file
-    midi = MIDIFile(1)  # One track
+    midi = MIDIFile(1)
     track = 0
     channel = 0
-    tempo = 80  # BPM - moderate tempo for vocal feel
-    volume = 100
+    tempo = 80
 
     midi.addTempo(track, 0, tempo)
     midi.addProgramChange(track, channel, 0, get_gm_patch_for_voice(classification))
-
-    # Add expression/modulation for vibrato feel
-    # CC1 = Modulation wheel
     midi.addControllerEvent(track, channel, 0, 1, int(vibrato_rate * 10))
 
-    # Generate and add notes
     notes = generate_preview_melody(tessitura_low, tessitura_high, brightness)
 
     for pitch, start, duration, velocity in notes:
-        # Clamp pitch to valid MIDI range
         pitch = max(0, min(127, pitch))
         midi.addNote(track, channel, pitch, start, duration, velocity)
 
-    # Write to file
     with open(midi_path, 'wb') as f:
         midi.writeFile(f)
 
     logger.info(f"Generated MIDI preview: {midi_path}")
     return midi_path.read_bytes(), str(midi_path)
+
+
+async def _generate_midi_preview(voice, custom_params: Optional[dict]) -> Optional[str]:
+    """Generate preview using MIDI + FluidSynth."""
+    # Extract voice parameters
+    classification = voice.classification.value
+    tessitura_low = voice.vocal_range.tessitura_low
+    tessitura_high = voice.vocal_range.tessitura_high
+    brightness = voice.timbre.brightness
+    vibrato_rate = (voice.vibrato_rate_hz[0] + voice.vibrato_rate_hz[1]) / 2
+
+    # Apply custom params if provided
+    if custom_params:
+        timbre = custom_params.get("timbre", {})
+        brightness = timbre.get("brightness", brightness)
+
+    return await render_preview_audio(
+        voice.name,
+        classification,
+        tessitura_low,
+        tessitura_high,
+        brightness,
+        vibrato_rate,
+    )
 
 
 async def render_preview_audio(
@@ -156,45 +295,34 @@ async def render_preview_audio(
     vibrato_rate: float = 5.5,
     output_format: str = "wav",
 ) -> Optional[str]:
-    """
-    Render a voice preview to audio.
-
-    Returns path to the rendered audio file, or None if rendering fails.
-    """
-    import asyncio
-
-    # Generate MIDI
+    """Render MIDI preview to audio using FluidSynth."""
     midi_bytes, midi_path = create_preview_midi(
         voice_name, classification, tessitura_low, tessitura_high,
         brightness, vibrato_rate
     )
 
-    # Output path
     cache_key = hashlib.md5(
         f"{voice_name}:{classification}:{tessitura_low}:{tessitura_high}:{brightness}:{output_format}".encode()
     ).hexdigest()[:12]
     audio_path = PREVIEW_CACHE_DIR / f"preview_{cache_key}.{output_format}"
 
-    # Check audio cache
     if audio_path.exists():
         logger.debug(f"Using cached audio preview: {audio_path}")
         return str(audio_path)
 
-    # Find SoundFont
     soundfont_path = _find_soundfont()
     if not soundfont_path:
         logger.error("No SoundFont found for audio rendering")
         return None
 
-    # Render with FluidSynth
     try:
         cmd = [
             "fluidsynth",
-            "-ni",                    # Non-interactive
-            "-g", "0.8",              # Gain
-            "-F", str(audio_path),    # Output file
-            soundfont_path,           # SoundFont
-            midi_path,                # MIDI file
+            "-ni",
+            "-g", "0.8",
+            "-F", str(audio_path),
+            soundfont_path,
+            midi_path,
         ]
 
         process = await asyncio.create_subprocess_exec(
@@ -239,12 +367,10 @@ def _find_soundfont() -> Optional[str]:
         Path("/usr/local/share/soundfonts"),
     ]
 
-    # Check environment variable first
     env_sf = os.environ.get("SOUNDFONT_PATH")
     if env_sf and Path(env_sf).exists():
         return env_sf
 
-    # Search common locations
     for search_dir in search_paths:
         if search_dir.exists():
             for sf_file in search_dir.glob("*.sf2"):
@@ -255,16 +381,12 @@ def _find_soundfont() -> Optional[str]:
     return None
 
 
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
 def get_preview_for_voice(voice) -> dict:
-    """
-    Get preview info for a voice identity.
-
-    Args:
-        voice: VocalIdentity instance
-
-    Returns:
-        Dict with preview metadata
-    """
+    """Get preview metadata for a voice identity."""
     return {
         "voice_name": voice.name,
         "classification": voice.classification.value,
@@ -275,19 +397,44 @@ def get_preview_for_voice(voice) -> dict:
     }
 
 
-async def generate_all_previews():
+async def generate_all_previews(backend: PreviewBackend = PreviewBackend.AUTO):
     """Pre-generate previews for all built-in voices."""
     from aether.voice.identity import VOICE_REGISTRY
 
     results = {}
     for name, voice in VOICE_REGISTRY.items():
-        info = get_preview_for_voice(voice)
-        audio_path = await render_preview_audio(**info)
+        result = await generate_voice_preview(
+            voice_name=name,
+            preview_type="default",
+            backend=backend,
+        )
         results[name] = {
-            "midi_generated": True,
-            "audio_path": audio_path,
-            "audio_generated": audio_path is not None,
+            "success": result is not None,
+            "audio_path": str(result[0]) if result else None,
+            "backend_used": result[1] if result else None,
         }
         logger.info(f"Generated preview for {name}: {results[name]}")
 
     return results
+
+
+def get_available_backends() -> list[str]:
+    """Get list of available preview backends."""
+    backends = ["midi"]  # MIDI is always available
+
+    # Check if ElevenLabs is configured
+    if os.environ.get("ELEVENLABS_API_KEY"):
+        backends.insert(0, "elevenlabs")
+
+    return backends
+
+
+def clear_preview_cache() -> int:
+    """Clear all cached preview files. Returns count of files deleted."""
+    count = 0
+    for file in PREVIEW_CACHE_DIR.glob("*"):
+        if file.is_file():
+            file.unlink()
+            count += 1
+    logger.info(f"Cleared {count} cached preview files")
+    return count
