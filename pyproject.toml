@@ -67,7 +67,7 @@ voice = [
     "TTS>=0.22.0",           # Coqui TTS (includes XTTS v2)
     "torch>=2.0",            # PyTorch
     "torchaudio>=2.0",       # Audio processing
-    "pytsmod>=0.3.0",        # Time-stretch for pitch manipulation
+    "librosa>=0.10",         # Audio analysis and pitch manipulation
     "praat-parselmouth>=0.4", # Pitch detection (F0 extraction)
     "faiss-cpu>=1.7.0",      # FAISS index (CPU fallback)
 ]
