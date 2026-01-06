@@ -134,29 +134,21 @@ async def _generate_selfhosted_preview(
     preview_type: str,
     custom_params: Optional[dict],
 ) -> Optional[str]:
-    """Generate preview using self-hosted XTTS + RVC pipeline."""
+    """Generate preview using self-hosted XTTS via subprocess."""
     try:
-        from aether.providers.selfhosted import (
-            get_selfhosted_provider,
-            is_selfhosted_configured,
+        # Use the subprocess wrapper (works with Python 3.9 main env + 3.11 voice venv)
+        from aether.providers.selfhosted.xtts_subprocess import (
+            is_voice_venv_available,
+            generate_xtts_preview,
         )
 
-        # Quick check if configured (without loading models)
-        if not is_selfhosted_configured():
-            logger.debug("Self-hosted provider not configured")
+        # Check if voice venv with TTS is available
+        if not is_voice_venv_available():
+            logger.debug("Voice venv with TTS not available")
             return None
 
-        provider = await get_selfhosted_provider()
-        if not provider:
-            logger.debug("Self-hosted provider not available")
-            return None
-
-        if not provider.is_available():
-            logger.debug("Self-hosted provider not ready")
-            return None
-
-        # Generate preview
-        result = await provider.generate_preview(
+        # Generate preview via subprocess
+        result = await generate_xtts_preview(
             voice_name=voice_name,
             preview_type=preview_type,
             custom_params=custom_params,
@@ -164,8 +156,8 @@ async def _generate_selfhosted_preview(
 
         return str(result) if result else None
 
-    except ImportError:
-        logger.debug("Self-hosted provider not installed")
+    except ImportError as e:
+        logger.debug(f"Self-hosted provider import error: {e}")
         return None
     except Exception as e:
         logger.warning(f"Self-hosted preview generation failed: {e}")
@@ -555,12 +547,12 @@ def get_available_backends() -> list[str]:
     except ImportError:
         pass
 
-    # Check if self-hosted is configured (without loading models)
+    # Check if self-hosted XTTS is available (via subprocess wrapper)
     try:
-        from aether.providers.selfhosted import is_selfhosted_configured
+        from aether.providers.selfhosted.xtts_subprocess import is_voice_venv_available
 
-        if is_selfhosted_configured():
-            # Insert at beginning (highest priority)
+        if is_voice_venv_available():
+            # Insert at beginning (highest priority - local, high quality)
             backends.insert(0, "self_hosted")
     except ImportError:
         pass

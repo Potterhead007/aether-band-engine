@@ -19,6 +19,37 @@ from .config import XTTSConfig, AVU_VOICE_CONFIGS
 logger = logging.getLogger(__name__)
 
 
+# Map AVU voices to XTTS built-in speakers
+# XTTS has 58 built-in speakers with pre-computed embeddings
+AVU_TO_XTTS_SPEAKER = {
+    "AVU-1": "Viktor Menelaos",     # Male Lyric Tenor - warm and expressive
+    "AVU-2": "Claribel Dervla",     # Female Mezzo-Soprano - smooth and warm
+    "AVU-3": "Damien Black",        # Male Baritone - deep and powerful
+    "AVU-4": "Henriette Usha",      # Female Soprano - bright and agile
+}
+
+
+def _patch_torch_load():
+    """Patch torch.load for PyTorch 2.9+ compatibility with TTS models."""
+    try:
+        import torch
+        if hasattr(torch, "_original_load"):
+            return  # Already patched
+
+        original_load = torch.load
+        torch._original_load = original_load
+
+        def patched_load(*args, **kwargs):
+            if "weights_only" not in kwargs:
+                kwargs["weights_only"] = False
+            return original_load(*args, **kwargs)
+
+        torch.load = patched_load
+        logger.debug("Patched torch.load for TTS compatibility")
+    except ImportError:
+        pass
+
+
 class XTTSEngine:
     """
     Coqui XTTS text-to-speech engine.
@@ -63,13 +94,15 @@ class XTTSEngine:
             if torch.cuda.is_available():
                 logger.info("CUDA available, using GPU")
                 return "cuda"
+            # Note: MPS (Apple Silicon) has attention mask issues with XTTS/transformers
+            # Use CPU for better compatibility
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                logger.info("MPS available, using Apple Silicon GPU")
-                return "mps"
+                logger.info("MPS available but using CPU for XTTS compatibility")
+                return "cpu"  # MPS has issues with transformers attention masks
         except ImportError:
             pass
 
-        logger.info("No GPU available, using CPU")
+        logger.info("Using CPU for XTTS synthesis")
         return "cpu"
 
     async def load(self) -> bool:
@@ -84,6 +117,9 @@ class XTTSEngine:
             return True
 
         try:
+            # Apply PyTorch 2.9+ compatibility patch
+            _patch_torch_load()
+
             # Detect device
             self._device = self._detect_device()
             logger.info(f"Loading XTTS model on {self._device}...")
@@ -113,6 +149,9 @@ class XTTSEngine:
     def _load_model_sync(self):
         """Synchronous model loading (run in executor)."""
         try:
+            import warnings
+            warnings.filterwarnings("ignore")
+
             from TTS.api import TTS
 
             # Load model
@@ -123,16 +162,19 @@ class XTTSEngine:
                     config_path=str(self.config.model_path / "config.json"),
                 )
             else:
-                # Download/use cached model by name
+                # Download/use cached model by name (XTTS v2)
                 model = TTS(self.config.model_name)
 
-            # Move to device
-            model.to(self._device)
+            # Note: Don't call .to(device) here - TTS API handles device internally
+            # and calling .to() on MPS causes attention mask issues
+            logger.info(f"XTTS model loaded: {self.config.model_name}")
 
             return model
 
         except Exception as e:
             logger.error(f"Error loading XTTS model: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     async def _load_speaker_embeddings(self) -> None:
@@ -206,21 +248,24 @@ class XTTSEngine:
             raise RuntimeError("XTTS model not loaded. Call load() first.")
 
         # Resolve speaker conditioning
-        actual_speaker_wav = speaker_wav
+        # First, map AVU voice to XTTS built-in speaker
+        xtts_speaker = None
         voice_config = None
+
+        if voice_name and voice_name in AVU_TO_XTTS_SPEAKER:
+            xtts_speaker = AVU_TO_XTTS_SPEAKER[voice_name]
+            logger.debug(f"Mapped {voice_name} to XTTS speaker: {xtts_speaker}")
 
         if voice_name and voice_name in AVU_VOICE_CONFIGS:
             voice_config = AVU_VOICE_CONFIGS[voice_name]
-            if not actual_speaker_wav and voice_config.xtts_speaker_wav:
-                actual_speaker_wav = voice_config.xtts_speaker_wav
 
-        # Fall back to default speaker
-        if not actual_speaker_wav:
-            actual_speaker_wav = self.config.default_speaker_wav
+        # Fall back to speaker wav if no built-in speaker mapping
+        actual_speaker_wav = speaker_wav
+        if not xtts_speaker and voice_config and voice_config.xtts_speaker_wav:
+            actual_speaker_wav = voice_config.xtts_speaker_wav
 
         # Resolve parameters
         actual_language = language or (voice_config.xtts_language if voice_config else self.config.language)
-        actual_temperature = temperature or (voice_config.xtts_temperature if voice_config else self.config.temperature)
 
         if progress_callback:
             progress_callback(10, "Preparing synthesis...")
@@ -229,19 +274,29 @@ class XTTSEngine:
         loop = asyncio.get_event_loop()
 
         def _synthesize_sync():
-            if actual_speaker_wav and actual_speaker_wav.exists():
-                # Use reference audio for speaker conditioning
+            if xtts_speaker:
+                # Use XTTS built-in speaker (from speakers_xtts.pth)
+                logger.info(f"Synthesizing with XTTS speaker: {xtts_speaker}")
+                outputs = self._model.tts(
+                    text=text,
+                    speaker=xtts_speaker,
+                    language=actual_language,
+                )
+            elif actual_speaker_wav and actual_speaker_wav.exists():
+                # Use reference audio for speaker conditioning (voice cloning)
+                logger.info(f"Synthesizing with reference audio: {actual_speaker_wav}")
                 outputs = self._model.tts(
                     text=text,
                     speaker_wav=str(actual_speaker_wav),
                     language=actual_language,
-                    temperature=actual_temperature,
                 )
             else:
-                # Use model's default speaker
-                logger.warning("No speaker reference available, using model default")
+                # Use default built-in speaker
+                default_speaker = "Claribel Dervla"
+                logger.warning(f"No speaker specified, using default: {default_speaker}")
                 outputs = self._model.tts(
                     text=text,
+                    speaker=default_speaker,
                     language=actual_language,
                 )
 
@@ -319,8 +374,12 @@ class XTTSEngine:
         logger.info(f"Saved speaker embedding to {output_path}")
 
     def get_available_voices(self) -> list[str]:
-        """Get list of voices with loaded embeddings."""
-        return list(self._speaker_embeddings.keys())
+        """Get list of available AVU voices (mapped to XTTS speakers)."""
+        return list(AVU_TO_XTTS_SPEAKER.keys())
+
+    def get_xtts_speakers(self) -> list[str]:
+        """Get list of all XTTS built-in speakers."""
+        return list(AVU_TO_XTTS_SPEAKER.values())
 
     def get_supported_languages(self) -> list[str]:
         """Get list of supported languages."""

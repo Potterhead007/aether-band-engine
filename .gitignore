@@ -165,3 +165,4 @@ output/
 exports/
 renders/
 .vercel
+.venv-voice/

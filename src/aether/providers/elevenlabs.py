@@ -449,6 +449,7 @@ class ElevenLabsVocalProvider(VocalProvider):
         try:
             text = preview_text or PREVIEW_PHRASES[voice_name]["default"]
 
+            # Explicitly include headers to ensure API key is sent
             response = await self._client.post(
                 f"/text-to-speech/{base_voice.voice_id}",
                 json={
@@ -461,11 +462,15 @@ class ElevenLabsVocalProvider(VocalProvider):
                         "use_speaker_boost": True,
                     },
                 },
+                headers={
+                    "xi-api-key": self.api_key,
+                    "Content-Type": "application/json",
+                },
                 params={"output_format": self.output_format},
             )
 
             if response.status_code != 200:
-                logger.error(f"Custom preview failed: {response.status_code}")
+                logger.error(f"Custom preview failed: {response.status_code} - {response.text[:200]}")
                 return None
 
             cache_path.write_bytes(response.content)

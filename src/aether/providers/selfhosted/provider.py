@@ -537,12 +537,34 @@ async def get_selfhosted_provider() -> Optional[SelfHostedVocalProvider]:
 
 
 def is_selfhosted_configured() -> bool:
-    """Check if self-hosted provider is configured (without loading)."""
+    """Check if self-hosted provider is configured (without loading models)."""
     import os
 
-    # Check for essential config
+    # Check for explicit configuration
     if os.environ.get("XTTS_MODEL_PATH"):
         return True
     if os.environ.get("AETHER_VOICE_PROVIDER") == "self_hosted":
         return True
+
+    # Check if TTS is available (we can use built-in XTTS speakers)
+    try:
+        # Check for TTS in the voice venv
+        venv_python = Path(__file__).parents[4] / ".venv-voice" / "bin" / "python"
+        if venv_python.exists():
+            return True
+
+        # Check if TTS is installed in current environment
+        import TTS
+        return True
+    except ImportError:
+        pass
+
     return False
+
+
+def get_voice_venv_python() -> Optional[Path]:
+    """Get path to Python in the voice venv (for subprocess calls)."""
+    venv_python = Path(__file__).parents[4] / ".venv-voice" / "bin" / "python"
+    if venv_python.exists():
+        return venv_python
+    return None
