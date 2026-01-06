@@ -137,6 +137,27 @@ class RenderResponse(BaseModel):
     )
 
 
+class FLStudioExportRequest(BaseModel):
+    """Request to export to FL Studio project."""
+
+    song_spec: Dict[str, Any] = Field(..., description="Song specification")
+    harmony_spec: Optional[Dict[str, Any]] = Field(None, description="Harmony specification")
+    melody_spec: Optional[Dict[str, Any]] = Field(None, description="Melody specification")
+    arrangement_spec: Optional[Dict[str, Any]] = Field(None, description="Arrangement specification")
+    project_name: str = Field(default="AETHER Export", description="FL Studio project name")
+    artist_name: str = Field(default="AETHER", description="Artist name")
+
+
+class FLStudioExportResponse(BaseModel):
+    """Response from FL Studio export."""
+
+    job_id: str
+    status: str
+    message: str
+    output_file: str
+    pyflp_available: bool = Field(description="Whether native .flp export was used")
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -278,6 +299,7 @@ def create_app(
             "/v1/generate",  # Allow demo generation without auth
             "/v1/render",  # Allow demo rendering without auth
             "/v1/download/",  # Allow audio file downloads (prefix match)
+            "/v1/export/flstudio",  # Allow FL Studio export without auth
         ]
         app.add_middleware(
             AuthMiddleware,
@@ -588,8 +610,8 @@ def register_routes(app: FastAPI) -> None:
         if not safe_filename or safe_filename != filename:
             raise HTTPException(status_code=400, detail="Invalid filename")
 
-        # Only allow audio file extensions
-        allowed_extensions = {".wav", ".mp3", ".flac", ".aiff"}
+        # Only allow audio and FL Studio file extensions
+        allowed_extensions = {".wav", ".mp3", ".flac", ".aiff", ".flp", ".json", ".zip", ".mid"}
         ext = Path(safe_filename).suffix.lower()
         if ext not in allowed_extensions:
             raise HTTPException(status_code=400, detail="Invalid file type")
@@ -613,6 +635,10 @@ def register_routes(app: FastAPI) -> None:
             ".mp3": "audio/mpeg",
             ".flac": "audio/flac",
             ".aiff": "audio/aiff",
+            ".flp": "application/octet-stream",
+            ".json": "application/json",
+            ".zip": "application/zip",
+            ".mid": "audio/midi",
         }
         media_type = media_types.get(ext, "application/octet-stream")
 
@@ -642,6 +668,101 @@ def register_routes(app: FastAPI) -> None:
         except Exception as e:
             logger.error(f"Failed to list genres: {e}", exc_info=True)
             raise
+
+    @app.post(
+        "/v1/export/flstudio",
+        response_model=FLStudioExportResponse,
+        tags=["Export"],
+        status_code=status.HTTP_200_OK,
+    )
+    async def export_to_flstudio(request: FLStudioExportRequest, http_request: Request):
+        """
+        Export music specifications to FL Studio project package.
+
+        Creates an institutional-grade FL Studio project package containing:
+        - MIDI files with full track separation
+        - Genre-optimized mixer routing presets
+        - Plugin recommendations with specific presets
+        - Effects chain templates
+        - Human-readable import instructions
+        """
+        from pathlib import Path
+        from aether.providers import FLStudioProvider, FLStudioExportConfig
+        from aether.providers.midi import AlgorithmicMIDIProvider
+
+        job_id = str(uuid4())
+
+        try:
+            # Initialize providers
+            fl_provider = FLStudioProvider()
+            await fl_provider.initialize()
+
+            midi_provider = AlgorithmicMIDIProvider()
+            await midi_provider.initialize()
+
+            # Extract song parameters
+            song_spec = request.song_spec
+            bpm = song_spec.get("bpm", 120)
+            key = song_spec.get("key", "C")
+            time_sig = song_spec.get("time_signature", [4, 4])
+            duration = song_spec.get("duration_seconds", 180)
+            genre = song_spec.get("genre_id", "electronic")
+
+            # Generate MIDI from specs using generate_from_spec
+            harmony_spec = request.harmony_spec or {"key": key, "mode": "minor"}
+            melody_spec = request.melody_spec or {}
+            rhythm_spec = {"bpm": bpm, "time_signature": time_sig}
+            arrangement_spec = request.arrangement_spec or {"duration_seconds": duration}
+
+            midi_data = await midi_provider.generate_from_spec(
+                harmony_spec=harmony_spec,
+                melody_spec=melody_spec,
+                rhythm_spec=rhythm_spec,
+                arrangement_spec=arrangement_spec,
+            )
+
+            # Configure export
+            config = FLStudioExportConfig(
+                project_name=request.project_name,
+                artist_name=request.artist_name,
+                genre=genre,
+                tempo_bpm=bpm,
+                time_signature=tuple(time_sig),
+                create_zip_package=True,
+            )
+
+            # Set output directory
+            safe_job_id = safe_path_component(job_id)
+            output_dir = Path.home() / ".aether" / "output" / safe_job_id
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Export to FL Studio package (returns .zip path)
+            result_path = await fl_provider.export_package(
+                midi_data=midi_data,
+                output_dir=output_dir,
+                genre=genre,
+                project_name=request.project_name,
+                config=config,
+            )
+
+            # Determine download URL
+            filename = result_path.name
+            download_url = f"/v1/download/{job_id}/{filename}"
+
+            return FLStudioExportResponse(
+                job_id=job_id,
+                status="completed",
+                message=f"FL Studio project package exported for {genre} genre with mixer presets",
+                output_file=download_url,
+                pyflp_available=fl_provider._midiutil_available,
+            )
+
+        except Exception as e:
+            logger.exception(f"FL Studio export failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"FL Studio export failed: {str(e)}",
+            )
 
     @app.get("/metrics", tags=["System"], include_in_schema=False)
     async def prometheus_metrics(request: Request):

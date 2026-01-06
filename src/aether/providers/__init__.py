@@ -62,6 +62,23 @@ from aether.providers.midi import (
     SCALE_INTERVALS,
     AlgorithmicMIDIProvider,
 )
+from aether.providers.flstudio import (
+    FLStudioProvider,
+    FLStudioExportConfig,
+    FL_TRACK_COLORS,
+    GM_TO_FL_PLUGIN,
+    FPC_PAD_MAP,
+    FL_NATIVE_PLUGINS,
+    FL_EFFECTS,
+    GENRE_MIXER_TEMPLATES,
+    MixerChannel,
+    ChannelRackItem,
+    FLProjectPackage,
+    get_flstudio_provider,
+    quick_export_to_flp,
+    get_available_genres,
+    get_genre_template,
+)
 
 __all__ = [
     # Base classes and types
@@ -113,4 +130,20 @@ __all__ = [
     "ProviderManager",
     "ProviderConfig",
     "setup_providers",
+    # FL Studio integration
+    "FLStudioProvider",
+    "FLStudioExportConfig",
+    "FL_TRACK_COLORS",
+    "GM_TO_FL_PLUGIN",
+    "FPC_PAD_MAP",
+    "FL_NATIVE_PLUGINS",
+    "FL_EFFECTS",
+    "GENRE_MIXER_TEMPLATES",
+    "MixerChannel",
+    "ChannelRackItem",
+    "FLProjectPackage",
+    "get_flstudio_provider",
+    "quick_export_to_flp",
+    "get_available_genres",
+    "get_genre_template",
 ]
