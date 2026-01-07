@@ -31,6 +31,7 @@ from aether.providers.base import (
 from .config import SelfHostedConfig, AVU_VOICE_CONFIGS
 from .xtts import XTTSEngine
 from .rvc import RVCEngine
+from .bark import BarkSingingProvider, BarkConfig, SingingPhrase, get_bark_provider
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +293,84 @@ class SelfHostedVocalProvider(VocalProvider):
         return AudioBuffer(
             data=final_audio,
             sample_rate=self.config.sample_rate,
+            channels=1,
+        )
+
+    async def synthesize_singing(
+        self,
+        lyrics: list[dict],
+        voice: str = "AVU-1",
+        tempo_bpm: float = 120.0,
+        total_duration_seconds: Optional[float] = None,
+    ) -> AudioBuffer:
+        """
+        Synthesize singing vocals using Bark neural synthesis.
+
+        This produces REAL singing voices (not pitch-shifted TTS) by using
+        Bark's neural singing mode with musical notation markers.
+
+        Args:
+            lyrics: List of lyric dicts with keys:
+                - text: The words to sing
+                - start_beat: Beat number where phrase starts
+                - duration_beats: How many beats the phrase lasts
+            voice: AVU voice name (AVU-1, AVU-2, AVU-3, AVU-4)
+            tempo_bpm: Track tempo for beat-to-time conversion
+            total_duration_seconds: Total track length (optional)
+
+        Returns:
+            AudioBuffer with synthesized singing audio
+
+        Example:
+            await provider.synthesize_singing(
+                lyrics=[
+                    {"text": "Feel the beat", "start_beat": 0, "duration_beats": 4},
+                    {"text": "Move your body", "start_beat": 8, "duration_beats": 4},
+                ],
+                voice="AVU-1",
+                tempo_bpm=128.0,
+            )
+        """
+        # Get Bark provider
+        bark = get_bark_provider()
+
+        # Forward progress callback
+        if self._progress_callback:
+            bark.set_progress_callback(
+                lambda p, m: self._report_progress(
+                    SynthesisStage.XTTS_GENERATION,
+                    int(p * 100),
+                    f"Bark: {m}"
+                )
+            )
+
+        # Convert lyric dicts to SingingPhrase objects
+        phrases = [
+            SingingPhrase(
+                text=lyric["text"],
+                start_beat=lyric["start_beat"],
+                duration_beats=lyric["duration_beats"],
+                emotion=lyric.get("emotion", "neutral"),
+                style=lyric.get("style", "default"),
+            )
+            for lyric in lyrics
+        ]
+
+        # Synthesize with Bark
+        self._report_progress(SynthesisStage.XTTS_GENERATION, 0, "Starting Bark singing synthesis...")
+
+        audio = await bark.synthesize_lyrics(
+            phrases=phrases,
+            voice=voice,
+            tempo_bpm=tempo_bpm,
+            total_duration_seconds=total_duration_seconds,
+        )
+
+        self._report_progress(SynthesisStage.OUTPUT, 100, "Singing synthesis complete")
+
+        return AudioBuffer(
+            data=audio,
+            sample_rate=bark.config.target_sample_rate,
             channels=1,
         )
 

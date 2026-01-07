@@ -20,6 +20,13 @@ from .provider import (
 )
 from .xtts import XTTSEngine
 from .rvc import RVCEngine
+from .bark import (
+    BarkSingingProvider,
+    BarkConfig,
+    SingingPhrase,
+    SingingResult,
+    get_bark_provider,
+)
 
 __all__ = [
     # Main provider
@@ -38,4 +45,10 @@ __all__ = [
     # Progress tracking
     "SynthesisStage",
     "SynthesisProgress",
+    # Bark singing
+    "BarkSingingProvider",
+    "BarkConfig",
+    "SingingPhrase",
+    "SingingResult",
+    "get_bark_provider",
 ]

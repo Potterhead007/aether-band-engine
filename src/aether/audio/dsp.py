@@ -787,3 +787,493 @@ def normalize_loudness(
     gain = db_to_linear(gain_db)
 
     return audio * gain
+
+
+class SaturationType(str, Enum):
+    """Analog saturation models."""
+
+    TAPE = "tape"  # Tape saturation - warm, compressed highs
+    TUBE = "tube"  # Tube saturation - even harmonics, warmth
+    TRANSISTOR = "transistor"  # Transistor - odd harmonics, gritty
+    SOFT_CLIP = "soft_clip"  # Soft clipping - transparent limiting
+    HARD_CLIP = "hard_clip"  # Hard clipping - aggressive distortion
+
+
+class AnalogSaturator:
+    """
+    Professional analog saturation emulation.
+
+    Models the nonlinear behavior of analog equipment:
+    - Tape machines (soft compression, harmonic warmth)
+    - Tube amplifiers (even-order harmonics)
+    - Transistor circuits (odd-order harmonics)
+
+    Features:
+    - Multiple saturation algorithms
+    - Oversampling for alias-free processing
+    - Mix control for parallel processing
+    - Input/output gain staging
+    """
+
+    def __init__(
+        self,
+        sample_rate: float,
+        saturation_type: SaturationType = SaturationType.TAPE,
+        drive: float = 0.5,  # 0-1, amount of saturation
+        mix: float = 1.0,  # 0-1, wet/dry mix
+        output_gain_db: float = 0.0,
+        oversample: int = 2,  # 2x or 4x oversampling
+    ):
+        self.sample_rate = sample_rate
+        self.saturation_type = saturation_type
+        self.drive = np.clip(drive, 0.0, 1.0)
+        self.mix = np.clip(mix, 0.0, 1.0)
+        self.output_gain = db_to_linear(output_gain_db)
+        self.oversample = oversample
+
+        # Pre-calculate drive scaling
+        # Higher drive = more saturation (maps 0-1 to reasonable range)
+        self.drive_amount = 1.0 + self.drive * 10.0  # 1-11x gain into saturator
+
+    def _upsample(self, audio: AudioBuffer) -> AudioBuffer:
+        """Simple linear interpolation upsampling."""
+        if self.oversample <= 1:
+            return audio
+        return np.interp(
+            np.linspace(0, len(audio) - 1, len(audio) * self.oversample),
+            np.arange(len(audio)),
+            audio,
+        )
+
+    def _downsample(self, audio: AudioBuffer, original_len: int) -> AudioBuffer:
+        """Downsample back to original rate."""
+        if self.oversample <= 1:
+            return audio
+        return np.interp(
+            np.linspace(0, len(audio) - 1, original_len),
+            np.arange(len(audio)),
+            audio,
+        )
+
+    def _saturate_tape(self, x: AudioBuffer) -> AudioBuffer:
+        """
+        Tape saturation model.
+
+        Uses a soft sigmoid with asymmetric response.
+        Adds subtle compression and high-frequency rolloff character.
+        """
+        # Drive the signal
+        driven = x * self.drive_amount
+
+        # Soft saturation using tanh (classic tape-like response)
+        # Add slight asymmetry for even harmonics
+        saturated = np.tanh(driven * 0.9) + 0.05 * np.tanh(driven * 1.8)
+
+        # Normalize output
+        return saturated * 0.95
+
+    def _saturate_tube(self, x: AudioBuffer) -> AudioBuffer:
+        """
+        Tube saturation model.
+
+        Emphasizes even-order harmonics (2nd, 4th).
+        Warm, musical distortion character.
+        """
+        driven = x * self.drive_amount
+
+        # Tube-like transfer function with asymmetry for even harmonics
+        # Based on wave-shaping with polynomial
+        x2 = driven * driven
+        x3 = x2 * driven
+
+        # Soft clip with even harmonic bias
+        saturated = driven - (x3 / 3.0) + (0.1 * x2 * np.sign(driven))
+
+        # Soft limit
+        saturated = np.clip(saturated, -1.5, 1.5)
+        return saturated / 1.5
+
+    def _saturate_transistor(self, x: AudioBuffer) -> AudioBuffer:
+        """
+        Transistor saturation model.
+
+        Emphasizes odd-order harmonics (3rd, 5th).
+        Grittier, more aggressive character.
+        """
+        driven = x * self.drive_amount
+
+        # Hard asymmetric clipping for odd harmonics
+        # Different behavior for positive/negative
+        positive = np.maximum(driven, 0)
+        negative = np.minimum(driven, 0)
+
+        # Asymmetric soft clip
+        sat_pos = np.tanh(positive * 1.2)
+        sat_neg = np.tanh(negative * 0.8) * 1.1
+
+        saturated = sat_pos + sat_neg
+        return saturated
+
+    def _saturate_soft_clip(self, x: AudioBuffer) -> AudioBuffer:
+        """
+        Soft clipping using cubic polynomial.
+
+        Transparent, useful for catching peaks.
+        """
+        driven = x * self.drive_amount
+        threshold = 2.0 / 3.0
+
+        result = np.zeros_like(driven)
+        below_thresh = np.abs(driven) < threshold
+        above_thresh = ~below_thresh
+
+        # Below threshold: linear
+        result[below_thresh] = driven[below_thresh]
+
+        # Above threshold: soft knee
+        above_vals = driven[above_thresh]
+        sign = np.sign(above_vals)
+        abs_vals = np.abs(above_vals)
+        result[above_thresh] = sign * (
+            threshold + (1 - threshold) * np.tanh((abs_vals - threshold) / (1 - threshold))
+        )
+
+        return result
+
+    def _saturate_hard_clip(self, x: AudioBuffer) -> AudioBuffer:
+        """
+        Hard clipping with slight smoothing.
+
+        Aggressive distortion for effect.
+        """
+        driven = x * self.drive_amount
+
+        # Hard clip with tiny bit of soft knee at edges
+        threshold = 0.9
+        saturated = np.clip(driven, -1.0, 1.0)
+
+        # Add slight waveshaping for interest
+        saturated = saturated - 0.1 * (saturated**3)
+
+        return saturated
+
+    def process_mono(self, audio: AudioBuffer) -> AudioBuffer:
+        """Process mono audio with saturation."""
+        original_len = len(audio)
+
+        # Upsample for alias-free processing
+        upsampled = self._upsample(audio)
+
+        # Apply saturation based on type
+        if self.saturation_type == SaturationType.TAPE:
+            saturated = self._saturate_tape(upsampled)
+        elif self.saturation_type == SaturationType.TUBE:
+            saturated = self._saturate_tube(upsampled)
+        elif self.saturation_type == SaturationType.TRANSISTOR:
+            saturated = self._saturate_transistor(upsampled)
+        elif self.saturation_type == SaturationType.SOFT_CLIP:
+            saturated = self._saturate_soft_clip(upsampled)
+        elif self.saturation_type == SaturationType.HARD_CLIP:
+            saturated = self._saturate_hard_clip(upsampled)
+        else:
+            saturated = upsampled
+
+        # Downsample
+        processed = self._downsample(saturated, original_len)
+
+        # Mix dry/wet
+        output = (1 - self.mix) * audio + self.mix * processed
+
+        # Apply output gain
+        return output * self.output_gain
+
+    def process_stereo(self, audio: StereoBuffer) -> StereoBuffer:
+        """Process stereo audio with saturation."""
+        return np.array([
+            self.process_mono(audio[0]),
+            self.process_mono(audio[1]),
+        ])
+
+
+class TransientShaper:
+    """
+    Professional transient shaper for punch and dynamics control.
+
+    Uses envelope follower to separate attack and sustain portions,
+    allowing independent control of each.
+
+    Features:
+    - Attack enhancement/reduction
+    - Sustain enhancement/reduction
+    - Adjustable detection sensitivity
+    - Lookahead for transparent processing
+    """
+
+    def __init__(
+        self,
+        sample_rate: float,
+        attack: float = 0.0,  # -100 to +100, attack boost/cut in %
+        sustain: float = 0.0,  # -100 to +100, sustain boost/cut in %
+        attack_time_ms: float = 5.0,  # Attack detection time
+        release_time_ms: float = 50.0,  # Release detection time
+        sensitivity: float = 1.0,  # Detection sensitivity
+        lookahead_ms: float = 2.0,  # Lookahead for transparent attack shaping
+    ):
+        self.sample_rate = sample_rate
+        self.attack_amount = attack / 100.0  # Convert to -1 to +1
+        self.sustain_amount = sustain / 100.0
+        self.sensitivity = np.clip(sensitivity, 0.1, 3.0)
+
+        # Calculate time constants for envelope followers
+        self.attack_coeff = math.exp(-1.0 / (attack_time_ms * sample_rate / 1000))
+        self.release_coeff = math.exp(-1.0 / (release_time_ms * sample_rate / 1000))
+
+        # Faster envelope for transient detection
+        self.fast_attack_coeff = math.exp(-1.0 / (0.5 * sample_rate / 1000))  # 0.5ms
+        self.fast_release_coeff = math.exp(-1.0 / (10.0 * sample_rate / 1000))  # 10ms
+
+        # Lookahead
+        self.lookahead_samples = int(lookahead_ms * sample_rate / 1000)
+        self.lookahead_buffer = np.zeros((2, self.lookahead_samples))
+        self.buffer_pos = 0
+
+        # Envelope states
+        self.slow_env = 0.0
+        self.fast_env = 0.0
+
+    def _update_envelope(self, sample_abs: float) -> tuple[float, float]:
+        """Update slow and fast envelopes, return (slow, fast)."""
+        # Fast envelope (for transient detection)
+        if sample_abs > self.fast_env:
+            self.fast_env = (
+                self.fast_attack_coeff * self.fast_env
+                + (1 - self.fast_attack_coeff) * sample_abs
+            )
+        else:
+            self.fast_env = (
+                self.fast_release_coeff * self.fast_env
+                + (1 - self.fast_release_coeff) * sample_abs
+            )
+
+        # Slow envelope (for sustain detection)
+        if sample_abs > self.slow_env:
+            self.slow_env = (
+                self.attack_coeff * self.slow_env
+                + (1 - self.attack_coeff) * sample_abs
+            )
+        else:
+            self.slow_env = (
+                self.release_coeff * self.slow_env
+                + (1 - self.release_coeff) * sample_abs
+            )
+
+        return self.slow_env, self.fast_env
+
+    def _calculate_gain(self, slow_env: float, fast_env: float) -> float:
+        """Calculate gain modification based on envelope difference."""
+        # Transient detection: difference between fast and slow envelopes
+        # When fast >> slow: we're in attack phase
+        # When fast ≈ slow: we're in sustain phase
+
+        if slow_env < 1e-10:
+            return 1.0
+
+        # Transient ratio: how much faster envelope exceeds slower
+        transient_ratio = (fast_env / max(slow_env, 1e-10)) - 1.0
+        transient_ratio = max(0.0, transient_ratio) * self.sensitivity
+
+        # Sustain ratio: how close envelopes are (inverse of transient)
+        sustain_ratio = 1.0 - min(transient_ratio, 1.0)
+
+        # Calculate gain modification
+        # Attack boost: apply positive gain when transient_ratio is high
+        # Sustain boost: apply positive gain when sustain_ratio is high
+        attack_gain = 1.0 + (self.attack_amount * transient_ratio * 2.0)
+        sustain_gain = 1.0 + (self.sustain_amount * sustain_ratio)
+
+        # Combine gains
+        total_gain = attack_gain * sustain_gain
+
+        # Soft limit extreme gains
+        total_gain = np.clip(total_gain, 0.1, 4.0)
+
+        return total_gain
+
+    def process_stereo(self, audio: StereoBuffer) -> StereoBuffer:
+        """Process stereo audio with transient shaping."""
+        output = np.zeros_like(audio)
+
+        for i in range(audio.shape[1]):
+            # Get max of both channels for linked detection
+            sample_abs = max(abs(audio[0, i]), abs(audio[1, i]))
+
+            # Store in lookahead buffer
+            delayed_l = self.lookahead_buffer[0, self.buffer_pos]
+            delayed_r = self.lookahead_buffer[1, self.buffer_pos]
+            self.lookahead_buffer[0, self.buffer_pos] = audio[0, i]
+            self.lookahead_buffer[1, self.buffer_pos] = audio[1, i]
+            self.buffer_pos = (self.buffer_pos + 1) % self.lookahead_samples
+
+            # Update envelopes
+            slow_env, fast_env = self._update_envelope(sample_abs)
+
+            # Calculate gain
+            gain = self._calculate_gain(slow_env, fast_env)
+
+            # Apply to delayed signal
+            output[0, i] = delayed_l * gain
+            output[1, i] = delayed_r * gain
+
+        return output
+
+    def reset(self) -> None:
+        """Reset shaper state."""
+        self.lookahead_buffer.fill(0)
+        self.buffer_pos = 0
+        self.slow_env = 0.0
+        self.fast_env = 0.0
+
+
+class SubBassEnhancer:
+    """
+    Sub-bass enhancement for adding low-end weight.
+
+    Uses harmonic synthesis to generate sub-harmonics
+    that reinforce the fundamental.
+
+    Ideal for:
+    - Trap 808s
+    - House/Techno kicks
+    - Hip-hop bass
+    """
+
+    def __init__(
+        self,
+        sample_rate: float,
+        frequency: float = 60.0,  # Target sub frequency
+        amount: float = 0.5,  # 0-1 enhancement amount
+        drive: float = 0.3,  # Harmonic drive
+    ):
+        self.sample_rate = sample_rate
+        self.frequency = frequency
+        self.amount = np.clip(amount, 0.0, 1.0)
+        self.drive = np.clip(drive, 0.0, 1.0)
+
+        # Low-pass filter for isolating bass
+        self.bass_filter = BiquadFilter(
+            FilterType.LOWPASS,
+            frequency=120.0,
+            sample_rate=sample_rate,
+            q=0.707,
+        )
+
+        # Sub filter for the generated harmonics
+        self.sub_filter = BiquadFilter(
+            FilterType.LOWPASS,
+            frequency=frequency,
+            sample_rate=sample_rate,
+            q=0.5,
+        )
+
+        # Envelope follower for dynamics
+        self.envelope = 0.0
+        self.attack_coeff = math.exp(-1.0 / (5.0 * sample_rate / 1000))
+        self.release_coeff = math.exp(-1.0 / (50.0 * sample_rate / 1000))
+
+    def process_stereo(self, audio: StereoBuffer) -> StereoBuffer:
+        """Process stereo audio with sub-bass enhancement."""
+        # Sum to mono for bass processing
+        mono = (audio[0] + audio[1]) / 2
+
+        # Isolate bass frequencies
+        bass = self.bass_filter.process_mono(mono)
+
+        # Generate sub-harmonic through half-wave rectification
+        # and filtering (creates octave-down content)
+        rectified = np.maximum(bass, 0) * 2
+
+        # Add some drive/saturation for harmonics
+        if self.drive > 0:
+            rectified = np.tanh(rectified * (1 + self.drive * 3))
+
+        # Filter to sub frequencies
+        sub = self.sub_filter.process_mono(rectified)
+
+        # Scale by amount
+        sub = sub * self.amount
+
+        # Add to both channels
+        output = audio.copy()
+        output[0] += sub
+        output[1] += sub
+
+        return output
+
+    def reset(self) -> None:
+        """Reset enhancer state."""
+        self.bass_filter.reset()
+        self.sub_filter.reset()
+        self.envelope = 0.0
+
+
+class ExciterEnhancer:
+    """
+    High-frequency exciter for adding air and presence.
+
+    Uses harmonic generation to add brightness without
+    simple EQ boost, which can sound harsh.
+    """
+
+    def __init__(
+        self,
+        sample_rate: float,
+        frequency: float = 3000.0,  # Exciter frequency
+        amount: float = 0.3,  # 0-1 enhancement amount
+        harmonics: float = 0.5,  # Harmonic content
+    ):
+        self.sample_rate = sample_rate
+        self.frequency = frequency
+        self.amount = np.clip(amount, 0.0, 1.0)
+        self.harmonics = np.clip(harmonics, 0.0, 1.0)
+
+        # High-pass filter for isolating highs
+        self.hp_filter = BiquadFilter(
+            FilterType.HIGHPASS,
+            frequency=frequency,
+            sample_rate=sample_rate,
+            q=0.707,
+        )
+
+        # Output filter to tame harshness
+        self.output_filter = BiquadFilter(
+            FilterType.LOWPASS,
+            frequency=min(16000.0, sample_rate / 2.5),
+            sample_rate=sample_rate,
+            q=0.707,
+        )
+
+    def process_stereo(self, audio: StereoBuffer) -> StereoBuffer:
+        """Process stereo audio with exciter enhancement."""
+        output = audio.copy()
+
+        for ch in range(2):
+            # Isolate high frequencies
+            highs = self.hp_filter.process_mono(audio[ch])
+            self.hp_filter.reset()  # Reset for next channel
+
+            # Generate harmonics through soft saturation
+            excited = np.tanh(highs * (1 + self.harmonics * 4)) * 0.5
+
+            # Filter output
+            excited = self.output_filter.process_mono(excited)
+            self.output_filter.reset()
+
+            # Mix in
+            output[ch] += excited * self.amount
+
+        return output
+
+    def reset(self) -> None:
+        """Reset enhancer state."""
+        self.hp_filter.reset()
+        self.output_filter.reset()

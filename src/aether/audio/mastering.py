@@ -36,14 +36,19 @@ from typing import Any
 import numpy as np
 
 from aether.audio.dsp import (
+    AnalogSaturator,
     BiquadFilter,
     Compressor,
+    ExciterEnhancer,
     FilterType,
     LoudnessMeasurement,
     LoudnessMeter,
     ParametricEQ,
+    SaturationType,
     StereoBuffer,
     StereoProcessor,
+    SubBassEnhancer,
+    TransientShaper,
     TruePeakLimiter,
     db_to_linear,
     linear_to_db,
@@ -428,8 +433,12 @@ class MasteringChain:
 
         # Processing components
         self.input_eq: ParametricEQ | None = None
+        self.saturator: AnalogSaturator | None = None
+        self.transient_shaper: TransientShaper | None = None
         self.multiband: MultibandCompressor | None = None
         self.exciter: HarmonicExciter | None = None
+        self.sub_enhancer: SubBassEnhancer | None = None
+        self.high_exciter: ExciterEnhancer | None = None
         self.stereo_enhancer: StereoEnhancer | None = None
         self.limiter: TruePeakLimiter | None = None
 
@@ -521,6 +530,64 @@ class MasteringChain:
         """Configure dithering for bit depth reduction."""
         self.ditherer = Ditherer(target_bits, noise_shaping)
 
+    def configure_saturation(
+        self,
+        saturation_type: SaturationType = SaturationType.TAPE,
+        drive: float = 0.3,
+        mix: float = 0.5,
+        output_gain_db: float = 0.0,
+    ) -> None:
+        """Configure analog saturation for warmth and glue."""
+        self.saturator = AnalogSaturator(
+            self.sample_rate,
+            saturation_type=saturation_type,
+            drive=drive,
+            mix=mix,
+            output_gain_db=output_gain_db,
+        )
+
+    def configure_transient_shaper(
+        self,
+        attack: float = 0.0,
+        sustain: float = 0.0,
+        sensitivity: float = 1.0,
+    ) -> None:
+        """Configure transient shaping for punch control."""
+        self.transient_shaper = TransientShaper(
+            self.sample_rate,
+            attack=attack,
+            sustain=sustain,
+            sensitivity=sensitivity,
+        )
+
+    def configure_sub_bass(
+        self,
+        frequency: float = 60.0,
+        amount: float = 0.3,
+        drive: float = 0.2,
+    ) -> None:
+        """Configure sub-bass enhancement."""
+        self.sub_enhancer = SubBassEnhancer(
+            self.sample_rate,
+            frequency=frequency,
+            amount=amount,
+            drive=drive,
+        )
+
+    def configure_high_exciter(
+        self,
+        frequency: float = 3000.0,
+        amount: float = 0.2,
+        harmonics: float = 0.4,
+    ) -> None:
+        """Configure high-frequency exciter for air and presence."""
+        self.high_exciter = ExciterEnhancer(
+            self.sample_rate,
+            frequency=frequency,
+            amount=amount,
+            harmonics=harmonics,
+        )
+
     def process(self, audio: StereoBuffer) -> MasteringResult:
         """
         Process audio through the complete mastering chain.
@@ -548,20 +615,40 @@ class MasteringChain:
         if self.input_eq is not None:
             processed = self.input_eq.process(processed)
 
-        # Stage 2: Multiband compression
+        # Stage 2: Analog saturation (for warmth and glue)
+        if self.saturator is not None:
+            processed = self.saturator.process_stereo(processed)
+            logger.debug("Applied analog saturation")
+
+        # Stage 3: Transient shaping (for punch)
+        if self.transient_shaper is not None:
+            processed = self.transient_shaper.process_stereo(processed)
+            logger.debug("Applied transient shaping")
+
+        # Stage 4: Multiband compression
         if self.multiband is not None:
             processed, band_gr = self.multiband.process(processed)
             logger.debug(f"Multiband GR: {[f'{gr:.1f} dB' for gr in band_gr]}")
 
-        # Stage 3: Stereo enhancement
+        # Stage 5: Sub-bass enhancement
+        if self.sub_enhancer is not None:
+            processed = self.sub_enhancer.process_stereo(processed)
+            logger.debug("Applied sub-bass enhancement")
+
+        # Stage 6: High-frequency exciter
+        if self.high_exciter is not None:
+            processed = self.high_exciter.process_stereo(processed)
+            logger.debug("Applied high-frequency exciter")
+
+        # Stage 7: Stereo enhancement
         if self.stereo_enhancer is not None:
             processed = self.stereo_enhancer.process(processed)
 
-        # Stage 4: Harmonic exciter
+        # Stage 8: Harmonic exciter (legacy)
         if self.exciter is not None:
             processed = self.exciter.process(processed)
 
-        # Stage 5: Normalize to target loudness (pre-limiter)
+        # Stage 9: Normalize to target loudness (pre-limiter)
         # Calculate how much gain we need
         self.meter.reset()
         pre_limit_measurement = self.meter.measure(processed)
@@ -748,7 +835,68 @@ def create_genre_master(
     genre_lower = genre_id.lower()
 
     # Genre-specific multiband settings
-    if "hip-hop" in genre_lower or "boom-bap" in genre_lower:
+    if "trap" in genre_lower:
+        # Trap: heavy 808s, crisp hats, punchy
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 50,
+                    "threshold_db": -12.0,
+                    "ratio": 4.0,
+                    "attack_ms": 50.0,
+                    "release_ms": 500.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 50,
+                    "crossover_high_hz": 150,
+                    "threshold_db": -14.0,
+                    "ratio": 3.0,
+                    "attack_ms": 30.0,
+                    "release_ms": 300.0,
+                },
+                {
+                    "band_name": "low_mid",
+                    "crossover_low_hz": 150,
+                    "crossover_high_hz": 600,
+                    "threshold_db": -20.0,
+                    "ratio": 2.0,
+                    "attack_ms": 20.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 600,
+                    "crossover_high_hz": 4000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.8,
+                    "attack_ms": 15.0,
+                    "release_ms": 100.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 4000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -20.0,
+                    "ratio": 1.5,
+                    "attack_ms": 10.0,
+                    "release_ms": 80.0,
+                },
+            ]
+        )
+        # Heavy sub-bass enhancement for 808s
+        chain.configure_sub_bass(frequency=50.0, amount=0.5, drive=0.4)
+        # Transient shaping for punchy hats and snares
+        chain.configure_transient_shaper(attack=30, sustain=-10, sensitivity=1.2)
+        # Subtle tape saturation for warmth
+        chain.configure_saturation(SaturationType.TAPE, drive=0.25, mix=0.4)
+        # Crisp highs
+        chain.configure_high_exciter(frequency=4000.0, amount=0.25, harmonics=0.5)
+        chain.configure_stereo(width=1.1, bass_mono_freq=120.0)
+
+    elif "hip-hop" in genre_lower or "boom-bap" in genre_lower:
         # Hip-hop: strong low end, controlled mids
         chain.configure_multiband(
             [
@@ -800,6 +948,108 @@ def create_genre_master(
             ]
         )
         chain.configure_stereo(width=1.0, bass_mono_freq=150.0)
+        # Warm tape saturation for that classic hip-hop sound
+        chain.configure_saturation(SaturationType.TAPE, drive=0.35, mix=0.5)
+        # Sub-bass punch
+        chain.configure_sub_bass(frequency=60.0, amount=0.4, drive=0.3)
+
+    elif "house" in genre_lower:
+        # House: pumping bass, clean mids, sparkling highs
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 80,
+                    "threshold_db": -14.0,
+                    "ratio": 3.0,
+                    "attack_ms": 25.0,
+                    "release_ms": 200.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 80,
+                    "crossover_high_hz": 250,
+                    "threshold_db": -16.0,
+                    "ratio": 2.5,
+                    "attack_ms": 20.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 250,
+                    "crossover_high_hz": 3000,
+                    "threshold_db": -20.0,
+                    "ratio": 1.8,
+                    "attack_ms": 15.0,
+                    "release_ms": 100.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 3000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -22.0,
+                    "ratio": 1.5,
+                    "attack_ms": 10.0,
+                    "release_ms": 80.0,
+                },
+            ]
+        )
+        chain.configure_stereo(width=1.15, bass_mono_freq=100.0, side_high_boost_db=1.0)
+        # Punch for the kick
+        chain.configure_transient_shaper(attack=20, sustain=0, sensitivity=1.0)
+        # Air and sparkle
+        chain.configure_high_exciter(frequency=5000.0, amount=0.2, harmonics=0.4)
+        # Tube warmth for that analog feel
+        chain.configure_saturation(SaturationType.TUBE, drive=0.2, mix=0.3)
+
+    elif "techno" in genre_lower:
+        # Techno: hard-hitting, industrial, relentless
+        chain.configure_multiband(
+            [
+                {
+                    "band_name": "sub",
+                    "crossover_low_hz": 20,
+                    "crossover_high_hz": 80,
+                    "threshold_db": -12.0,
+                    "ratio": 4.0,
+                    "attack_ms": 15.0,
+                    "release_ms": 150.0,
+                },
+                {
+                    "band_name": "bass",
+                    "crossover_low_hz": 80,
+                    "crossover_high_hz": 300,
+                    "threshold_db": -14.0,
+                    "ratio": 3.0,
+                    "attack_ms": 10.0,
+                    "release_ms": 100.0,
+                },
+                {
+                    "band_name": "mid",
+                    "crossover_low_hz": 300,
+                    "crossover_high_hz": 4000,
+                    "threshold_db": -18.0,
+                    "ratio": 2.0,
+                    "attack_ms": 10.0,
+                    "release_ms": 80.0,
+                },
+                {
+                    "band_name": "high",
+                    "crossover_low_hz": 4000,
+                    "crossover_high_hz": 20000,
+                    "threshold_db": -20.0,
+                    "ratio": 1.5,
+                    "attack_ms": 8.0,
+                    "release_ms": 60.0,
+                },
+            ]
+        )
+        chain.configure_stereo(width=1.0, bass_mono_freq=120.0)
+        # Aggressive transients
+        chain.configure_transient_shaper(attack=40, sustain=-20, sensitivity=1.5)
+        # Transistor distortion for that industrial edge
+        chain.configure_saturation(SaturationType.TRANSISTOR, drive=0.4, mix=0.4)
 
     elif "edm" in genre_lower or "electronic" in genre_lower:
         # EDM: punchy, wide, loud
